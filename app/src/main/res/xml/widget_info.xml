@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="40dp"
+    android:minHeight="40dp"
+    android:targetCellWidth="1"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_layout"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_description" />
+<!--
+    updatePeriodMillis="0" — we never need periodic updates, only tap-driven.
+    Android enforces a minimum of 30 min anyway so this saves battery.
+-->
