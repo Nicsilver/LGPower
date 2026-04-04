@@ -3,5 +3,7 @@
     <string name="app_name">LG Power</string>
     <string name="widget_label">LG C4 Power</string>
     <string name="widget_description">Tap to toggle LG C4 via IR</string>
+    <string name="screen_off_widget_label">LG C4 Screen Off</string>
+    <string name="screen_off_widget_description">Tap to turn off LG C4 screen via Wi-Fi</string>
     <color name="power_icon">#FFFFFFFF</color>
 </resources>
