@@ -48,7 +48,7 @@ class LGPowerWidget : AppWidgetProvider() {
          */
         val LG_POWER_PATTERN: IntArray = buildNecPattern(0x20DF10EF)
 
-        private fun buildNecPattern(code: Long): IntArray {
+        fun buildNecPattern(code: Long): IntArray {
             val buf = mutableListOf<Int>()
 
             // Leader

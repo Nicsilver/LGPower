@@ -18,11 +18,11 @@
             android:exported="false"
             android:theme="@android:style/Theme.NoDisplay" />
 
-        <!-- Screen off widget trampoline -->
+        <!-- Screen off widget trampoline — uses Translucent so it can survive the network call -->
         <activity
             android:name=".ScreenOffActivity"
             android:exported="false"
-            android:theme="@android:style/Theme.NoDisplay" />
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <!-- IR power widget -->
         <receiver
@@ -36,6 +36,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_info" />
+        </receiver>
+
+        <!-- OK/Enter widget -->
+        <receiver
+            android:name=".OkButtonWidget"
+            android:exported="true"
+            android:label="@string/ok_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ok_widget_info" />
         </receiver>
 
         <!-- Screen off widget -->
