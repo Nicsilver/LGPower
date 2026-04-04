@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LG Power</string>
+    <string name="widget_label">LG C4 Power</string>
+    <string name="widget_description">Tap to toggle LG C4 via IR</string>
+    <color name="power_icon">#FFFFFFFF</color>
+</resources>

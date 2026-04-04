@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Required for IR blaster -->
+    <uses-permission android:name="android.permission.TRANSMIT_IR" />
+
+    <!-- Declare IR hardware as optional so it still installs, but we check at runtime -->
+    <uses-feature android:name="android.hardware.consumerir" android:required="false" />
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:supportsRtl="true">
+
+        <!-- Transparent trampoline Activity — bypasses OnePlus HANS broadcast blocking -->
+        <activity
+            android:name=".IrActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.NoDisplay" />
+
+        <!-- Widget receiver — this IS the app, no launcher activity needed -->
+        <receiver
+            android:name=".LGPowerWidget"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- Custom action so the widget can trigger itself on tap -->
+                <action android:name="com.nic.lgpower.SEND_IR" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info" />
+        </receiver>
+
+    </application>
+</manifest>
