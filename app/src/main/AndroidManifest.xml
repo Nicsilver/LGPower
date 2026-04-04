@@ -31,7 +31,6 @@
             android:label="@string/widget_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.nic.lgpower.SEND_IR" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
