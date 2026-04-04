@@ -7,8 +7,13 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 class WebOsClient(private val context: Context) {
 
@@ -16,7 +21,7 @@ class WebOsClient(private val context: Context) {
 
     companion object {
         const val TV_IP = "192.168.1.157"
-        const val TV_PORT = 3000
+        const val TV_PORT = 3001  // LG WebOS secure WebSocket port
     }
 
     sealed class Result {
@@ -25,17 +30,30 @@ class WebOsClient(private val context: Context) {
         data class Error(val message: String) : Result()
     }
 
+    private fun buildClient(): OkHttpClient {
+        // Trust all certs — the TV uses a self-signed certificate on the local network
+        val trustAll = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        }
+        val ssl = SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf<TrustManager>(trustAll), SecureRandom())
+        }
+        return OkHttpClient.Builder()
+            .sslSocketFactory(ssl.socketFactory, trustAll)
+            .hostnameVerifier { _, _ -> true }
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .build()
+    }
+
     fun turnOffScreen(): Result {
         val latch = CountDownLatch(1)
         var result: Result = Result.Error("Timeout — is the TV on?")
         val savedKey = prefs.getString("client_key", null)
 
-        val client = OkHttpClient.Builder()
-            .connectTimeout(8, TimeUnit.SECONDS)
-            .build()
-
         val request = Request.Builder()
-            .url("ws://$TV_IP:$TV_PORT")
+            .url("wss://$TV_IP:$TV_PORT")
             .build()
 
         val listener = object : WebSocketListener() {
@@ -78,7 +96,7 @@ class WebOsClient(private val context: Context) {
                     "response" -> {
                         when (json.optString("id")) {
                             "reg_0" -> {
-                                // TV is showing the pairing prompt — wait for user to accept
+                                // TV is showing the pairing prompt — keep waiting for "registered"
                                 result = Result.NeedsPairing
                             }
                             "cmd_0" -> {
@@ -108,6 +126,7 @@ class WebOsClient(private val context: Context) {
             }
         }
 
+        val client = buildClient()
         client.newWebSocket(request, listener)
         latch.await(10, TimeUnit.SECONDS)
         client.dispatcher.executorService.shutdown()
