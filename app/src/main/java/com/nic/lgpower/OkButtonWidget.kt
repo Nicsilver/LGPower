@@ -19,14 +19,16 @@ class OkButtonWidget : AppWidgetProvider() {
     }
 
     companion object {
-        // LG NEC OK/Enter button: address=0x04, command=0x22
-        val LG_OK_PATTERN: IntArray = LGPowerWidget.buildNecPattern(0x20DF44BBL)
+        // LG NEC OK/Enter button: address=0x04, command=0x44
+        // Stored as bit-reversed bytes: 0x20 DF 22 DD
+        val LG_OK_PATTERN: IntArray = LGPowerWidget.buildNecPattern(0x20DF22DDL)
 
         fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, widgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.widget_ok_layout)
             val intent = Intent(context, IrActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 putExtra(IrActivity.EXTRA_PATTERN, LG_OK_PATTERN)
+
             }
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
