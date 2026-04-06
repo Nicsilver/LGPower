@@ -6,6 +6,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import org.json.JSONArray
 import org.json.JSONObject
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -21,7 +22,7 @@ class WebOsClient(private val context: Context) {
 
     companion object {
         const val TV_IP = "192.168.1.157"
-        const val TV_PORT = 3001  // LG WebOS secure WebSocket port
+        const val TV_PORT = 3001
     }
 
     sealed class Result {
@@ -31,7 +32,6 @@ class WebOsClient(private val context: Context) {
     }
 
     private fun buildClient(): OkHttpClient {
-        // Trust all certs — the TV uses a self-signed certificate on the local network
         val trustAll = object : X509TrustManager {
             override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
             override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
@@ -47,35 +47,40 @@ class WebOsClient(private val context: Context) {
             .build()
     }
 
-    fun turnOffScreen(): Result {
-        val latch = CountDownLatch(1)
-        var result: Result = Result.Error("Timeout — is the TV on?")
-        val savedKey = prefs.getString("client_key", null)
+    private fun buildRegistration(clientKey: String?) = JSONObject().apply {
+        put("id", "reg_0")
+        put("type", "register")
+        put("payload", JSONObject().apply {
+            put("forcePairing", false)
+            put("pairingType", "PROMPT")
+            if (clientKey != null) put("client-key", clientKey)
+            put("manifest", JSONObject().apply {
+                put("manifestVersion", 1)
+                put("permissions", JSONArray().apply {
+                    put("CONTROL_POWER")
+                    put("CONTROL_DISPLAY")
+                    put("CONTROL_TV_SCREEN")
+                    put("CONTROL_INPUT_TV")
+                    put("CONTROL_MOUSE_AND_KEYBOARD")
+                    put("LAUNCH")
+                })
+            })
+        })
+    }.toString()
 
-        val request = Request.Builder()
-            .url("wss://$TV_IP:$TV_PORT")
-            .build()
+    private fun execute(
+        uri: String,
+        payload: JSONObject = JSONObject(),
+        timeoutSecs: Long = 6
+    ): Result {
+        val latch = CountDownLatch(1)
+        var result: Result = Result.Error("Timeout — is the TV on and reachable?")
+        val savedKey = prefs.getString("client_key", null)
+        val request = Request.Builder().url("wss://$TV_IP:$TV_PORT").build()
 
         val listener = object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
-                val payload = JSONObject().apply {
-                    put("forcePairing", false)
-                    put("pairingType", "PROMPT")
-                    if (savedKey != null) put("client-key", savedKey)
-                    put("manifest", JSONObject().apply {
-                        put("manifestVersion", 1)
-                        put("permissions", org.json.JSONArray().apply {
-                            put("CONTROL_POWER")
-                            put("CONTROL_DISPLAY")
-                            put("CONTROL_TV_SCREEN")
-                        })
-                    })
-                }
-                ws.send(JSONObject().apply {
-                    put("id", "reg_0")
-                    put("type", "register")
-                    put("payload", payload)
-                }.toString())
+                ws.send(buildRegistration(savedKey))
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
@@ -89,21 +94,16 @@ class WebOsClient(private val context: Context) {
                         ws.send(JSONObject().apply {
                             put("id", "cmd_0")
                             put("type", "request")
-                            put("uri", "ssap://com.webos.service.tvpower/power/turnOffScreen")
-                            put("payload", JSONObject())
+                            put("uri", uri)
+                            put("payload", payload)
                         }.toString())
                     }
-                    "response" -> {
-                        when (json.optString("id")) {
-                            "reg_0" -> {
-                                // TV is showing the pairing prompt — keep waiting for "registered"
-                                result = Result.NeedsPairing
-                            }
-                            "cmd_0" -> {
-                                result = Result.Success
-                                ws.close(1000, null)
-                                latch.countDown()
-                            }
+                    "response" -> when (json.optString("id")) {
+                        "reg_0" -> result = Result.NeedsPairing
+                        "cmd_0" -> {
+                            result = Result.Success
+                            ws.close(1000, null)
+                            latch.countDown()
                         }
                     }
                     "error" -> {
@@ -128,9 +128,114 @@ class WebOsClient(private val context: Context) {
 
         val client = buildClient()
         client.newWebSocket(request, listener)
-        latch.await(10, TimeUnit.SECONDS)
+        latch.await(timeoutSecs, TimeUnit.SECONDS)
         client.dispatcher.executorService.shutdown()
-
         return result
     }
+
+    fun turnOffScreen() = execute("ssap://com.webos.service.tvpower/power/turnOffScreen")
+
+    // Navigation keys use the pointer input socket — a secondary WebSocket the TV provides
+    // specifically for button/pointer events. sendRemoteKey via SSAP is not supported on WebOS 7+.
+    fun pressKey(keyCode: String): Result {
+        val latch = CountDownLatch(1)
+        var result: Result = Result.Error("Timeout — is the TV on and reachable?")
+        val savedKey = prefs.getString("client_key", null)
+        val request = Request.Builder().url("wss://$TV_IP:$TV_PORT").build()
+        val client = buildClient()
+
+        val listener = object : WebSocketListener() {
+            override fun onOpen(ws: WebSocket, response: Response) {
+                ws.send(buildRegistration(savedKey))
+            }
+
+            override fun onMessage(ws: WebSocket, text: String) {
+                val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                when (json.optString("type")) {
+                    "registered" -> {
+                        val key = json.optJSONObject("payload")?.optString("client-key")
+                        if (!key.isNullOrEmpty()) {
+                            prefs.edit().putString("client_key", key).apply()
+                        }
+                        // Request the pointer input socket URL
+                        ws.send(JSONObject().apply {
+                            put("id", "ptr_req")
+                            put("type", "request")
+                            put("uri", "ssap://com.webos.service.networkinput/getPointerInputSocket")
+                            put("payload", JSONObject())
+                        }.toString())
+                    }
+                    "response" -> when (json.optString("id")) {
+                        "reg_0" -> {
+                            result = Result.NeedsPairing
+                            ws.close(1000, null)
+                            latch.countDown()
+                        }
+                        "ptr_req" -> {
+                            val socketPath = json.optJSONObject("payload")?.optString("socketPath")
+                            ws.close(1000, null)
+                            if (socketPath.isNullOrEmpty()) {
+                                result = Result.Error("TV did not provide a pointer socket")
+                                latch.countDown()
+                                return
+                            }
+                            // Connect to the pointer socket and send the key event
+                            val ptrRequest = Request.Builder().url(socketPath).build()
+                            client.newWebSocket(ptrRequest, object : WebSocketListener() {
+                                override fun onOpen(pws: WebSocket, response: Response) {
+                                    pws.send("type:button\nname:$keyCode\n\n")
+                                    Thread.sleep(200) // let TV process before closing
+                                    pws.close(1000, null)
+                                    result = Result.Success
+                                    latch.countDown()
+                                }
+                                override fun onFailure(pws: WebSocket, t: Throwable, response: Response?) {
+                                    result = Result.Error("Ptr: ${t.message}")
+                                    latch.countDown()
+                                }
+                            })
+                        }
+                    }
+                    "error" -> {
+                        result = Result.Error(
+                            json.optJSONObject("payload")?.optString("errorText") ?: "Unknown error"
+                        )
+                        ws.close(1000, null)
+                        latch.countDown()
+                    }
+                }
+            }
+
+            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                result = Result.Error(t.message ?: "Connection failed")
+                latch.countDown()
+            }
+
+            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                // Do NOT count down here: the pointer socket onOpen hasn't fired yet.
+                // The latch is released exclusively by the pointer socket callbacks (onOpen/onFailure)
+                // or by the error/NeedsPairing branches above.
+            }
+        }
+
+        client.newWebSocket(request, listener)
+        latch.await(10, TimeUnit.SECONDS)
+        client.dispatcher.executorService.shutdown()
+        return result
+    }
+
+    fun pressEnter() = pressKey("ENTER")
+    fun pressUp() = pressKey("UP")
+    fun pressDown() = pressKey("DOWN")
+    fun pressLeft() = pressKey("LEFT")
+    fun pressRight() = pressKey("RIGHT")
+
+    fun launchApp(appId: String) = execute(
+        "ssap://system.launcher/launch",
+        JSONObject().put("id", appId)
+    )
+
+    fun launchYouTube() = launchApp("youtube.leanback.v4")
+    fun launchStremio() = launchApp("io.strem.tv")
+
 }
