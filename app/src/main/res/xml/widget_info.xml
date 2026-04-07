@@ -7,6 +7,7 @@
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/widget_layout"
     android:widgetCategory="home_screen"
+    android:previewImage="@drawable/widget_preview_power"
     android:description="@string/widget_description" />
 <!--
     updatePeriodMillis="0" — we never need periodic updates, only tap-driven.

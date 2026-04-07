@@ -7,4 +7,5 @@
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/widget_screen_off_layout"
     android:widgetCategory="home_screen"
+    android:previewImage="@drawable/widget_preview_screen_off"
     android:description="@string/screen_off_widget_description" />
