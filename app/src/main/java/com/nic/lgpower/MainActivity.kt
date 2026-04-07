@@ -29,6 +29,8 @@ class MainActivity : AppCompatActivity() {
     private val moveThresholdPx = 12f
     private var lockAnimator: ValueAnimator? = null
     private var exitTouchpadFn: (() -> Unit)? = null
+    private var moveAccumulator = 0f
+    private val hapticMovePx = 32f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,12 +104,13 @@ class MainActivity : AppCompatActivity() {
         exitTouchpadFn = ::exitTouchpad
 
         // Overlay touch listener — active only in locked mode for ongoing movement
-        touchpadOverlay.setOnTouchListener { _, event ->
+        touchpadOverlay.setOnTouchListener { v, event ->
             if (!isLocked) return@setOnTouchListener false
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     lastTouchX = event.rawX
                     lastTouchY = event.rawY
+                    moveAccumulator = 0f
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -115,6 +118,11 @@ class MainActivity : AppCompatActivity() {
                     val dy = event.rawY - lastTouchY
                     lastTouchX = event.rawX
                     lastTouchY = event.rawY
+                    moveAccumulator += Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+                    if (moveAccumulator >= hapticMovePx) {
+                        v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        moveAccumulator = 0f
+                    }
                     pointerSession?.move(dx, dy)
                     true
                 }
@@ -138,6 +146,7 @@ class MainActivity : AppCompatActivity() {
                     lastTouchY = event.rawY
                     hasMoved = false
                     isLocked = false
+                    moveAccumulator = 0f
                     touchpadOverlay.visibility = View.VISIBLE
                     pointerSession = client.openPointerSession()
                     // Grow the border around the screen over 1.5s
@@ -172,6 +181,11 @@ class MainActivity : AppCompatActivity() {
                     }
                     lastTouchX = event.rawX
                     lastTouchY = event.rawY
+                    moveAccumulator += Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+                    if (moveAccumulator >= hapticMovePx) {
+                        v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        moveAccumulator = 0f
+                    }
                     pointerSession?.move(dx, dy)
                     true
                 }
