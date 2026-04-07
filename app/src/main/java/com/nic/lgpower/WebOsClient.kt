@@ -240,6 +240,70 @@ class WebOsClient(private val context: Context) {
     fun launchYouTube() = launchApp("youtube.leanback.v4")
     fun launchStremio() = launchApp("io.strem.tv")
 
+    /** Persistent pointer socket session for touchpad use. Call close() when done. */
+    inner class PointerSession {
+        private val httpClient = buildClient()
+        @Volatile private var pointerWs: WebSocket? = null
+
+        init {
+            val savedKey = prefs.getString("client_key", null)
+            httpClient.newWebSocket(
+                Request.Builder().url("wss://$TV_IP:$TV_PORT").build(),
+                object : WebSocketListener() {
+                    override fun onOpen(ws: WebSocket, response: Response) {
+                        ws.send(buildRegistration(savedKey))
+                    }
+                    override fun onMessage(ws: WebSocket, text: String) {
+                        val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                        when (json.optString("type")) {
+                            "registered" -> {
+                                val key = json.optJSONObject("payload")?.optString("client-key")
+                                if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                                ws.send(JSONObject().apply {
+                                    put("id", "ptr_req")
+                                    put("type", "request")
+                                    put("uri", "ssap://com.webos.service.networkinput/getPointerInputSocket")
+                                    put("payload", JSONObject())
+                                }.toString())
+                            }
+                            "response" -> if (json.optString("id") == "ptr_req") {
+                                val socketPath = json.optJSONObject("payload")?.optString("socketPath")
+                                ws.close(1000, null)
+                                if (!socketPath.isNullOrEmpty()) {
+                                    httpClient.newWebSocket(
+                                        Request.Builder().url(socketPath).build(),
+                                        object : WebSocketListener() {
+                                            override fun onOpen(pws: WebSocket, response: Response) {
+                                                pointerWs = pws
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                            "error" -> ws.close(1000, null)
+                        }
+                    }
+                    override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {}
+                }
+            )
+        }
+
+        fun move(dx: Float, dy: Float) {
+            pointerWs?.send("type:move\ndx:${dx.toInt()}\ndy:${dy.toInt()}\n\n")
+        }
+
+        fun click() {
+            pointerWs?.send("type:click\n\n")
+        }
+
+        fun close() {
+            pointerWs?.close(1000, null)
+            httpClient.dispatcher.executorService.shutdown()
+        }
+    }
+
+    fun openPointerSession() = PointerSession()
+
     fun volumeUp()     = pressKey("VOLUMEUP")
     fun volumeDown()   = pressKey("VOLUMEDOWN")
     fun muteToggle()   = pressKey("MUTE")

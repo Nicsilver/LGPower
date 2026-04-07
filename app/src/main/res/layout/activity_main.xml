@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+<ScrollView
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000"
@@ -92,7 +97,7 @@
                     android:layout_marginTop="5dp" />
             </LinearLayout>
 
-            <Space android:layout_width="52dp" android:layout_height="1dp" />
+            <Space android:layout_width="28dp" android:layout_height="1dp" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -113,6 +118,32 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Keyboard"
+                    android:textColor="#AAAACC"
+                    android:textSize="11sp"
+                    android:layout_marginTop="5dp" />
+            </LinearLayout>
+
+            <Space android:layout_width="28dp" android:layout_height="1dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/btn_touchpad"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:background="@drawable/bg_circle_dark"
+                    android:src="@drawable/ic_touchpad"
+                    android:scaleType="center"
+                    android:contentDescription="Touchpad" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Touchpad"
                     android:textColor="#AAAACC"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
@@ -349,3 +380,38 @@
 
     </LinearLayout>
 </ScrollView>
+
+<!-- Touchpad overlay — sits on top of everything, shown only during touchpad mode -->
+<FrameLayout
+    android:id="@+id/touchpad_overlay"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#EE000000"
+    android:visibility="gone">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="64dp"
+        android:text="Drag to move cursor"
+        android:textColor="#66FFFFFF"
+        android:textSize="16sp" />
+
+    <Button
+        android:id="@+id/btn_touchpad_click"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginStart="36dp"
+        android:layout_marginEnd="36dp"
+        android:layout_marginBottom="72dp"
+        android:background="@drawable/bg_squircle_dark"
+        android:text="Click"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+</FrameLayout>
+
+</FrameLayout>
