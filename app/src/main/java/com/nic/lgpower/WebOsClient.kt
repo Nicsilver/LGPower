@@ -62,6 +62,8 @@ class WebOsClient(private val context: Context) {
                     put("CONTROL_TV_SCREEN")
                     put("CONTROL_INPUT_TV")
                     put("CONTROL_MOUSE_AND_KEYBOARD")
+                    put("CONTROL_AUDIO")
+                    put("CONTROL_INPUT_TEXT")
                     put("LAUNCH")
                 })
             })
@@ -238,9 +240,12 @@ class WebOsClient(private val context: Context) {
     fun launchYouTube() = launchApp("youtube.leanback.v4")
     fun launchStremio() = launchApp("io.strem.tv")
 
-    fun volumeUp()   = execute("ssap://audio/volumeUp")
-    fun volumeDown() = execute("ssap://audio/volumeDown")
-    fun muteToggle() = pressKey("MUTE")
-    fun showKeyboard() = execute("ssap://com.webos.service.ime/showSoftKeyboard")
+    fun volumeUp()     = pressKey("VOLUMEUP")
+    fun volumeDown()   = pressKey("VOLUMEDOWN")
+    fun muteToggle()   = pressKey("MUTE")
+    fun sendText(text: String) = execute(
+        "ssap://com.webos.service.ime/insertText",
+        JSONObject().put("text", text).put("replace", 0)
+    )
 
 }
