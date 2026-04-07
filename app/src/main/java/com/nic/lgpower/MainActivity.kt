@@ -51,11 +51,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         // D-pad
-        findViewById<View>(R.id.btn_up).setOnClickListener    { sendCommand { client.pressUp() } }
-        findViewById<View>(R.id.btn_down).setOnClickListener  { sendCommand { client.pressDown() } }
-        findViewById<View>(R.id.btn_left).setOnClickListener  { sendCommand { client.pressLeft() } }
-        findViewById<View>(R.id.btn_right).setOnClickListener { sendCommand { client.pressRight() } }
-        findViewById<View>(R.id.btn_ok).setOnClickListener    { sendCommand { client.pressEnter() } }
+        setRepeatListener(findViewById(R.id.btn_up))    { client.pressUp() }
+        setRepeatListener(findViewById(R.id.btn_down))  { client.pressDown() }
+        setRepeatListener(findViewById(R.id.btn_left))  { client.pressLeft() }
+        setRepeatListener(findViewById(R.id.btn_right)) { client.pressRight() }
+        findViewById<View>(R.id.btn_ok).setOnClickListener { sendCommand { client.pressEnter() } }
 
         // Back / Settings
         findViewById<View>(R.id.btn_back).setOnClickListener     { sendCommand { client.pressKey("BACK") } }
@@ -68,9 +68,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_stremio).setOnClickListener { sendCommand { client.launchStremio() } }
 
         // Volume + Mute
-        findViewById<View>(R.id.btn_volume_up).setOnClickListener   { sendCommand { client.volumeUp() } }
-        findViewById<View>(R.id.btn_volume_down).setOnClickListener { sendCommand { client.volumeDown() } }
-        findViewById<View>(R.id.btn_mute).setOnClickListener        { sendCommand { client.muteToggle() } }
+        setRepeatListener(findViewById(R.id.btn_volume_up))   { client.volumeUp() }
+        setRepeatListener(findViewById(R.id.btn_volume_down)) { client.volumeDown() }
+        findViewById<View>(R.id.btn_mute).setOnClickListener  { sendCommand { client.muteToggle() } }
 
         // Keyboard
         findViewById<View>(R.id.btn_keyboard).setOnClickListener {
@@ -237,6 +237,32 @@ class MainActivity : AppCompatActivity() {
 
         dialog.show()
         editText.requestFocus()
+    }
+
+    private fun setRepeatListener(view: View, block: () -> WebOsClient.Result) {
+        val repeatHandler = Handler(Looper.getMainLooper())
+        val repeatRunnable = object : Runnable {
+            override fun run() {
+                Thread { block() }.start()
+                repeatHandler.postDelayed(this, 120L)
+            }
+        }
+        view.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.isPressed = true
+                    sendCommand(block)
+                    repeatHandler.postDelayed(repeatRunnable, 400L)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.isPressed = false
+                    repeatHandler.removeCallbacks(repeatRunnable)
+                    true
+                }
+                else -> false
+            }
+        }
     }
 
     private fun sendCommand(block: () -> WebOsClient.Result) {
