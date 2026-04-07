@@ -78,172 +78,67 @@ class WebOsClient(private val context: Context) {
         val latch = CountDownLatch(1)
         var result: Result = Result.Error("Timeout — is the TV on and reachable?")
         val savedKey = prefs.getString("client_key", null)
-        val request = Request.Builder().url("wss://$TV_IP:$TV_PORT").build()
 
-        val listener = object : WebSocketListener() {
-            override fun onOpen(ws: WebSocket, response: Response) {
-                ws.send(buildRegistration(savedKey))
-            }
-
-            override fun onMessage(ws: WebSocket, text: String) {
-                val json = runCatching { JSONObject(text) }.getOrNull() ?: return
-                when (json.optString("type")) {
-                    "registered" -> {
-                        val key = json.optJSONObject("payload")?.optString("client-key")
-                        if (!key.isNullOrEmpty()) {
-                            prefs.edit().putString("client_key", key).apply()
+        val client = buildClient()
+        client.newWebSocket(
+            Request.Builder().url("wss://$TV_IP:$TV_PORT").build(),
+            object : WebSocketListener() {
+                override fun onOpen(ws: WebSocket, response: Response) {
+                    ws.send(buildRegistration(savedKey))
+                }
+                override fun onMessage(ws: WebSocket, text: String) {
+                    val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                    when (json.optString("type")) {
+                        "registered" -> {
+                            val key = json.optJSONObject("payload")?.optString("client-key")
+                            if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                            ws.send(JSONObject().apply {
+                                put("id", "cmd_0")
+                                put("type", "request")
+                                put("uri", uri)
+                                put("payload", payload)
+                            }.toString())
                         }
-                        ws.send(JSONObject().apply {
-                            put("id", "cmd_0")
-                            put("type", "request")
-                            put("uri", uri)
-                            put("payload", payload)
-                        }.toString())
-                    }
-                    "response" -> when (json.optString("id")) {
-                        "reg_0" -> result = Result.NeedsPairing
-                        "cmd_0" -> {
-                            result = Result.Success
+                        "response" -> when (json.optString("id")) {
+                            "reg_0" -> result = Result.NeedsPairing
+                            "cmd_0" -> {
+                                result = Result.Success
+                                ws.close(1000, null)
+                                latch.countDown()
+                            }
+                        }
+                        "error" -> {
+                            result = Result.Error(
+                                json.optJSONObject("payload")?.optString("errorText") ?: "Unknown error"
+                            )
                             ws.close(1000, null)
                             latch.countDown()
                         }
                     }
-                    "error" -> {
-                        result = Result.Error(
-                            json.optJSONObject("payload")?.optString("errorText") ?: "Unknown error"
-                        )
-                        ws.close(1000, null)
-                        latch.countDown()
-                    }
+                }
+                override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                    result = Result.Error(t.message ?: "Connection failed")
+                    latch.countDown()
+                }
+                override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                    latch.countDown()
                 }
             }
-
-            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                result = Result.Error(t.message ?: "Connection failed")
-                latch.countDown()
-            }
-
-            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
-                latch.countDown()
-            }
-        }
-
-        val client = buildClient()
-        client.newWebSocket(request, listener)
+        )
         latch.await(timeoutSecs, TimeUnit.SECONDS)
         client.dispatcher.executorService.shutdown()
         return result
     }
 
-    fun turnOffScreen() = execute("ssap://com.webos.service.tvpower/power/turnOffScreen")
+    // ── Pointer socket session ────────────────────────────────────────────────
+    // Used both for navigation key presses (shared, persistent) and the
+    // touchpad overlay (dedicated, closed when the overlay is dismissed).
 
-    // Navigation keys use the pointer input socket — a secondary WebSocket the TV provides
-    // specifically for button/pointer events. sendRemoteKey via SSAP is not supported on WebOS 7+.
-    fun pressKey(keyCode: String): Result {
-        val latch = CountDownLatch(1)
-        var result: Result = Result.Error("Timeout — is the TV on and reachable?")
-        val savedKey = prefs.getString("client_key", null)
-        val request = Request.Builder().url("wss://$TV_IP:$TV_PORT").build()
-        val client = buildClient()
-
-        val listener = object : WebSocketListener() {
-            override fun onOpen(ws: WebSocket, response: Response) {
-                ws.send(buildRegistration(savedKey))
-            }
-
-            override fun onMessage(ws: WebSocket, text: String) {
-                val json = runCatching { JSONObject(text) }.getOrNull() ?: return
-                when (json.optString("type")) {
-                    "registered" -> {
-                        val key = json.optJSONObject("payload")?.optString("client-key")
-                        if (!key.isNullOrEmpty()) {
-                            prefs.edit().putString("client_key", key).apply()
-                        }
-                        // Request the pointer input socket URL
-                        ws.send(JSONObject().apply {
-                            put("id", "ptr_req")
-                            put("type", "request")
-                            put("uri", "ssap://com.webos.service.networkinput/getPointerInputSocket")
-                            put("payload", JSONObject())
-                        }.toString())
-                    }
-                    "response" -> when (json.optString("id")) {
-                        "reg_0" -> {
-                            result = Result.NeedsPairing
-                            ws.close(1000, null)
-                            latch.countDown()
-                        }
-                        "ptr_req" -> {
-                            val socketPath = json.optJSONObject("payload")?.optString("socketPath")
-                            ws.close(1000, null)
-                            if (socketPath.isNullOrEmpty()) {
-                                result = Result.Error("TV did not provide a pointer socket")
-                                latch.countDown()
-                                return
-                            }
-                            // Connect to the pointer socket and send the key event
-                            val ptrRequest = Request.Builder().url(socketPath).build()
-                            client.newWebSocket(ptrRequest, object : WebSocketListener() {
-                                override fun onOpen(pws: WebSocket, response: Response) {
-                                    pws.send("type:button\nname:$keyCode\n\n")
-                                    Thread.sleep(200) // let TV process before closing
-                                    pws.close(1000, null)
-                                    result = Result.Success
-                                    latch.countDown()
-                                }
-                                override fun onFailure(pws: WebSocket, t: Throwable, response: Response?) {
-                                    result = Result.Error("Ptr: ${t.message}")
-                                    latch.countDown()
-                                }
-                            })
-                        }
-                    }
-                    "error" -> {
-                        result = Result.Error(
-                            json.optJSONObject("payload")?.optString("errorText") ?: "Unknown error"
-                        )
-                        ws.close(1000, null)
-                        latch.countDown()
-                    }
-                }
-            }
-
-            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                result = Result.Error(t.message ?: "Connection failed")
-                latch.countDown()
-            }
-
-            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
-                // Do NOT count down here: the pointer socket onOpen hasn't fired yet.
-                // The latch is released exclusively by the pointer socket callbacks (onOpen/onFailure)
-                // or by the error/NeedsPairing branches above.
-            }
-        }
-
-        client.newWebSocket(request, listener)
-        latch.await(10, TimeUnit.SECONDS)
-        client.dispatcher.executorService.shutdown()
-        return result
-    }
-
-    fun pressEnter() = pressKey("ENTER")
-    fun pressUp() = pressKey("UP")
-    fun pressDown() = pressKey("DOWN")
-    fun pressLeft() = pressKey("LEFT")
-    fun pressRight() = pressKey("RIGHT")
-
-    fun launchApp(appId: String) = execute(
-        "ssap://system.launcher/launch",
-        JSONObject().put("id", appId)
-    )
-
-    fun launchYouTube() = launchApp("youtube.leanback.v4")
-    fun launchStremio() = launchApp("io.strem.tv")
-
-    /** Persistent pointer socket session for touchpad use. Call close() when done. */
     inner class PointerSession {
         private val httpClient = buildClient()
         @Volatile private var pointerWs: WebSocket? = null
+        @Volatile private var alive = false
+        private val readyLatch = CountDownLatch(1)
 
         init {
             val savedKey = prefs.getString("client_key", null)
@@ -275,41 +170,101 @@ class WebOsClient(private val context: Context) {
                                         object : WebSocketListener() {
                                             override fun onOpen(pws: WebSocket, response: Response) {
                                                 pointerWs = pws
+                                                alive = true
+                                                readyLatch.countDown()
+                                            }
+                                            override fun onClosed(pws: WebSocket, code: Int, reason: String) {
+                                                alive = false
+                                                pointerWs = null
+                                            }
+                                            override fun onFailure(pws: WebSocket, t: Throwable, response: Response?) {
+                                                alive = false
+                                                pointerWs = null
+                                                readyLatch.countDown()
                                             }
                                         }
                                     )
+                                } else {
+                                    readyLatch.countDown()
                                 }
                             }
-                            "error" -> ws.close(1000, null)
+                            "error" -> {
+                                ws.close(1000, null)
+                                readyLatch.countDown()
+                            }
                         }
                     }
-                    override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {}
+                    override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                        readyLatch.countDown()
+                    }
                 }
             )
         }
 
-        fun move(dx: Float, dy: Float) {
-            pointerWs?.send("type:move\ndx:${dx.toInt()}\ndy:${dy.toInt()}\n\n")
-        }
+        fun waitUntilReady(timeoutSecs: Long = 6) =
+            readyLatch.await(timeoutSecs, TimeUnit.SECONDS) && alive
 
-        fun click() {
-            pointerWs?.send("type:click\n\n")
-        }
+        val isAlive get() = alive && pointerWs != null
+
+        fun sendKey(keyCode: String) { pointerWs?.send("type:button\nname:$keyCode\n\n") }
+        fun move(dx: Float, dy: Float) { pointerWs?.send("type:move\ndx:${dx.toInt()}\ndy:${dy.toInt()}\n\n") }
+        fun click() { pointerWs?.send("type:click\n\n") }
 
         fun close() {
+            alive = false
             pointerWs?.close(1000, null)
             httpClient.dispatcher.executorService.shutdown()
         }
     }
 
+    // Shared persistent session reused across all key presses.
+    // First press pays the connection cost; subsequent ones are instant.
+    @Volatile private var sharedPointerSession: PointerSession? = null
+
+    fun pressKey(keyCode: String): Result {
+        val session = synchronized(this) {
+            val existing = sharedPointerSession
+            if (existing?.isAlive == true) existing
+            else {
+                existing?.close()
+                PointerSession().also { sharedPointerSession = it }
+            }
+        }
+        return if (session.waitUntilReady()) {
+            session.sendKey(keyCode)
+            Result.Success
+        } else {
+            synchronized(this) { if (sharedPointerSession === session) sharedPointerSession = null }
+            Result.Error("Timeout — is the TV on and reachable?")
+        }
+    }
+
+    // Dedicated session for the touchpad overlay (caller owns lifecycle).
     fun openPointerSession() = PointerSession()
 
-    fun volumeUp()     = pressKey("VOLUMEUP")
-    fun volumeDown()   = pressKey("VOLUMEDOWN")
-    fun muteToggle()   = pressKey("MUTE")
+    // ── SSAP commands ─────────────────────────────────────────────────────────
+
+    fun turnOffScreen() = execute("ssap://com.webos.service.tvpower/power/turnOffScreen")
+
+    fun pressEnter() = pressKey("ENTER")
+    fun pressUp()    = pressKey("UP")
+    fun pressDown()  = pressKey("DOWN")
+    fun pressLeft()  = pressKey("LEFT")
+    fun pressRight() = pressKey("RIGHT")
+
+    fun volumeUp()   = pressKey("VOLUMEUP")
+    fun volumeDown() = pressKey("VOLUMEDOWN")
+    fun muteToggle() = pressKey("MUTE")
+
+    fun launchApp(appId: String) = execute(
+        "ssap://system.launcher/launch",
+        JSONObject().put("id", appId)
+    )
+    fun launchYouTube() = launchApp("youtube.leanback.v4")
+    fun launchStremio() = launchApp("io.strem.tv")
+
     fun sendText(text: String) = execute(
         "ssap://com.webos.service.ime/insertText",
         JSONObject().put("text", text).put("replace", 0)
     )
-
 }

@@ -7,4 +7,5 @@
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/widget_ok_layout"
     android:widgetCategory="home_screen"
+    android:previewImage="@drawable/widget_preview_ok"
     android:description="@string/ok_widget_description" />
