@@ -1,9 +1,15 @@
 package com.nic.lgpower
 
+import android.content.DialogInterface
 import android.hardware.ConsumerIrManager
 import android.os.Bundle
 import android.view.View
+import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
@@ -46,11 +52,48 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_youtube).setOnClickListener { sendCommand { client.launchYouTube() } }
         findViewById<View>(R.id.btn_stremio).setOnClickListener { sendCommand { client.launchStremio() } }
 
-        // Volume + Mute + Keyboard
+        // Volume + Mute
         findViewById<View>(R.id.btn_volume_up).setOnClickListener   { sendCommand { client.volumeUp() } }
         findViewById<View>(R.id.btn_volume_down).setOnClickListener { sendCommand { client.volumeDown() } }
         findViewById<View>(R.id.btn_mute).setOnClickListener        { sendCommand { client.muteToggle() } }
-        findViewById<View>(R.id.btn_keyboard).setOnClickListener    { sendCommand { client.showKeyboard() } }
+
+        // Keyboard — show phone input, send text to TV on confirm
+        findViewById<View>(R.id.btn_keyboard).setOnClickListener { showTextInputDialog() }
+    }
+
+    private fun showTextInputDialog() {
+        val editText = EditText(this).apply {
+            hint = "Type to send to TV…"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setPadding(48, 32, 48, 32)
+            imeOptions = EditorInfo.IME_ACTION_SEND
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Send text to TV")
+            .setView(editText)
+            .setPositiveButton("Send") { _, _ ->
+                val text = editText.text.toString()
+                if (text.isNotEmpty()) sendCommand { client.sendText(text) }
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+
+        // Auto-show keyboard when dialog opens
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+
+        // Also allow submitting via the keyboard's Send/Enter action
+        editText.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEND) {
+                val text = editText.text.toString()
+                if (text.isNotEmpty()) sendCommand { client.sendText(text) }
+                dialog.dismiss()
+                true
+            } else false
+        }
+
+        dialog.show()
+        editText.requestFocus()
     }
 
     private fun sendCommand(block: () -> WebOsClient.Result) {
