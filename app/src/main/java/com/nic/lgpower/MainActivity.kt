@@ -5,6 +5,7 @@ import android.hardware.ConsumerIrManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
@@ -35,6 +36,7 @@ class MainActivity : AppCompatActivity() {
 
         // Power — IR toggle
         findViewById<View>(R.id.btn_power).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             val irManager = getSystemService(CONSUMER_IR_SERVICE) as? ConsumerIrManager
             if (irManager?.hasIrEmitter() == true) {
                 runCatching { irManager.transmit(38000, LGPowerWidget.LG_POWER_PATTERN) }
@@ -69,7 +71,10 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_mute).setOnClickListener        { sendCommand { client.muteToggle() } }
 
         // Keyboard
-        findViewById<View>(R.id.btn_keyboard).setOnClickListener { showTextInputDialog() }
+        findViewById<View>(R.id.btn_keyboard).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            showTextInputDialog()
+        }
 
         // Touchpad
         val touchpadOverlay  = findViewById<View>(R.id.touchpad_overlay)
@@ -118,15 +123,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<View>(R.id.btn_touchpad_click).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             pointerSession?.click()
         }
 
         btnExit.setOnClickListener { exitTouchpad() }
 
         // Touchpad button — hold still to lock, drag to use normally
-        findViewById<View>(R.id.btn_touchpad).setOnTouchListener { _, event ->
+        findViewById<View>(R.id.btn_touchpad).setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     lastTouchX = event.rawX
                     lastTouchY = event.rawY
                     hasMoved = false
@@ -146,6 +153,7 @@ class MainActivity : AppCompatActivity() {
                         if (!hasMoved) {
                             isLocked = true
                             runOnUiThread {
+                                window.decorView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                 touchpadHint.visibility = View.GONE
                                 btnExit.visibility = View.VISIBLE
                             }
@@ -218,6 +226,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendCommand(block: () -> WebOsClient.Result) {
+        window.decorView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         Thread {
             val result = block()
             runOnUiThread {
