@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+
+    <!-- Touchpad outline -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round"
+        android:pathData="M4,5 Q4,3 6,3 L22,3 Q24,3 24,5 L24,23 Q24,25 22,25 L6,25 Q4,25 4,23 Z" />
+
+    <!-- Click zone divider -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:pathData="M4,19 L24,19" />
+
+    <!-- Finger dot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14,11 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+
+</vector>
