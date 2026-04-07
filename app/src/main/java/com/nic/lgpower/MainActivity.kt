@@ -5,6 +5,8 @@ import android.hardware.ConsumerIrManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
@@ -241,8 +243,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun setRepeatListener(view: View, block: () -> WebOsClient.Result) {
         val repeatHandler = Handler(Looper.getMainLooper())
+        val vibrator = getSystemService(Vibrator::class.java)
         val repeatRunnable = object : Runnable {
             override fun run() {
+                vibrator?.vibrate(VibrationEffect.createOneShot(24, 48))
                 Thread { block() }.start()
                 repeatHandler.postDelayed(this, 120L)
             }
