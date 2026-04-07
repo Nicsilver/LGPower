@@ -2,16 +2,17 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0D1B2E"
+    android:background="#000000"
     android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:orientation="vertical"
-        android:paddingHorizontal="28dp"
-        android:paddingTop="32dp"
-        android:paddingBottom="32dp">
+        android:gravity="center_horizontal"
+        android:paddingHorizontal="24dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="48dp">
 
         <!-- Title -->
         <TextView
@@ -19,149 +20,242 @@
             android:layout_height="wrap_content"
             android:text="LG TV Remote"
             android:textColor="#FFFFFF"
-            android:textSize="22sp"
+            android:textSize="20sp"
             android:textStyle="bold"
-            android:gravity="center"
-            android:layout_marginBottom="32dp" />
+            android:gravity="center" />
 
-        <!-- Power + Screen Off row -->
-        <RelativeLayout
+        <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
+
+        <!-- YouTube + Stremio -->
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="100dp"
-            android:layout_marginBottom="32dp">
+            android:layout_height="50dp"
+            android:orientation="horizontal"
+            android:weightSum="2">
 
-            <ImageButton
-                android:id="@+id/btn_power"
-                android:layout_width="90dp"
-                android:layout_height="90dp"
-                android:layout_alignParentStart="true"
-                android:layout_centerVertical="true"
-                android:background="@drawable/bg_circle_red"
-                android:src="@drawable/ic_power"
-                android:scaleType="center"
-                android:contentDescription="Power" />
+            <Button
+                android:id="@+id/btn_youtube"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_btn_youtube"
+                android:text="▶  YouTube"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_stremio"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_btn_stremio"
+                android:text="⬡  Stremio"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
+
+        <!-- Power + Keyboard -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
                 android:orientation="vertical"
                 android:gravity="center">
 
                 <ImageButton
-                    android:id="@+id/btn_screen_off"
-                    android:layout_width="76dp"
-                    android:layout_height="76dp"
-                    android:background="@drawable/bg_circle_dark"
-                    android:src="@drawable/ic_screen_off"
+                    android:id="@+id/btn_power"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:background="@drawable/bg_circle_red"
+                    android:src="@drawable/ic_power"
                     android:scaleType="center"
-                    android:contentDescription="Screen Off" />
+                    android:contentDescription="Power" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Screen Off"
+                    android:text="Power"
                     android:textColor="#AAAACC"
                     android:textSize="11sp"
-                    android:layout_marginTop="6dp" />
+                    android:layout_marginTop="5dp" />
             </LinearLayout>
 
-        </RelativeLayout>
-
-        <!-- D-Pad -->
-        <FrameLayout
-            android:layout_width="280dp"
-            android:layout_height="280dp"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="32dp">
-
-            <!-- Circle background -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/bg_circle_dark" />
-
-            <!-- UP -->
-            <ImageButton
-                android:id="@+id/btn_up"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:layout_gravity="top|center_horizontal"
-                android:layout_marginTop="8dp"
-                android:background="@android:color/transparent"
-                android:src="@drawable/ic_arrow_up"
-                android:scaleType="centerInside"
-                android:contentDescription="Up" />
-
-            <!-- DOWN -->
-            <ImageButton
-                android:id="@+id/btn_down"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:layout_gravity="bottom|center_horizontal"
-                android:layout_marginBottom="8dp"
-                android:background="@android:color/transparent"
-                android:src="@drawable/ic_arrow_down"
-                android:scaleType="centerInside"
-                android:contentDescription="Down" />
-
-            <!-- LEFT -->
-            <ImageButton
-                android:id="@+id/btn_left"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:layout_gravity="start|center_vertical"
-                android:layout_marginStart="8dp"
-                android:background="@android:color/transparent"
-                android:src="@drawable/ic_arrow_left"
-                android:scaleType="centerInside"
-                android:contentDescription="Left" />
-
-            <!-- RIGHT -->
-            <ImageButton
-                android:id="@+id/btn_right"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:layout_gravity="end|center_vertical"
-                android:layout_marginEnd="8dp"
-                android:background="@android:color/transparent"
-                android:src="@drawable/ic_arrow_right"
-                android:scaleType="centerInside"
-                android:contentDescription="Right" />
-
-            <!-- OK center — must be last so it intercepts touches over the center -->
-            <Button
-                android:id="@+id/btn_ok"
-                android:layout_width="120dp"
-                android:layout_height="120dp"
-                android:layout_gravity="center"
-                android:background="@drawable/bg_circle_ok"
-                android:text="OK"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-        </FrameLayout>
-
-        <!-- Back + Settings row -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:orientation="horizontal"
-            android:layout_marginBottom="28dp">
+            <Space android:layout_width="52dp" android:layout_height="1dp" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/btn_keyboard"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:background="@drawable/bg_circle_dark"
+                    android:src="@drawable/ic_keyboard"
+                    android:scaleType="center"
+                    android:contentDescription="Keyboard" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Keyboard"
+                    android:textColor="#AAAACC"
+                    android:textSize="11sp"
+                    android:layout_marginTop="5dp" />
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
+
+        <!-- D-pad + Volume pill -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <FrameLayout
+                android:layout_width="230dp"
+                android:layout_height="230dp">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_circle_dark" />
+
+                <ImageButton
+                    android:id="@+id/btn_up"
+                    android:layout_width="68dp"
+                    android:layout_height="68dp"
+                    android:layout_gravity="top|center_horizontal"
+                    android:layout_marginTop="4dp"
+                    android:background="@android:color/transparent"
+                    android:src="@drawable/ic_arrow_up"
+                    android:scaleType="centerInside"
+                    android:contentDescription="Up" />
+
+                <ImageButton
+                    android:id="@+id/btn_down"
+                    android:layout_width="68dp"
+                    android:layout_height="68dp"
+                    android:layout_gravity="bottom|center_horizontal"
+                    android:layout_marginBottom="4dp"
+                    android:background="@android:color/transparent"
+                    android:src="@drawable/ic_arrow_down"
+                    android:scaleType="centerInside"
+                    android:contentDescription="Down" />
+
+                <ImageButton
+                    android:id="@+id/btn_left"
+                    android:layout_width="68dp"
+                    android:layout_height="68dp"
+                    android:layout_gravity="start|center_vertical"
+                    android:layout_marginStart="4dp"
+                    android:background="@android:color/transparent"
+                    android:src="@drawable/ic_arrow_left"
+                    android:scaleType="centerInside"
+                    android:contentDescription="Left" />
+
+                <ImageButton
+                    android:id="@+id/btn_right"
+                    android:layout_width="68dp"
+                    android:layout_height="68dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:layout_marginEnd="4dp"
+                    android:background="@android:color/transparent"
+                    android:src="@drawable/ic_arrow_right"
+                    android:scaleType="centerInside"
+                    android:contentDescription="Right" />
+
+                <Button
+                    android:id="@+id/btn_ok"
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/bg_circle_ok"
+                    android:text="OK"
+                    android:textColor="#FFFFFF"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+            </FrameLayout>
+
+            <Space android:layout_width="10dp" android:layout_height="1dp" />
+
+            <!-- Volume pill -->
+            <LinearLayout
+                android:layout_width="54dp"
+                android:layout_height="230dp"
+                android:orientation="vertical"
+                android:background="@drawable/bg_pill_dark">
+
+                <ImageButton
+                    android:id="@+id/btn_volume_up"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:background="@android:color/transparent"
+                    android:src="@drawable/ic_volume_up"
+                    android:scaleType="fitCenter"
+                    android:padding="14dp"
+                    android:contentDescription="Volume Up" />
+
+                <View
+                    android:layout_width="34dp"
+                    android:layout_height="1dp"
+                    android:layout_gravity="center_horizontal"
+                    android:background="#000000" />
+
+                <ImageButton
+                    android:id="@+id/btn_volume_down"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:background="@android:color/transparent"
+                    android:src="@drawable/ic_volume_down"
+                    android:scaleType="fitCenter"
+                    android:padding="14dp"
+                    android:contentDescription="Volume Down" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
+
+        <!-- Back + Screen Off + Settings + Mute -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:weightSum="4">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:orientation="vertical"
                 android:gravity="center">
 
                 <ImageButton
                     android:id="@+id/btn_back"
-                    android:layout_width="60dp"
-                    android:layout_height="60dp"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
                     android:background="@drawable/bg_circle_dark"
                     android:src="@drawable/ic_back"
                     android:scaleType="center"
@@ -173,21 +267,45 @@
                     android:text="Back"
                     android:textColor="#AAAACC"
                     android:textSize="11sp"
-                    android:layout_marginTop="6dp" />
+                    android:layout_marginTop="5dp" />
             </LinearLayout>
 
-            <Space android:layout_width="64dp" android:layout_height="1dp" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/btn_screen_off"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_circle_dark"
+                    android:src="@drawable/ic_screen_off"
+                    android:scaleType="center"
+                    android:contentDescription="Screen Off" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Screen Off"
+                    android:textColor="#AAAACC"
+                    android:textSize="11sp"
+                    android:layout_marginTop="5dp" />
+            </LinearLayout>
 
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:orientation="vertical"
                 android:gravity="center">
 
                 <ImageButton
                     android:id="@+id/btn_settings"
-                    android:layout_width="60dp"
-                    android:layout_height="60dp"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
                     android:background="@drawable/bg_circle_dark"
                     android:src="@drawable/ic_settings"
                     android:scaleType="center"
@@ -199,41 +317,33 @@
                     android:text="Settings"
                     android:textColor="#AAAACC"
                     android:textSize="11sp"
-                    android:layout_marginTop="6dp" />
+                    android:layout_marginTop="5dp" />
             </LinearLayout>
 
-        </LinearLayout>
-
-        <!-- YouTube + Stremio row -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:orientation="horizontal"
-            android:weightSum="2">
-
-            <Button
-                android:id="@+id/btn_youtube"
+            <LinearLayout
                 android:layout_width="0dp"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginEnd="8dp"
-                android:background="@drawable/bg_btn_youtube"
-                android:text="▶  YouTube"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:orientation="vertical"
+                android:gravity="center">
 
-            <Button
-                android:id="@+id/btn_stremio"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:background="@drawable/bg_btn_stremio"
-                android:text="⬡  Stremio"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                <ImageButton
+                    android:id="@+id/btn_mute"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_circle_dark"
+                    android:src="@drawable/ic_mute"
+                    android:scaleType="center"
+                    android:contentDescription="Mute" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Mute"
+                    android:textColor="#AAAACC"
+                    android:textSize="11sp"
+                    android:layout_marginTop="5dp" />
+            </LinearLayout>
 
         </LinearLayout>
 

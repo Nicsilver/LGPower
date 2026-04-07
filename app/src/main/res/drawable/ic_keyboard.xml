@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+
+    <!-- Keyboard outline -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M3,8 L25,8 Q26,8 26,9 L26,19 Q26,20 25,20 L3,20 Q2,20 2,19 L2,9 Q2,8 3,8 Z" />
+
+    <!-- Top row keys -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M5,11.5 L7,11.5M10,11.5 L12,11.5M15,11.5 L17,11.5M20,11.5 L22,11.5" />
+
+    <!-- Middle row keys -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M6.5,14 L8.5,14M11.5,14 L13.5,14M16.5,14 L18.5,14" />
+
+    <!-- Space bar -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M9,16.5 L19,16.5" />
+
+</vector>
