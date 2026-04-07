@@ -1,12 +1,11 @@
 package com.nic.lgpower
 
-import android.content.DialogInterface
 import android.hardware.ConsumerIrManager
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -15,6 +14,9 @@ import androidx.appcompat.app.AppCompatActivity
 class MainActivity : AppCompatActivity() {
 
     private val client by lazy { WebOsClient(this) }
+    private var pointerSession: WebOsClient.PointerSession? = null
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,6 +61,38 @@ class MainActivity : AppCompatActivity() {
 
         // Keyboard — show phone input, send text to TV on confirm
         findViewById<View>(R.id.btn_keyboard).setOnClickListener { showTextInputDialog() }
+
+        // Touchpad — hold to enter touchpad mode, drag to move cursor, lift to exit
+        val touchpadOverlay = findViewById<View>(R.id.touchpad_overlay)
+        findViewById<View>(R.id.btn_touchpad_click).setOnClickListener {
+            pointerSession?.click()
+        }
+        findViewById<View>(R.id.btn_touchpad).setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    lastTouchX = event.rawX
+                    lastTouchY = event.rawY
+                    touchpadOverlay.visibility = View.VISIBLE
+                    pointerSession = client.openPointerSession()
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - lastTouchX
+                    val dy = event.rawY - lastTouchY
+                    lastTouchX = event.rawX
+                    lastTouchY = event.rawY
+                    pointerSession?.move(dx, dy)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    pointerSession?.close()
+                    pointerSession = null
+                    touchpadOverlay.visibility = View.GONE
+                    true
+                }
+                else -> false
+            }
+        }
     }
 
     private fun showTextInputDialog() {
@@ -79,10 +113,8 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
             .create()
 
-        // Auto-show keyboard when dialog opens
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
 
-        // Also allow submitting via the keyboard's Send/Enter action
         editText.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) {
                 val text = editText.text.toString()
