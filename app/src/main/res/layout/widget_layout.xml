@@ -11,6 +11,7 @@
         android:layout_width="56dp"
         android:layout_height="56dp"
         android:layout_gravity="center"
+        android:layout_marginBottom="10dp"
         android:src="@drawable/ic_power"
         android:tint="#FFFFFFFF"
         android:contentDescription="LG Power" />
