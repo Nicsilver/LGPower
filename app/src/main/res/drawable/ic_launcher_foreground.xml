@@ -1,29 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Foreground layer for the adaptive launcher icon.
-    Safe zone is the centre 72 × 72 dp of the 108 × 108 dp canvas (i.e. inset 18 dp on each side).
-    The power symbol is centred at (54, 54) and scaled to fill the safe zone comfortably.
--->
+<!-- "LG" in Arial Bold, converted to paths, centred in the 108×108 adaptive-icon canvas -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Vertical stem -->
     <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:pathData="M54,27 L54,54" />
-
-    <!-- Arc — large sweep leaves gap at top for the stem -->
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:pathData="M37,37 A24,24 0 1,0 71,37" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M46.69 75.47L16.46 75.47L16.46 32.88L25.13 32.88L25.13 68.24L46.69 68.24L46.69 75.47ZM82.78 59.68L72.85 59.68L72.85 52.45L91.54 52.45L91.54 69.56Q88.82 72.19 83.65 74.20Q78.48 76.21 73.17 76.21L73.17 76.21Q66.44 76.21 61.43 73.38Q56.42 70.55 53.90 65.29Q51.38 60.04 51.38 53.85L51.38 53.85Q51.38 47.14 54.19 41.93Q57.00 36.71 62.42 33.93L62.42 33.93Q66.55 31.79 72.71 31.79L72.71 31.79Q80.70 31.79 85.20 35.15Q89.70 38.50 90.99 44.42L90.99 44.42L82.37 46.03Q81.47 42.87 78.96 41.04Q76.46 39.21 72.71 39.21L72.71 39.21Q67.02 39.21 63.67 42.81Q60.31 46.41 60.31 53.50L60.31 53.50Q60.31 61.15 63.71 64.97Q67.11 68.79 72.62 68.79L72.62 68.79Q75.34 68.79 78.08 67.73Q80.82 66.66 82.78 65.13L82.78 65.13L82.78 59.68Z" />
 
 </vector>
