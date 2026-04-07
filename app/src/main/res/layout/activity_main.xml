@@ -131,14 +131,26 @@
                 android:orientation="vertical"
                 android:gravity="center">
 
-                <ImageButton
+                <FrameLayout
                     android:id="@+id/btn_touchpad"
                     android:layout_width="72dp"
                     android:layout_height="72dp"
-                    android:background="@drawable/bg_circle_dark"
-                    android:src="@drawable/ic_touchpad"
-                    android:scaleType="center"
-                    android:contentDescription="Touchpad" />
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/bg_circle_dark" />
+
+                    <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/ic_touchpad"
+                        android:scaleType="center"
+                        android:contentDescription="Touchpad" />
+
+                </FrameLayout>
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -389,7 +401,14 @@
     android:background="#EE000000"
     android:visibility="gone">
 
+    <!-- Growing border around the screen edge -->
+    <com.nic.lgpower.LockBorderView
+        android:id="@+id/lock_border"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
     <TextView
+        android:id="@+id/touchpad_hint"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
@@ -397,6 +416,20 @@
         android:text="Drag to move cursor"
         android:textColor="#66FFFFFF"
         android:textSize="16sp" />
+
+    <Button
+        android:id="@+id/btn_touchpad_exit"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="48dp"
+        android:layout_marginEnd="24dp"
+        android:background="@android:color/transparent"
+        android:text="Exit"
+        android:textColor="#E53935"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
     <Button
         android:id="@+id/btn_touchpad_click"
