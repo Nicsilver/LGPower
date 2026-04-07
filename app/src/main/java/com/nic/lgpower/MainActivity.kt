@@ -45,6 +45,12 @@ class MainActivity : AppCompatActivity() {
         // App shortcuts — WiFi
         findViewById<View>(R.id.btn_youtube).setOnClickListener { sendCommand { client.launchYouTube() } }
         findViewById<View>(R.id.btn_stremio).setOnClickListener { sendCommand { client.launchStremio() } }
+
+        // Volume + Mute + Keyboard
+        findViewById<View>(R.id.btn_volume_up).setOnClickListener   { sendCommand { client.volumeUp() } }
+        findViewById<View>(R.id.btn_volume_down).setOnClickListener { sendCommand { client.volumeDown() } }
+        findViewById<View>(R.id.btn_mute).setOnClickListener        { sendCommand { client.muteToggle() } }
+        findViewById<View>(R.id.btn_keyboard).setOnClickListener    { sendCommand { client.showKeyboard() } }
     }
 
     private fun sendCommand(block: () -> WebOsClient.Result) {

@@ -238,4 +238,9 @@ class WebOsClient(private val context: Context) {
     fun launchYouTube() = launchApp("youtube.leanback.v4")
     fun launchStremio() = launchApp("io.strem.tv")
 
+    fun volumeUp()   = execute("ssap://audio/volumeUp")
+    fun volumeDown() = execute("ssap://audio/volumeDown")
+    fun muteToggle() = pressKey("MUTE")
+    fun showKeyboard() = execute("ssap://com.webos.service.ime/showSoftKeyboard")
+
 }
