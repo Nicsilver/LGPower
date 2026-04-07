@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Dark rounded background -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#1C1C1C" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+    <!-- Power icon centred with inset -->
+    <item
+        android:top="22dp"
+        android:bottom="22dp"
+        android:left="22dp"
+        android:right="22dp"
+        android:drawable="@drawable/ic_power" />
+</layer-list>
