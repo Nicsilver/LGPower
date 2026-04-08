@@ -1,41 +1,30 @@
-# LG C4 Power Widget
+# LG Power
 
-1×1 home screen widget for OnePlus 12 that fires the LG NEC IR power code via the built-in IR blaster.
+An Android remote control app for LG WebOS TVs, built for a OnePlus 12 with a built-in IR blaster.
 
-## Build
+<img src="screenshots/app.png" alt="App screenshot" width="300" />
 
-```bash
-# From project root
-./gradlew assembleRelease        # or assembleDebug for sideloading
-```
+## Features
 
-APK lands at: `app/build/outputs/apk/debug/app-debug.apk`
+- **Power** — IR blast toggle (works even when the TV is off)
+- **D-pad & OK** — navigate menus with hold-to-repeat
+- **Volume & Mute** — hold-to-repeat on volume buttons
+- **Screen Off** — turn off the panel without full standby
+- **Touchpad** — full-screen cursor mode with drag-to-move and tap-to-click
+- **Keyboard** — type text directly to the TV (great for YouTube search)
+- **App shortcuts** — one-tap launch for YouTube and Stremio
+- **Home screen widgets** — Power, Screen Off, and OK/Enter widgets
 
-## Sideload to OnePlus 12
+## Setup
 
-```bash
-adb install app/build/outputs/apk/debug/app-debug.apk
-```
+1. Install the app
+2. Make sure your phone and TV are on the same Wi-Fi network
+3. Tap the gear icon (top-right) and enter your TV's IP address
+4. Press any button — accept the pairing prompt on the TV
+5. Done — subsequent commands connect instantly
 
-Or copy the APK to the phone and open it (enable "Install unknown apps" for your file manager).
+## Requirements
 
-## Add the widget
-
-Long-press home screen → Widgets → search "LG" → drag **LG C4 Power** to your screen.
-
-## How it works
-
-- `ConsumerIrManager.transmit(38000, pattern)` — 38kHz carrier, standard NEC timing
-- IR code: `0x20DF10EF` (LG universal power toggle, works on C2/C3/C4)
-- No background service, no wakelock — the broadcast receiver wakes for ~50ms on each tap
-- `updatePeriodMillis=0` means zero battery drain at idle
-
-## If the code doesn't work
-
-LG occasionally uses `0x20DF08F7` as an alternate power code. Edit `LGPowerWidget.kt`:
-
-```kotlin
-private val LG_POWER_PATTERN: IntArray = buildNecPattern(0x20DF08F7)
-```
-
-You can also try codes from LIRC's LG database or capture your remote with an IR receiver app.
+- Android phone with IR blaster (for the Power button)
+- LG WebOS TV (tested on C4)
+- Both devices on the same local network
