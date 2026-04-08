@@ -396,11 +396,22 @@ class WebOsClient(private val context: Context) {
     private fun iconFile(appId: String) =
         java.io.File(context.filesDir, "icon_${appId.replace(Regex("[^a-zA-Z0-9._-]"), "_")}.png")
 
-    /** Fetch icon from TV and persist it to disk. Returns the bitmap. */
+    /** Fetch icon from TV, persist to disk, and extract+save its dominant color. */
     fun cacheIcon(appId: String, url: String): android.graphics.Bitmap? {
         val bmp = fetchIcon(url) ?: return null
         runCatching {
             iconFile(appId).outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        runCatching {
+            val palette = androidx.palette.graphics.Palette.from(bmp).generate()
+            val raw = palette.getVibrantColor(palette.getDominantColor(0xFF333355.toInt()))
+            // darken so it reads well against white text
+            val color = android.graphics.Color.rgb(
+                (android.graphics.Color.red(raw) * 0.6f).toInt(),
+                (android.graphics.Color.green(raw) * 0.6f).toInt(),
+                (android.graphics.Color.blue(raw) * 0.6f).toInt()
+            )
+            prefs.edit().putInt("color_$appId", color).apply()
         }
         return bmp
     }
@@ -411,6 +422,10 @@ class WebOsClient(private val context: Context) {
         if (!file.exists()) return null
         return runCatching { android.graphics.BitmapFactory.decodeFile(file.absolutePath) }.getOrNull()
     }
+
+    /** Load the dominant color extracted from the cached icon, or null if not cached. */
+    fun loadCachedColor(appId: String): Int? =
+        if (prefs.contains("color_$appId")) prefs.getInt("color_$appId", 0) else null
 
     private fun defaultShortcuts() = listOf(
         TvApp("youtube.leanback.v4", "YouTube"),
