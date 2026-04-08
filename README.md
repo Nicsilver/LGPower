@@ -2,7 +2,7 @@
 
 An Android remote control app for LG WebOS TVs, built for a OnePlus 12 with a built-in IR blaster.
 
-<img src="screenshots/app.png" alt="App screenshot" width="300" /> <img src="screenshots/settings_apps.png" alt="App picker" width="300" />
+<img src="screenshots/app.png" alt="App screenshot" width="200" /> <img src="screenshots/settings_apps.png" alt="App picker" width="200" />
 
 ## Features
 
