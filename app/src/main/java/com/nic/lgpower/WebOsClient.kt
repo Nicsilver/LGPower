@@ -21,7 +21,7 @@ class WebOsClient(private val context: Context) {
     private val prefs = context.getSharedPreferences("webos", Context.MODE_PRIVATE)
 
     companion object {
-        const val DEFAULT_TV_IP = "192.168.1.157"
+        const val DEFAULT_TV_IP = ""
         const val TV_PORT = 3001
     }
 
