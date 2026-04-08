@@ -1,81 +1,161 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="#000000"
-    android:paddingHorizontal="24dp"
-    android:paddingTop="24dp"
-    android:paddingBottom="24dp">
+    android:fillViewport="true">
 
-    <!-- TV Connection -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="TV CONNECTION"
-        android:textColor="#666688"
-        android:textSize="11sp"
-        android:letterSpacing="0.12"
-        android:layout_marginBottom="12dp" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="TV IP Address"
-        android:textColor="#AAAACC"
-        android:textSize="13sp"
-        android:layout_marginBottom="6dp" />
-
-    <EditText
-        android:id="@+id/edit_tv_ip"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="e.g. 192.168.1.100"
-        android:inputType="textUri"
-        android:textColor="#FFFFFF"
-        android:textColorHint="#444466"
-        android:backgroundTint="#333355"
-        android:padding="12dp"
-        android:textSize="16sp" />
-
-    <!-- Discover button + spinner -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:orientation="vertical"
+        android:paddingHorizontal="24dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="48dp">
+
+        <!-- TV CONNECTION -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="TV CONNECTION"
+            android:textColor="#666688"
+            android:textSize="11sp"
+            android:letterSpacing="0.12"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="TV IP Address"
+            android:textColor="#AAAACC"
+            android:textSize="13sp"
+            android:layout_marginBottom="6dp" />
+
+        <EditText
+            android:id="@+id/edit_tv_ip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="e.g. 192.168.1.100"
+            android:inputType="textUri"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#444466"
+            android:backgroundTint="#333355"
+            android:padding="12dp"
+            android:textSize="16sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <Button
+                android:id="@+id/btn_discover"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/bg_squircle_dark"
+                android:text="Discover TV"
+                android:textColor="#AAAAFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <ProgressBar
+                android:id="@+id/discover_spinner"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="12dp"
+                android:visibility="gone"
+                android:indeterminateTint="#AAAAFF" />
+
+        </LinearLayout>
 
         <Button
-            android:id="@+id/btn_discover"
-            android:layout_width="0dp"
+            android:id="@+id/btn_save"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_marginTop="12dp"
             android:background="@drawable/bg_squircle_dark"
-            android:text="Discover TV"
-            android:textColor="#AAAAFF"
+            android:text="Save IP"
+            android:textColor="#FFFFFF"
             android:textSize="15sp"
             android:textStyle="bold" />
 
-        <ProgressBar
-            android:id="@+id/discover_spinner"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginStart="12dp"
-            android:visibility="gone"
-            android:indeterminateTint="#AAAAFF" />
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="28dp"
+            android:background="#222244" />
+
+        <!-- APP SHORTCUTS -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="APP SHORTCUTS"
+            android:textColor="#666688"
+            android:textSize="11sp"
+            android:letterSpacing="0.12"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tv_shortcuts_summary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#AAAACC"
+            android:textSize="13sp"
+            android:layout_marginBottom="12dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <Button
+                android:id="@+id/btn_load_apps"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/bg_squircle_dark"
+                android:text="Load Apps from TV"
+                android:textColor="#AAAAFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <ProgressBar
+                android:id="@+id/load_apps_spinner"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="12dp"
+                android:visibility="gone"
+                android:indeterminateTint="#AAAAFF" />
+
+        </LinearLayout>
+
+        <!-- App checkbox list (shown after loading) -->
+        <LinearLayout
+            android:id="@+id/apps_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="12dp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btn_apply_shortcuts"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_squircle_dark"
+            android:text="Apply"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
 
     </LinearLayout>
 
-    <Button
-        android:id="@+id/btn_save"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:background="@drawable/bg_squircle_dark"
-        android:text="Save"
-        android:textColor="#FFFFFF"
-        android:textSize="15sp"
-        android:textStyle="bold" />
-
-</LinearLayout>
+</ScrollView>

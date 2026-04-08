@@ -13,7 +13,11 @@ import android.view.View
 import android.view.animation.LinearInterpolator
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -64,10 +68,6 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_back).setOnLongClickListener { sendCommand { client.pressKey("HOME") }; true }
         findViewById<View>(R.id.btn_settings).setOnClickListener     { sendCommand { client.pressKey("MENU") } }
         findViewById<View>(R.id.btn_settings).setOnLongClickListener { sendCommand { client.pressKey("HOME") }; true }
-
-        // App shortcuts
-        findViewById<View>(R.id.btn_youtube).setOnClickListener { sendCommand { client.launchYouTube() } }
-        findViewById<View>(R.id.btn_stremio).setOnClickListener { sendCommand { client.launchStremio() } }
 
         // Volume + Mute
         setRepeatListener(findViewById(R.id.btn_volume_up))   { client.volumeUp() }
@@ -210,6 +210,97 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         client.resetConnection()
+        refreshShortcuts()
+    }
+
+    private fun refreshShortcuts() {
+        val row = findViewById<LinearLayout>(R.id.shortcuts_row)
+        row.removeAllViews()
+        val shortcuts = client.loadShortcuts()
+        val density = resources.displayMetrics.density
+        val gap = (8 * density).toInt()
+        val iconSize = (60 * density).toInt()
+
+        shortcuts.forEachIndexed { index, app ->
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER
+                isClickable = true
+                isFocusable = true
+                setPadding(0, (4 * density).toInt(), 0, (4 * density).toInt())
+                setOnClickListener { sendCommand { client.launchApp(app.id) } }
+            }
+
+            val iconView = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).also {
+                    it.gravity = android.view.Gravity.CENTER_HORIZONTAL
+                }
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setImageBitmap(makeLetterBitmap(app.title, iconSize))
+            }
+
+            val label = TextView(this).apply {
+                text = app.title
+                textSize = 11f
+                setTextColor(0xFFAAAAAA.toInt())
+                gravity = android.view.Gravity.CENTER
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.topMargin = (4 * density).toInt() }
+            }
+
+            item.addView(iconView)
+            item.addView(label)
+
+            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+            if (index > 0) params.marginStart = gap
+            row.addView(item, params)
+
+            // Load from disk cache; fall back to network fetch (and cache it)
+            Thread {
+                val bmp = client.loadCachedIcon(app.id)
+                    ?: app.iconUrl?.let { client.cacheIcon(app.id, it) }
+                if (bmp != null) runOnUiThread { iconView.setImageBitmap(toCircle(bmp)) }
+            }.start()
+        }
+    }
+
+    private fun toCircle(src: android.graphics.Bitmap): android.graphics.Bitmap {
+        val size = minOf(src.width, src.height)
+        val out = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(out)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        val r = size / 2f
+        canvas.drawCircle(r, r, r, paint)
+        paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+        // centre-crop the source if it's not square
+        val srcX = (src.width - size) / 2
+        val srcY = (src.height - size) / 2
+        canvas.drawBitmap(src, android.graphics.Rect(srcX, srcY, srcX + size, srcY + size),
+            android.graphics.RectF(0f, 0f, size.toFloat(), size.toFloat()), paint)
+        return out
+    }
+
+    private fun makeLetterBitmap(title: String, size: Int): android.graphics.Bitmap {
+        val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bmp)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF2A2A44.toInt()
+        }
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        paint.apply {
+            color = 0xFF8888BB.toInt()
+            textSize = size * 0.42f
+            textAlign = android.graphics.Paint.Align.CENTER
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        val letter = title.firstOrNull { it.isLetter() }?.uppercaseChar()?.toString() ?: "?"
+        val textY = size / 2f - (paint.descent() + paint.ascent()) / 2f
+        canvas.drawText(letter, size / 2f, textY, paint)
+        return bmp
     }
 
     @Suppress("OVERRIDE_DEPRECATION")
