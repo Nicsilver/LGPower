@@ -27,6 +27,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Settings -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="Settings" />
+
         <!-- IR power widget trampoline -->
         <activity
             android:name=".IrActivity"

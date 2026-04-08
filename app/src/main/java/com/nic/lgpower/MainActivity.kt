@@ -74,6 +74,11 @@ class MainActivity : AppCompatActivity() {
         setRepeatListener(findViewById(R.id.btn_volume_down)) { client.volumeDown() }
         findViewById<View>(R.id.btn_mute).setOnClickListener  { sendCommand { client.muteToggle() } }
 
+        // App settings
+        findViewById<View>(R.id.btn_app_settings).setOnClickListener {
+            startActivity(android.content.Intent(this, SettingsActivity::class.java))
+        }
+
         // Keyboard
         findViewById<View>(R.id.btn_keyboard).setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
