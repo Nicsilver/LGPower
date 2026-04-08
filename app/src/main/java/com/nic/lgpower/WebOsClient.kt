@@ -20,11 +20,6 @@ class WebOsClient(private val context: Context) {
 
     private val prefs = context.getSharedPreferences("webos", Context.MODE_PRIVATE)
 
-    companion object {
-        const val DEFAULT_TV_IP = ""
-        const val TV_PORT = 3001
-    }
-
     val tvIp: String get() = prefs.getString("tv_ip", DEFAULT_TV_IP) ?: DEFAULT_TV_IP
 
     fun saveTvIp(ip: String) { prefs.edit().putString("tv_ip", ip).apply() }
@@ -425,7 +420,75 @@ class WebOsClient(private val context: Context) {
 
     /** Load the dominant color extracted from the cached icon, or null if not cached. */
     fun loadCachedColor(appId: String): Int? =
-        if (prefs.contains("color_$appId")) prefs.getInt("color_$appId", 0) else null
+        brandColor(appId)
+            ?: if (prefs.contains("color_$appId")) prefs.getInt("color_$appId", 0) else null
+
+    companion object {
+        const val DEFAULT_TV_IP = ""
+        const val TV_PORT = 3001
+
+        // Curated brand colors for common apps — checked before palette extraction
+        private val BRAND_COLORS = mapOf(
+            // Google / YouTube
+            "youtube.leanback.v4"           to 0xFFCC0000.toInt(), // YouTube
+            "youtubemusic.leanback.v4"      to 0xFF9C0A28.toInt(), // YouTube Music
+            "youtube.kids"                  to 0xFFCC0000.toInt(), // YouTube Kids
+            // Netflix
+            "netflix"                       to 0xFFAA0A12.toInt(),
+            // Amazon
+            "amazon"                        to 0xFF0073AA.toInt(), // Prime Video
+            // Spotify
+            "com.spotify.tvv2"              to 0xFF157A3C.toInt(),
+            "com.spotify.tv"                to 0xFF157A3C.toInt(),
+            // Disney
+            "com.disney.disneyplus-prod"    to 0xFF0D2D9E.toInt(),
+            "com.disney.disneyplus"         to 0xFF0D2D9E.toInt(),
+            // Apple
+            "com.apple.appletv"             to 0xFF2A2A2A.toInt(),
+            // HBO / Max
+            "com.hbo.hbonow"               to 0xFF3D1580.toInt(),
+            "com.wbd.stream"               to 0xFF3D1580.toInt(),
+            // Hulu
+            "com.hulu.livingroomplus"       to 0xFF0D7A3E.toInt(),
+            // Twitch
+            "tv.twitch"                     to 0xFF5B2DAD.toInt(),
+            // Plex
+            "com.plexapp.plex"              to 0xFF7A5600.toInt(),
+            // Stremio
+            "io.strem.tv"                   to 0xFF7B2FBE.toInt(),
+            // Crunchyroll
+            "crunchyroll.leanback.v4"       to 0xFFA34D16.toInt(),
+            "com.crunchyroll.crunchyroid"   to 0xFFA34D16.toInt(),
+            // Tubi
+            "com.tubitv"                    to 0xFFA33200.toInt(),
+            // Peacock
+            "com.peacocktv.peacockandroid"  to 0xFF00407A.toInt(),
+            // Paramount+
+            "com.paramount.plus"            to 0xFF003399.toInt(),
+            "com.cbs.paramount"             to 0xFF003399.toInt(),
+            // Discovery+
+            "com.discoveryplus.tv"          to 0xFF0047B2.toInt(),
+            // SkyShowtime
+            "com.skyshowtime.skyshowtime"   to 0xFF001F6E.toInt(),
+            // Viaplay
+            "com.viaplay.tvapp"             to 0xFF7A003C.toInt(),
+            "viaplay.tvapp"                 to 0xFF7A003C.toInt(),
+            // Jellyfin
+            "com.mb.jellyfin"               to 0xFF005580.toInt(),
+            "org.jellyfin.androidtv"        to 0xFF005580.toInt(),
+            // DRTV
+            "drtv.webos"                    to 0xFFAA0000.toInt(),
+            "com.drtv.smart"                to 0xFFAA0000.toInt(),
+            // ESPN
+            "com.espn.score_center"         to 0xFF8C0000.toInt(),
+            // Moonlight
+            "com.limelight"                 to 0xFF1A4D80.toInt(),
+            // Kodi
+            "org.xbmc.kodi"                 to 0xFF1A3A6B.toInt(),
+        )
+
+        fun brandColor(appId: String): Int? = BRAND_COLORS[appId]
+    }
 
     private fun defaultShortcuts() = listOf(
         TvApp("youtube.leanback.v4", "YouTube"),
