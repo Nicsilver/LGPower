@@ -21,9 +21,13 @@ class WebOsClient(private val context: Context) {
     private val prefs = context.getSharedPreferences("webos", Context.MODE_PRIVATE)
 
     companion object {
-        const val TV_IP = "192.168.1.157"
+        const val DEFAULT_TV_IP = "192.168.1.157"
         const val TV_PORT = 3001
     }
+
+    val tvIp: String get() = prefs.getString("tv_ip", DEFAULT_TV_IP) ?: DEFAULT_TV_IP
+
+    fun saveTvIp(ip: String) { prefs.edit().putString("tv_ip", ip).apply() }
 
     sealed class Result {
         object Success : Result()
@@ -81,7 +85,7 @@ class WebOsClient(private val context: Context) {
 
         val client = buildClient()
         client.newWebSocket(
-            Request.Builder().url("wss://$TV_IP:$TV_PORT").build(),
+            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
             object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, response: Response) {
                     ws.send(buildRegistration(savedKey))
@@ -143,7 +147,7 @@ class WebOsClient(private val context: Context) {
         init {
             val savedKey = prefs.getString("client_key", null)
             httpClient.newWebSocket(
-                Request.Builder().url("wss://$TV_IP:$TV_PORT").build(),
+                Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
                 object : WebSocketListener() {
                     override fun onOpen(ws: WebSocket, response: Response) {
                         ws.send(buildRegistration(savedKey))
