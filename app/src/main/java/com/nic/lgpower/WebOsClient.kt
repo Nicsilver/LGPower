@@ -242,6 +242,15 @@ class WebOsClient(private val context: Context) {
     // Dedicated session for the touchpad overlay (caller owns lifecycle).
     fun openPointerSession() = PointerSession()
 
+    // Drop the shared session so the next key press reconnects from scratch.
+    // Call from onResume() to recover after the phone was locked.
+    fun resetConnection() {
+        synchronized(this) {
+            sharedPointerSession?.close()
+            sharedPointerSession = null
+        }
+    }
+
     // ── SSAP commands ─────────────────────────────────────────────────────────
 
     fun turnOffScreen() = execute("ssap://com.webos.service.tvpower/power/turnOffScreen")
