@@ -7,3 +7,5 @@ local.properties
 *.iml
 .DS_Store
 CLAUDE.md
+*.keystore
+*.keystore.old
