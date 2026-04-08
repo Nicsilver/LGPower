@@ -3,42 +3,82 @@ package com.nic.lgpower
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
-import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.RecyclerView
 
 class SettingsActivity : AppCompatActivity() {
 
-    private val prefs by lazy { getSharedPreferences("webos", MODE_PRIVATE) }
+    private val prefs  by lazy { getSharedPreferences("webos", MODE_PRIVATE) }
     private val client by lazy { WebOsClient(this) }
 
     private lateinit var tvShortcutsSummary: TextView
-    private lateinit var appsContainer: LinearLayout
-    private lateinit var btnApplyShortcuts: Button
-
-    private var allApps: List<WebOsClient.TvApp> = emptyList()
-    private val selectedIds = mutableSetOf<String>()
+    private lateinit var appsGrid:           RecyclerView
+    private lateinit var adapter:            AppGridAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
-        val editIp = findViewById<EditText>(R.id.edit_tv_ip)
+        val editIp          = findViewById<EditText>(R.id.edit_tv_ip)
         val discoverSpinner = findViewById<ProgressBar>(R.id.discover_spinner)
+        tvShortcutsSummary  = findViewById(R.id.tv_shortcuts_summary)
+        appsGrid            = findViewById(R.id.apps_grid)
+
         val currentIp = prefs.getString("tv_ip", WebOsClient.DEFAULT_TV_IP) ?: WebOsClient.DEFAULT_TV_IP
         editIp.setText(currentIp)
         editIp.setSelection(editIp.text.length)
 
-        tvShortcutsSummary = findViewById(R.id.tv_shortcuts_summary)
-        appsContainer = findViewById(R.id.apps_container)
-        btnApplyShortcuts = findViewById(R.id.btn_apply_shortcuts)
+        // Auto-save on every selection/reorder change
+        adapter = AppGridAdapter(this, client) { chosen ->
+            client.saveShortcuts(chosen)
+            updateSummary(chosen)
+            Thread {
+                chosen.forEach { app ->
+                    if (!app.iconUrl.isNullOrEmpty() && client.loadCachedIcon(app.id) == null)
+                        client.cacheIcon(app.id, app.iconUrl)
+                }
+            }.start()
+        }
 
-        updateShortcutsSummary()
+        appsGrid.adapter = adapter
+        appsGrid.layoutManager = GridLayoutManager(this, 4)
+
+        ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT, 0
+        ) {
+            override fun getMovementFlags(rv: RecyclerView, vh: RecyclerView.ViewHolder): Int {
+                val pos = vh.bindingAdapterPosition
+                val drag = if (pos >= 0 && adapter.isSelected(pos))
+                    ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
+                else 0
+                return makeMovementFlags(drag, 0)
+            }
+            override fun onMove(rv: RecyclerView, from: RecyclerView.ViewHolder, to: RecyclerView.ViewHolder): Boolean {
+                val f = from.bindingAdapterPosition
+                val t = to.bindingAdapterPosition
+                if (f < 0 || t < 0 || t >= adapter.selectedCount) return false
+                adapter.moveItem(f, t)
+                return true
+            }
+            override fun onSwiped(vh: RecyclerView.ViewHolder, dir: Int) {}
+        }).attachToRecyclerView(appsGrid)
+
+        // Pre-populate grid with current shortcuts so user can reorder without loading all apps
+        val current = client.loadShortcuts()
+        if (current.isNotEmpty()) {
+            adapter.setApps(current, current)
+            appsGrid.visibility = View.VISIBLE
+            updateSummary(current)
+        } else {
+            tvShortcutsSummary.text = "No shortcuts configured — load apps from TV to pick some"
+        }
 
         // Discover TV IP
         findViewById<Button>(R.id.btn_discover).setOnClickListener {
@@ -76,7 +116,7 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
-        // Load apps from TV
+        // Load full app list from TV
         val loadAppsSpinner = findViewById<ProgressBar>(R.id.load_apps_spinner)
         findViewById<Button>(R.id.btn_load_apps).setOnClickListener { loadBtn ->
             loadAppsSpinner.visibility = View.VISIBLE
@@ -94,65 +134,25 @@ class SettingsActivity : AppCompatActivity() {
                         Toast.makeText(this, "No apps returned by TV", Toast.LENGTH_SHORT).show()
                         return@runOnUiThread
                     }
-                    allApps = apps
-                    populateAppList()
-                    appsContainer.visibility = View.VISIBLE
-                    btnApplyShortcuts.visibility = View.VISIBLE
-                }
-            }.start()
-        }
-
-        // Apply shortcut selection
-        btnApplyShortcuts.setOnClickListener {
-            val chosen = allApps.filter { it.id in selectedIds }
-            if (chosen.size < 2) {
-                Toast.makeText(this, "Select at least 2 apps", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            client.saveShortcuts(chosen)
-            updateShortcutsSummary()
-            Toast.makeText(this, "Shortcuts saved", Toast.LENGTH_SHORT).show()
-            // Download and cache icons in the background
-            Thread {
-                chosen.forEach { app ->
-                    if (!app.iconUrl.isNullOrEmpty()) client.cacheIcon(app.id, app.iconUrl)
-                }
-            }.start()
-        }
-    }
-
-    private fun populateAppList() {
-        appsContainer.removeAllViews()
-        val currentIds = client.loadShortcuts().map { it.id }.toSet()
-        selectedIds.clear()
-        selectedIds.addAll(currentIds)
-
-        allApps.forEach { app ->
-            val cb = CheckBox(this).apply {
-                text = app.title
-                isChecked = app.id in selectedIds
-                setTextColor(0xFFFFFFFF.toInt())
-                textSize = 14f
-                setPadding(8, 16, 8, 16)
-                setOnCheckedChangeListener { _, checked ->
-                    if (checked) {
-                        if (selectedIds.size >= 4) {
-                            isChecked = false
-                            Toast.makeText(this@SettingsActivity, "Max 4 shortcuts", Toast.LENGTH_SHORT).show()
-                        } else {
-                            selectedIds.add(app.id)
+                    adapter.setApps(apps, adapter.selectedApps.ifEmpty { client.loadShortcuts() })
+                    appsGrid.visibility = View.VISIBLE
+                    // Download missing icons in parallel
+                    val pool = java.util.concurrent.Executors.newFixedThreadPool(8)
+                    apps.forEach { app ->
+                        if (app.iconUrl.isNullOrEmpty()) return@forEach
+                        if (client.loadCachedIcon(app.id) != null) return@forEach
+                        pool.submit {
+                            client.cacheIcon(app.id, app.iconUrl)
+                            runOnUiThread { adapter.refreshItem(app.id) }
                         }
-                    } else {
-                        selectedIds.remove(app.id)
                     }
+                    pool.shutdown()
                 }
-            }
-            appsContainer.addView(cb)
+            }.start()
         }
     }
 
-    private fun updateShortcutsSummary() {
-        val names = client.loadShortcuts().joinToString(", ") { it.title }
-        tvShortcutsSummary.text = if (names.isEmpty()) "None configured" else names
+    private fun updateSummary(chosen: List<WebOsClient.TvApp>) {
+        tvShortcutsSummary.text = "Tap to select · Long-press to reorder · ${chosen.size}/4 selected"
     }
 }

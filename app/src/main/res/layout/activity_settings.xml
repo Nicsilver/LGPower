@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000"
@@ -104,8 +105,8 @@
             android:id="@+id/tv_shortcuts_summary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#AAAACC"
-            android:textSize="13sp"
+            android:textColor="#666688"
+            android:textSize="12sp"
             android:layout_marginBottom="12dp" />
 
         <LinearLayout
@@ -135,27 +136,16 @@
 
         </LinearLayout>
 
-        <!-- App checkbox list (shown after loading) -->
-        <LinearLayout
-            android:id="@+id/apps_container"
+        <!-- Icon grid (shown after loading) -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/apps_grid"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="16dp"
+            android:nestedScrollingEnabled="false"
             android:visibility="gone" />
 
-        <Button
-            android:id="@+id/btn_apply_shortcuts"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_squircle_dark"
-            android:text="Apply"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
-            android:textStyle="bold"
-            android:visibility="gone" />
 
     </LinearLayout>
 
-</ScrollView>
+</androidx.core.widget.NestedScrollView>
