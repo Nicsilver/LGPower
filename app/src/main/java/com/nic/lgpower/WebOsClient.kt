@@ -69,6 +69,7 @@ class WebOsClient(private val context: Context) {
                     put("CONTROL_AUDIO")
                     put("CONTROL_INPUT_TEXT")
                     put("LAUNCH")
+                    put("READ_INSTALLED_APPS")
                 })
             })
         })
@@ -279,5 +280,140 @@ class WebOsClient(private val context: Context) {
     fun sendText(text: String) = execute(
         "ssap://com.webos.service.ime/insertText",
         JSONObject().put("text", text).put("replace", 0)
+    )
+
+    // ── App list ──────────────────────────────────────────────────────────────
+
+    data class TvApp(val id: String, val title: String, val iconUrl: String? = null)
+
+    /** Returns (apps, errorMessage). errorMessage is non-null when something went wrong. */
+    fun listApps(): Pair<List<TvApp>, String?> {
+        val latch = CountDownLatch(1)
+        var apps = emptyList<TvApp>()
+        var errorMsg: String? = null
+        val savedKey = prefs.getString("client_key", null)
+
+        val client = buildClient()
+        client.newWebSocket(
+            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+            object : WebSocketListener() {
+                override fun onOpen(ws: WebSocket, response: Response) {
+                    ws.send(buildRegistration(savedKey))
+                }
+                override fun onMessage(ws: WebSocket, text: String) {
+                    val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                    when (json.optString("type")) {
+                        "registered" -> {
+                            val key = json.optJSONObject("payload")?.optString("client-key")
+                            if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                            ws.send(JSONObject().apply {
+                                put("id", "cmd_0")
+                                put("type", "request")
+                                put("uri", "ssap://com.webos.applicationManager/listLaunchPoints")
+                                put("payload", JSONObject())
+                            }.toString())
+                        }
+                        "response" -> when (json.optString("id")) {
+                            "reg_0" -> { errorMsg = "Needs pairing"; ws.close(1000, null); latch.countDown() }
+                            "cmd_0" -> {
+                                val payload = json.optJSONObject("payload")
+                                val arr = payload?.optJSONArray("launchPoints")
+                                if (arr != null) {
+                                    val seen = mutableSetOf<String>()
+                                    val list = mutableListOf<TvApp>()
+                                    for (i in 0 until arr.length()) {
+                                        val obj = arr.getJSONObject(i)
+                                        // skip hidden entries
+                                        if (!obj.optBoolean("visible", true)) continue
+                                        val id = obj.optString("appId").takeIf { it.isNotEmpty() }
+                                            ?: obj.optString("id")
+                                        val title = obj.optString("title")
+                                        val icon = obj.optString("largeIcon").takeIf { it.isNotEmpty() }
+                                            ?: obj.optString("icon").takeIf { it.isNotEmpty() }
+                                        if (id.isNotEmpty() && title.isNotEmpty() && seen.add(id)) {
+                                            list.add(TvApp(id, title, icon))
+                                        }
+                                    }
+                                    apps = list.sortedBy { it.title.lowercase() }
+                                } else {
+                                    errorMsg = "Unexpected response: ${payload?.toString()?.take(200)}"
+                                }
+                                ws.close(1000, null)
+                                latch.countDown()
+                            }
+                        }
+                        "error" -> {
+                            val payload = json.optJSONObject("payload")
+                            errorMsg = payload?.optString("errorText")?.takeIf { it.isNotEmpty() }
+                                ?: payload?.toString()
+                                ?: json.toString().take(300)
+                            ws.close(1000, null)
+                            latch.countDown()
+                        }
+                    }
+                }
+                override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                    errorMsg = t.message ?: "Connection failed"
+                    latch.countDown()
+                }
+                override fun onClosed(ws: WebSocket, code: Int, reason: String) { latch.countDown() }
+            }
+        )
+        val completed = latch.await(10, TimeUnit.SECONDS)
+        if (!completed) errorMsg = "Timeout"
+        client.dispatcher.executorService.shutdown()
+        return Pair(apps, errorMsg)
+    }
+
+    fun saveShortcuts(apps: List<TvApp>) {
+        val arr = JSONArray()
+        apps.forEach { app ->
+            arr.put(JSONObject().apply {
+                put("id", app.id)
+                put("title", app.title)
+                if (app.iconUrl != null) put("iconUrl", app.iconUrl)
+            })
+        }
+        prefs.edit().putString("app_shortcuts", arr.toString()).apply()
+    }
+
+    fun loadShortcuts(): List<TvApp> {
+        val json = prefs.getString("app_shortcuts", null) ?: return defaultShortcuts()
+        return runCatching {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map {
+                val obj = arr.getJSONObject(it)
+                TvApp(obj.getString("id"), obj.getString("title"), obj.optString("iconUrl").takeIf { s -> s.isNotEmpty() })
+            }
+        }.getOrElse { defaultShortcuts() }
+    }
+
+    fun fetchIcon(url: String): android.graphics.Bitmap? = runCatching {
+        val response = buildClient().newCall(Request.Builder().url(url).build()).execute()
+        response.body?.byteStream()?.use { android.graphics.BitmapFactory.decodeStream(it) }
+    }.getOrNull()
+
+    private fun iconFile(appId: String) =
+        java.io.File(context.filesDir, "icon_${appId.replace(Regex("[^a-zA-Z0-9._-]"), "_")}.png")
+
+    /** Fetch icon from TV and persist it to disk. Returns the bitmap. */
+    fun cacheIcon(appId: String, url: String): android.graphics.Bitmap? {
+        val bmp = fetchIcon(url) ?: return null
+        runCatching {
+            iconFile(appId).outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        return bmp
+    }
+
+    /** Load a previously cached icon from disk, or null if not cached yet. */
+    fun loadCachedIcon(appId: String): android.graphics.Bitmap? {
+        val file = iconFile(appId)
+        if (!file.exists()) return null
+        return runCatching { android.graphics.BitmapFactory.decodeFile(file.absolutePath) }.getOrNull()
+    }
+
+    private fun defaultShortcuts() = listOf(
+        TvApp("youtube.leanback.v4", "YouTube"),
+        TvApp("io.strem.tv", "Stremio")
     )
 }
