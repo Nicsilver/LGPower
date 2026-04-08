@@ -13,9 +13,9 @@ import android.view.View
 import android.view.animation.LinearInterpolator
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.graphics.drawable.GradientDrawable
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -214,94 +214,61 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshShortcuts() {
-        val row = findViewById<LinearLayout>(R.id.shortcuts_row)
-        row.removeAllViews()
+        val container = findViewById<LinearLayout>(R.id.shortcuts_row)
+        container.removeAllViews()
         val shortcuts = client.loadShortcuts()
         val density = resources.displayMetrics.density
         val gap = (8 * density).toInt()
-        val iconSize = (60 * density).toInt()
+        val rowHeight = (52 * density).toInt()
 
-        shortcuts.forEachIndexed { index, app ->
-            val item = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = android.view.Gravity.CENTER
-                isClickable = true
-                isFocusable = true
-                setPadding(0, (4 * density).toInt(), 0, (4 * density).toInt())
-                setOnClickListener { sendCommand { client.launchApp(app.id) } }
-            }
+        // Split into chunks: 2 per row when 4 selected, otherwise one row
+        val chunks = if (shortcuts.size == 4) listOf(shortcuts.take(2), shortcuts.drop(2))
+                     else listOf(shortcuts)
 
-            val iconView = ImageView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).also {
-                    it.gravity = android.view.Gravity.CENTER_HORIZONTAL
-                }
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                setImageBitmap(makeLetterBitmap(app.title, iconSize))
-            }
-
-            val label = TextView(this).apply {
-                text = app.title
-                textSize = 11f
-                setTextColor(0xFFAAAAAA.toInt())
-                gravity = android.view.Gravity.CENTER
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
+        chunks.forEachIndexed { rowIndex, chunk ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).also { it.topMargin = (4 * density).toInt() }
+                    LinearLayout.LayoutParams.MATCH_PARENT, rowHeight
+                ).also { if (rowIndex > 0) it.topMargin = gap }
             }
 
-            item.addView(iconView)
-            item.addView(label)
+            chunk.forEachIndexed { colIndex, app ->
+                val pillColor = client.loadCachedColor(app.id) ?: 0xFF1C1C1C.toInt()
+                val pillBg = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = 16 * density
+                    setColor(pillColor)
+                }
 
-            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
-            if (index > 0) params.marginStart = gap
-            row.addView(item, params)
+                val item = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER
+                    background = pillBg
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener { sendCommand { client.launchApp(app.id) } }
+                }
 
-            // Load from disk cache; fall back to network fetch (and cache it)
-            Thread {
-                val bmp = client.loadCachedIcon(app.id)
-                    ?: app.iconUrl?.let { client.cacheIcon(app.id, it) }
-                if (bmp != null) runOnUiThread { iconView.setImageBitmap(toCircle(bmp)) }
-            }.start()
+                val label = TextView(this).apply {
+                    text = app.title
+                    textSize = 14f
+                    setTextColor(0xFFFFFFFF.toInt())
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }
+                item.addView(label)
+
+                val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+                if (colIndex > 0) params.marginStart = gap
+                row.addView(item, params)
+            }
+
+            container.addView(row)
         }
     }
 
-    private fun toCircle(src: android.graphics.Bitmap): android.graphics.Bitmap {
-        val size = minOf(src.width, src.height)
-        val out = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(out)
-        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-        val r = size / 2f
-        canvas.drawCircle(r, r, r, paint)
-        paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
-        // centre-crop the source if it's not square
-        val srcX = (src.width - size) / 2
-        val srcY = (src.height - size) / 2
-        canvas.drawBitmap(src, android.graphics.Rect(srcX, srcY, srcX + size, srcY + size),
-            android.graphics.RectF(0f, 0f, size.toFloat(), size.toFloat()), paint)
-        return out
-    }
-
-    private fun makeLetterBitmap(title: String, size: Int): android.graphics.Bitmap {
-        val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bmp)
-        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFF2A2A44.toInt()
-        }
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
-        paint.apply {
-            color = 0xFF8888BB.toInt()
-            textSize = size * 0.42f
-            textAlign = android.graphics.Paint.Align.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-        }
-        val letter = title.firstOrNull { it.isLetter() }?.uppercaseChar()?.toString() ?: "?"
-        val textY = size / 2f - (paint.descent() + paint.ascent()) / 2f
-        canvas.drawText(letter, size / 2f, textY, paint)
-        return bmp
-    }
 
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onBackPressed() {

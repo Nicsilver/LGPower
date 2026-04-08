@@ -35,8 +35,8 @@
         <LinearLayout
             android:id="@+id/shortcuts_row"
             android:layout_width="match_parent"
-            android:layout_height="96dp"
-            android:orientation="horizontal" />
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
 
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
