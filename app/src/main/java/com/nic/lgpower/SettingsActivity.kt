@@ -106,16 +106,6 @@ class SettingsActivity : AppCompatActivity() {
             }.start()
         }
 
-        // Save IP
-        findViewById<Button>(R.id.btn_save).setOnClickListener {
-            val ip = editIp.text.toString().trim()
-            if (ip.isNotEmpty()) {
-                prefs.edit().putString("tv_ip", ip).apply()
-                Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show()
-                finish()
-            }
-        }
-
         // Load full app list from TV
         val loadAppsSpinner = findViewById<ProgressBar>(R.id.load_apps_spinner)
         findViewById<Button>(R.id.btn_load_apps).setOnClickListener { loadBtn ->
@@ -150,6 +140,12 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }.start()
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        val ip = findViewById<EditText>(R.id.edit_tv_ip).text.toString().trim()
+        if (ip.isNotEmpty()) prefs.edit().putString("tv_ip", ip).apply()
     }
 
     private fun updateSummary(chosen: List<WebOsClient.TvApp>) {

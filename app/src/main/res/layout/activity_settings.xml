@@ -72,16 +72,6 @@
 
         </LinearLayout>
 
-        <Button
-            android:id="@+id/btn_save"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_squircle_dark"
-            android:text="Save IP"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
-            android:textStyle="bold" />
 
         <!-- Divider -->
         <View
