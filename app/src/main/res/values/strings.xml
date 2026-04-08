@@ -7,5 +7,7 @@
     <string name="screen_off_widget_description">Tap to turn off LG C4 screen via Wi-Fi</string>
     <string name="ok_widget_label">LG C4 OK</string>
     <string name="ok_widget_description">Tap to send OK/Enter to LG C4 via IR</string>
+    <string name="shortcut_widget_label">LG App Shortcut</string>
+    <string name="shortcut_widget_description">Launch a TV app with one tap</string>
     <color name="power_icon">#FFFFFFFF</color>
 </resources>
