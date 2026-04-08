@@ -2,7 +2,7 @@
 
 An Android remote control app for LG WebOS TVs, built for a OnePlus 12 with a built-in IR blaster.
 
-<img src="screenshots/app.png" alt="App screenshot" width="300" />
+<img src="screenshots/app.png" alt="App screenshot" width="300" /> <img src="screenshots/settings_apps.png" alt="App picker" width="300" />
 
 ## Features
 
@@ -12,7 +12,7 @@ An Android remote control app for LG WebOS TVs, built for a OnePlus 12 with a bu
 - **Screen Off** — turn off the panel without full standby
 - **Touchpad** — full-screen cursor mode with drag-to-move and tap-to-click
 - **Keyboard** — type text directly to the TV (great for YouTube search)
-- **App shortcuts** — one-tap launch for YouTube and Stremio
+- **App shortcuts** — configurable 2–4 shortcuts, selected from all apps on the TV
 - **Home screen widgets** — Power, Screen Off, and OK/Enter widgets
 
 ## Setup
