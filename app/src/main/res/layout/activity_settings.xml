@@ -38,11 +38,40 @@
         android:padding="12dp"
         android:textSize="16sp" />
 
+    <!-- Discover button + spinner -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/btn_discover"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_squircle_dark"
+            android:text="Discover TV"
+            android:textColor="#AAAAFF"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <ProgressBar
+            android:id="@+id/discover_spinner"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="12dp"
+            android:visibility="gone"
+            android:indeterminateTint="#AAAAFF" />
+
+    </LinearLayout>
+
     <Button
         android:id="@+id/btn_save"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="12dp"
         android:background="@drawable/bg_squircle_dark"
         android:text="Save"
         android:textColor="#FFFFFF"
