@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Stremio-style play circle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,2 A10,10 0 1,1 12,22 A10,10 0 1,1 12,2 Z" />
+    <path
+        android:fillColor="#8A2BE2"
+        android:pathData="M10,8 L10,16 L17,12 Z" />
+</vector>
