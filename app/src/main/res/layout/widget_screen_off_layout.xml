@@ -12,6 +12,7 @@
         android:layout_gravity="center"
         android:layout_marginBottom="10dp"
         android:src="@drawable/ic_screen_off"
+        android:tint="#BBBBBB"
         android:contentDescription="Screen Off" />
 
 </FrameLayout>
