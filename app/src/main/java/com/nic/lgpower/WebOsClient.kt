@@ -55,16 +55,55 @@ class WebOsClient(private val context: Context) {
             if (clientKey != null) put("client-key", clientKey)
             put("manifest", JSONObject().apply {
                 put("manifestVersion", 1)
+                put("appVersion", "1.1")
                 put("permissions", JSONArray().apply {
-                    put("CONTROL_POWER")
-                    put("CONTROL_DISPLAY")
-                    put("CONTROL_TV_SCREEN")
-                    put("CONTROL_INPUT_TV")
-                    put("CONTROL_MOUSE_AND_KEYBOARD")
-                    put("CONTROL_AUDIO")
-                    put("CONTROL_INPUT_TEXT")
-                    put("LAUNCH")
-                    put("READ_INSTALLED_APPS")
+                    put("LAUNCH"); put("LAUNCH_WEBAPP"); put("APP_TO_APP"); put("CLOSE")
+                    put("TEST_OPEN"); put("TEST_PROTECTED")
+                    put("CONTROL_AUDIO"); put("CONTROL_DISPLAY")
+                    put("CONTROL_INPUT_JOYSTICK"); put("CONTROL_INPUT_MEDIA_RECORDING")
+                    put("CONTROL_INPUT_MEDIA_PLAYBACK"); put("CONTROL_INPUT_TV")
+                    put("CONTROL_POWER"); put("CONTROL_TV_SCREEN")
+                    put("READ_APP_STATUS"); put("READ_CURRENT_CHANNEL")
+                    put("READ_INPUT_DEVICE_LIST"); put("READ_NETWORK_STATE")
+                    put("READ_RUNNING_APPS"); put("READ_TV_CHANNEL_LIST")
+                    put("WRITE_NOTIFICATION_TOAST"); put("READ_POWER_STATE")
+                    put("READ_COUNTRY_INFO"); put("CONTROL_INPUT_TEXT")
+                    put("CONTROL_MOUSE_AND_KEYBOARD"); put("READ_INSTALLED_APPS")
+                    put("READ_SETTINGS")
+                })
+                put("signatures", JSONArray().put(JSONObject().apply {
+                    put("signatureVersion", 1)
+                    put("signature",
+                        "eyJhbGdvcml0aG0iOiJSU0EtU0hBMjU2Iiwia2V5SWQiOiJ0ZXN0LXNpZ25pbmct" +
+                        "Y2VydCIsInNpZ25hdHVyZVZlcnNpb24iOjF9.hrVRgjCwXVvE2OOSpDZ58hR+59aF" +
+                        "NwYDyjQgKk3auukd7pcegmE2CzPCa0bJ0ZsRAcKkCTJrWo5iDzNhMBWRyaMOv5zWS" +
+                        "rthlf7G128qvIlpMT0YNY+n/FaOHE73uLrS/g7swl3/qH/BGFG2Hu4RlL48eb3lLK" +
+                        "qTt2xKHdCs6Cd4RMfJPYnzgvI4BNrFUKsjkcu+WD4OO2A27Pq1n50cMchmcaXadJh" +
+                        "GrOqH5YmHdOCj5NSHzJYrsW0HPlpuAx/ECMeIZYDh6RMqaFM2DXzdKX9NmmyqzJ3o" +
+                        "/0lkk/N97gfVRLW5hA29yeAwaCViZNCP8iC9aO0q9fQojoa7NQnAtw=="
+                    )
+                }))
+                put("signed", JSONObject().apply {
+                    put("appId", "com.lge.test")
+                    put("created", "20140509")
+                    put("vendorId", "com.lge")
+                    put("serial", "2f930e2d2cfe083771f68e4fe7bb07")
+                    put("localizedAppNames", JSONObject().apply {
+                        put("", "LG Remote App")
+                        put("ko-KR", "리모컨 앱")
+                        put("zxx-XX", "ЛГ Rэмotэ AПП")
+                    })
+                    put("localizedVendorNames", JSONObject().put("", "LG Electronics"))
+                    put("permissions", JSONArray().apply {
+                        put("TEST_SECURE"); put("CONTROL_INPUT_TEXT")
+                        put("CONTROL_MOUSE_AND_KEYBOARD"); put("READ_INSTALLED_APPS")
+                        put("READ_LGE_SDX"); put("READ_NOTIFICATIONS"); put("SEARCH")
+                        put("WRITE_SETTINGS"); put("WRITE_NOTIFICATION_ALERT")
+                        put("CONTROL_POWER"); put("READ_CURRENT_CHANNEL")
+                        put("READ_RUNNING_APPS"); put("READ_UPDATE_INFO")
+                        put("UPDATE_FROM_REMOTE_APP"); put("READ_LGE_TV_INPUT_EVENTS")
+                        put("READ_TV_CURRENT_TIME")
+                    })
                 })
             })
         })
@@ -261,9 +300,95 @@ class WebOsClient(private val context: Context) {
     fun pressLeft()  = pressKey("LEFT")
     fun pressRight() = pressKey("RIGHT")
 
-    fun volumeUp()   = pressKey("VOLUMEUP")
-    fun volumeDown() = pressKey("VOLUMEDOWN")
-    fun muteToggle() = pressKey("MUTE")
+    fun volumeUp()      = pressKey("VOLUMEUP")
+    fun volumeDown()    = pressKey("VOLUMEDOWN")
+    fun muteToggle()    = pressKey("MUTE")
+
+    fun brightnessUp()   = adjustBrightness(+10)
+    fun brightnessDown() = adjustBrightness(-10)
+
+    private fun adjustBrightness(delta: Int): Result {
+        val latch = CountDownLatch(1)
+        var result: Result = Result.Error("Timeout — is the TV on and reachable?")
+        val savedKey = prefs.getString("client_key", null)
+
+        val client = buildClient()
+        client.newWebSocket(
+            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+            object : WebSocketListener() {
+                override fun onOpen(ws: WebSocket, response: Response) {
+                    ws.send(buildRegistration(savedKey))
+                }
+                override fun onMessage(ws: WebSocket, text: String) {
+                    val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                    when (json.optString("type")) {
+                        "registered" -> {
+                            val key = json.optJSONObject("payload")?.optString("client-key")
+                            if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                            ws.send(JSONObject().apply {
+                                put("id", "cmd_get")
+                                put("type", "request")
+                                put("uri", "ssap://settings/getSystemSettings")
+                                put("payload", JSONObject()
+                                    .put("category", "picture")
+                                    .put("keys", JSONArray().put("backlight")))
+                            }.toString())
+                        }
+                        "response" -> when (json.optString("id")) {
+                            "reg_0" -> { result = Result.NeedsPairing; ws.close(1000, null); latch.countDown() }
+                            "cmd_get" -> {
+                                val current = json.optJSONObject("payload")
+                                    ?.optJSONObject("settings")
+                                    ?.optString("backlight")
+                                    ?.toIntOrNull()
+                                if (current == null) {
+                                    result = Result.Error("Could not read backlight")
+                                    ws.close(1000, null)
+                                    latch.countDown()
+                                    return
+                                }
+                                val newVal = (current + delta).coerceIn(0, 100)
+                                ws.send(JSONObject().apply {
+                                    put("id", "cmd_set")
+                                    put("type", "request")
+                                    put("uri", "ssap://settings/setSystemSettings")
+                                    put("payload", JSONObject()
+                                        .put("category", "picture")
+                                        .put("settings", JSONObject()
+                                            .put("energySaving", "off")
+                                            .put("backlight", newVal.toString())))
+                                }.toString())
+                            }
+                            "cmd_set" -> {
+                                val returnValue = json.optJSONObject("payload")?.optBoolean("returnValue", true)
+                                result = if (returnValue == false)
+                                    Result.Error("Could not set backlight")
+                                else
+                                    Result.Success
+                                ws.close(1000, null)
+                                latch.countDown()
+                            }
+                        }
+                        "error" -> {
+                            result = Result.Error(json.optJSONObject("payload")?.optString("errorText") ?: "Unknown error")
+                            ws.close(1000, null)
+                            latch.countDown()
+                        }
+                    }
+                }
+                override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                    result = Result.Error(t.message ?: "Connection failed")
+                    latch.countDown()
+                }
+                override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                    latch.countDown()
+                }
+            }
+        )
+        latch.await(8, TimeUnit.SECONDS)
+        client.dispatcher.executorService.shutdown()
+        return result
+    }
 
     fun launchApp(appId: String) = execute(
         "ssap://system.launcher/launch",
