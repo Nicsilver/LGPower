@@ -18,7 +18,7 @@
         android:layout_gravity="center"
         android:gravity="center"
         android:text="App"
-        android:textColor="#FFFFFFFF"
+        android:textColor="#DDDDDD"
         android:textSize="24sp"
         android:textStyle="bold" />
 
