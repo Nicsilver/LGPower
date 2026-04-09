@@ -74,6 +74,10 @@ class MainActivity : AppCompatActivity() {
         setRepeatListener(findViewById(R.id.btn_volume_down)) { client.volumeDown() }
         findViewById<View>(R.id.btn_mute).setOnClickListener  { sendCommand { client.muteToggle() } }
 
+        // Brightness
+        setRepeatListener(findViewById(R.id.btn_brightness_up))   { client.brightnessUp() }
+        setRepeatListener(findViewById(R.id.btn_brightness_down)) { client.brightnessDown() }
+
         // App settings
         findViewById<View>(R.id.btn_app_settings).setOnClickListener {
             startActivity(android.content.Intent(this, SettingsActivity::class.java))
