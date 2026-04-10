@@ -1,13 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- "LG" in Arial Bold, converted to paths, centred in the 108×108 adaptive-icon canvas -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M46.69 75.47L16.46 75.47L16.46 32.88L25.13 32.88L25.13 68.24L46.69 68.24L46.69 75.47ZM82.78 59.68L72.85 59.68L72.85 52.45L91.54 52.45L91.54 69.56Q88.82 72.19 83.65 74.20Q78.48 76.21 73.17 76.21L73.17 76.21Q66.44 76.21 61.43 73.38Q56.42 70.55 53.90 65.29Q51.38 60.04 51.38 53.85L51.38 53.85Q51.38 47.14 54.19 41.93Q57.00 36.71 62.42 33.93L62.42 33.93Q66.55 31.79 72.71 31.79L72.71 31.79Q80.70 31.79 85.20 35.15Q89.70 38.50 90.99 44.42L90.99 44.42L82.37 46.03Q81.47 42.87 78.96 41.04Q76.46 39.21 72.71 39.21L72.71 39.21Q67.02 39.21 63.67 42.81Q60.31 46.41 60.31 53.50L60.31 53.50Q60.31 61.15 63.71 64.97Q67.11 68.79 72.62 68.79L72.62 68.79Q75.34 68.79 78.08 67.73Q80.82 66.66 82.78 65.13L82.78 65.13L82.78 59.68Z" />
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="40">
+
+        <!-- Remote body with dot button cutouts -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="
+                M46,26 L62,26 Q71,26 71,35 L71,79 Q71,88 62,88 L46,88 Q37,88 37,79 L37,35 Q37,26 46,26 Z
+
+                M48,34 A4,4 0 1 0 48,42 A4,4 0 1 0 48,34 Z
+                M62,34 A4,4 0 1 0 62,42 A4,4 0 1 0 62,34 Z
+
+                M44,50 A3,3 0 1 0 44,56 A3,3 0 1 0 44,50 Z
+                M54,50 A3,3 0 1 0 54,56 A3,3 0 1 0 54,50 Z
+                M64,50 A3,3 0 1 0 64,56 A3,3 0 1 0 64,50 Z
+
+                M44,60 A3,3 0 1 0 44,66 A3,3 0 1 0 44,60 Z
+                M54,60 A3,3 0 1 0 54,66 A3,3 0 1 0 54,60 Z
+                M64,60 A3,3 0 1 0 64,66 A3,3 0 1 0 64,60 Z
+
+                M44,70 A3,3 0 1 0 44,76 A3,3 0 1 0 44,70 Z
+                M54,70 A3,3 0 1 0 54,76 A3,3 0 1 0 54,70 Z
+                M64,70 A3,3 0 1 0 64,76 A3,3 0 1 0 64,70 Z
+            " />
+
+    </group>
 
 </vector>
