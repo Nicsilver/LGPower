@@ -8,6 +8,7 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.HapticFeedbackConstants
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
@@ -273,6 +274,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> { sendCommand { client.volumeUp() }; true }
+            KeyEvent.KEYCODE_VOLUME_DOWN -> { sendCommand { client.volumeDown() }; true }
+            else -> super.onKeyDown(keyCode, event)
+        }
+    }
 
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
