@@ -2,6 +2,7 @@ package com.nic.lgpower
 
 import android.animation.ValueAnimator
 import android.app.ActivityManager
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -20,6 +21,8 @@ import android.view.animation.LinearInterpolator
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.content.res.AppCompatResources
+import java.net.InetSocketAddress
+import java.net.Socket
 import android.graphics.drawable.GradientDrawable
 import android.widget.Button
 import android.widget.EditText
@@ -34,6 +37,9 @@ class MainActivity : AppCompatActivity() {
 
     private val client by lazy { WebOsClient(this) }
     private var pointerSession: WebOsClient.PointerSession? = null
+    private var discovering = false
+
+    private enum class TvStatus { CHECKING, CONNECTED, SEARCHING, DISCONNECTED }
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var hasMoved = false
@@ -232,6 +238,61 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         client.resetConnection()
         refreshShortcuts()
+        checkAndAutoDiscover()
+    }
+
+    private fun setStatus(status: TvStatus) {
+        val dot   = findViewById<View>(R.id.status_dot)
+        val label = findViewById<TextView>(R.id.status_label)
+        val (color, text) = when (status) {
+            TvStatus.CHECKING      -> 0xFF888888.toInt() to "Checking…"
+            TvStatus.CONNECTED     -> 0xFF4CAF50.toInt() to "Connected"
+            TvStatus.SEARCHING     -> 0xFFFF9800.toInt() to "Searching for TV…"
+            TvStatus.DISCONNECTED  -> 0xFFF44336.toInt() to "TV not found"
+        }
+        dot.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
+        }
+        label.text = text
+    }
+
+    private fun checkAndAutoDiscover() {
+        if (discovering) return
+        setStatus(TvStatus.CHECKING)
+        val ip = client.tvIp
+        Thread {
+            val reachable = ip.isNotBlank() && runCatching {
+                Socket().use { it.connect(InetSocketAddress(ip, 3001), 2000) }
+                true
+            }.getOrElse { false }
+
+            runOnUiThread {
+                if (reachable) {
+                    setStatus(TvStatus.CONNECTED)
+                } else {
+                    setStatus(TvStatus.SEARCHING)
+                    autoDiscover()
+                }
+            }
+        }.start()
+    }
+
+    private fun autoDiscover() {
+        if (discovering) return
+        discovering = true
+        Thread {
+            val found = TvDiscovery.discover(this)
+            runOnUiThread {
+                discovering = false
+                if (found.isNotEmpty()) {
+                    client.saveTvIp(found[0])
+                    setStatus(TvStatus.CONNECTED)
+                } else {
+                    setStatus(TvStatus.DISCONNECTED)
+                }
+            }
+        }.start()
     }
 
     private fun refreshShortcuts() {

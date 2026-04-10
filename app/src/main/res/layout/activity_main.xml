@@ -29,6 +29,31 @@
             android:textStyle="bold"
             android:gravity="center" />
 
+        <!-- TV connection status indicator -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="6dp">
+
+            <View
+                android:id="@+id/status_dot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/status_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Checking…"
+                android:textColor="#88FFFFFF"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
         <!-- App shortcuts (populated dynamically from settings) -->
