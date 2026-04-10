@@ -1,7 +1,12 @@
 package com.nic.lgpower
 
 import android.animation.ValueAnimator
+import android.app.ActivityManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.hardware.ConsumerIrManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -14,6 +19,7 @@ import android.view.View
 import android.view.animation.LinearInterpolator
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import androidx.appcompat.content.res.AppCompatResources
 import android.graphics.drawable.GradientDrawable
 import android.widget.Button
 import android.widget.EditText
@@ -42,6 +48,16 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Override recents/task switcher icon with transparent-background bitmap
+        val iconDrawable = AppCompatResources.getDrawable(this, R.drawable.ic_launcher_foreground)
+        val iconBmp = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
+        iconDrawable?.setBounds(0, 0, 192, 192)
+        val iconCanvas = Canvas(iconBmp)
+        iconCanvas.scale(1.5f, 1.5f, 96f, 96f)
+        iconDrawable?.draw(iconCanvas)
+        @Suppress("DEPRECATION")
+        setTaskDescription(ActivityManager.TaskDescription(getString(R.string.app_name), iconBmp, Color.TRANSPARENT))
 
         // Power — IR toggle
         findViewById<View>(R.id.btn_power).setOnClickListener {
