@@ -38,6 +38,9 @@ class MainActivity : AppCompatActivity() {
     private val client by lazy { WebOsClient(this) }
     private var pointerSession: WebOsClient.PointerSession? = null
     private var discovering = false
+    private val statusHandler = Handler(Looper.getMainLooper())
+    private val statusInterval = 15_000L
+    private lateinit var statusRunnable: Runnable
 
     private enum class TvStatus { CHECKING, CONNECTED, SEARCHING, DISCONNECTED }
     private var lastTouchX = 0f
@@ -54,6 +57,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        statusRunnable = Runnable {
+            checkStatus()
+            statusHandler.postDelayed(statusRunnable, statusInterval)
+        }
 
         // Override recents/task switcher icon with transparent-background bitmap
         val iconDrawable = AppCompatResources.getDrawable(this, R.drawable.ic_launcher_foreground)
@@ -239,7 +247,14 @@ class MainActivity : AppCompatActivity() {
         client.resetConnection()
         refreshShortcuts()
         checkAndAutoDiscover()
+        statusHandler.postDelayed(statusRunnable, statusInterval)
     }
+
+    override fun onPause() {
+        super.onPause()
+        statusHandler.removeCallbacks(statusRunnable)
+    }
+
 
     private fun setStatus(status: TvStatus) {
         val dot   = findViewById<View>(R.id.status_dot)
@@ -258,22 +273,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAndAutoDiscover() {
-        if (discovering) return
-        setStatus(TvStatus.CHECKING)
         val ip = client.tvIp
+        if (ip.isBlank()) {
+            // No IP saved yet — run discovery once
+            setStatus(TvStatus.SEARCHING)
+            autoDiscover()
+        } else {
+            checkStatus()
+        }
+    }
+
+    private fun checkStatus() {
+        val ip = client.tvIp
+        if (ip.isBlank()) return
         Thread {
-            val reachable = ip.isNotBlank() && runCatching {
+            val reachable = runCatching {
                 Socket().use { it.connect(InetSocketAddress(ip, 3001), 2000) }
                 true
             }.getOrElse { false }
-
             runOnUiThread {
-                if (reachable) {
-                    setStatus(TvStatus.CONNECTED)
-                } else {
-                    setStatus(TvStatus.SEARCHING)
-                    autoDiscover()
-                }
+                setStatus(if (reachable) TvStatus.CONNECTED else TvStatus.DISCONNECTED)
             }
         }.start()
     }
