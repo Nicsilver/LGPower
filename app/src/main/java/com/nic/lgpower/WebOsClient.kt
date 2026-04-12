@@ -357,8 +357,22 @@ class WebOsClient(private val context: Context) {
         return level
     }
 
-    fun brightnessUp()   = adjustBrightness(+10)
-    fun brightnessDown() = adjustBrightness(-10)
+    fun brightnessUp()   = adjustBrightness(+5)
+    fun brightnessDown() = adjustBrightness(-5)
+
+    fun setBrightness(level: Int) = execute(
+        "ssap://settings/setSystemSettings",
+        JSONObject()
+            .put("category", "picture")
+            .put("settings", JSONObject()
+                .put("energySaving", "off")
+                .put("backlight", level.toString()))
+    )
+
+    fun setVolume(level: Int) = execute(
+        "ssap://audio/setVolume",
+        JSONObject().put("volume", level)
+    )
 
     fun getBrightness(): Int? {
         val latch = CountDownLatch(1)
