@@ -106,6 +106,14 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_settings).setOnLongClickListener { sendCommand { client.pressKey("HOME") }; true }
 
         // Volume + Mute
+        var volumeDragLevel = 0
+        var volumeSendRunnable: Runnable? = null
+        val volumeSendLoop: Runnable = object : Runnable {
+            override fun run() {
+                Thread { client.setVolume(volumeDragLevel) }.start()
+                statusHandler.postDelayed(this, 50)
+            }
+        }
         setupPillDrag(
             pillId = R.id.volume_pill,
             barId  = R.id.volume_bar,
@@ -115,8 +123,17 @@ class MainActivity : AppCompatActivity() {
             onTapDown = { currentVolume?.let { setVolumeState((it - 1).coerceIn(0, 100), currentMuted) }
                           Thread { client.volumeDown(); scheduleVolumeRefresh() }.start() },
             onDragEnd = { level ->
+                statusHandler.removeCallbacks(volumeSendLoop)
+                volumeSendRunnable = null
                 setVolumeState(level, currentMuted)
                 Thread { client.setVolume(level); scheduleVolumeRefresh() }.start()
+            },
+            onDragMove = { level ->
+                volumeDragLevel = level
+                if (volumeSendRunnable == null) {
+                    volumeSendRunnable = volumeSendLoop
+                    statusHandler.post(volumeSendLoop)
+                }
             }
         )
         findViewById<View>(R.id.btn_mute).setOnClickListener {
@@ -130,6 +147,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Brightness
+        var brightnessDragLevel = 0
+        var brightnessSendRunnable: Runnable? = null
+        val brightnessSendLoop: Runnable = object : Runnable {
+            override fun run() {
+                Thread { client.setBrightness(brightnessDragLevel) }.start()
+                statusHandler.postDelayed(this, 50)
+            }
+        }
         setupPillDrag(
             pillId = R.id.brightness_pill,
             barId  = R.id.brightness_bar,
@@ -139,8 +164,17 @@ class MainActivity : AppCompatActivity() {
             onTapDown = { currentBrightness?.let { setBrightnessBar((it - 5).coerceIn(0, 100)) }
                           Thread { client.brightnessDown(); scheduleBrightnessRefresh() }.start() },
             onDragEnd = { level ->
+                statusHandler.removeCallbacks(brightnessSendLoop)
+                brightnessSendRunnable = null
                 setBrightnessBar(level)
                 Thread { client.setBrightness(level); scheduleBrightnessRefresh() }.start()
+            },
+            onDragMove = { level ->
+                brightnessDragLevel = level
+                if (brightnessSendRunnable == null) {
+                    brightnessSendRunnable = brightnessSendLoop
+                    statusHandler.post(brightnessSendLoop)
+                }
             }
         )
 
@@ -346,7 +380,8 @@ class MainActivity : AppCompatActivity() {
         getLevel: () -> Int?,
         onTapUp: () -> Unit,
         onTapDown: () -> Unit,
-        onDragEnd: (Int) -> Unit
+        onDragEnd: (Int) -> Unit,
+        onDragMove: ((Int) -> Unit)? = null
     ) {
         val pill = findViewById<View>(pillId)
         val bar  = findViewById<View>(barId)
@@ -373,6 +408,10 @@ class MainActivity : AppCompatActivity() {
                         val targetHeight = (pillHeightPx * level / 100f).toInt()
                         bar.layoutParams = bar.layoutParams.also { it.height = targetHeight }
                         bar.requestLayout()
+                        onDragMove?.invoke(level)
+                        // find the label sibling in the parent LinearLayout and update it
+                        val parent = pill.parent as? android.view.ViewGroup
+                        (parent?.getChildAt(0) as? TextView)?.text = level.toString()
                     }
                     true
                 }
@@ -411,6 +450,7 @@ class MainActivity : AppCompatActivity() {
     private fun setVolumeState(level: Int, muted: Boolean) {
         currentVolume = level
         currentMuted = muted
+        findViewById<TextView>(R.id.volume_label)?.text = level.toString()
         val bar = findViewById<View>(R.id.volume_bar) ?: return
         val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
         val targetHeight = (pillHeightPx * level / 100f).toInt()
@@ -442,6 +482,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setBrightnessBar(level: Int) {
         currentBrightness = level
+        findViewById<TextView>(R.id.brightness_label)?.text = level.toString()
         val bar = findViewById<View>(R.id.brightness_bar) ?: return
         val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
         val targetHeight = (pillHeightPx * level / 100f).toInt()
