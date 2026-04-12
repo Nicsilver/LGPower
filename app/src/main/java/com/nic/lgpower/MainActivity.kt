@@ -238,6 +238,11 @@ class MainActivity : AppCompatActivity() {
         exitTouchpadFn = ::exitTouchpad
 
         // Overlay touch listener — active only in locked mode for ongoing movement
+        var overlayDragging = false
+        var overlayTotalDist = 0f
+        var dxCarry = 0f
+        var dyCarry = 0f
+        val tapThresholdPx = 12 * resources.displayMetrics.density
         touchpadOverlay.setOnTouchListener { v, event ->
             if (!isLocked) return@setOnTouchListener false
             when (event.actionMasked) {
@@ -245,23 +250,58 @@ class MainActivity : AppCompatActivity() {
                     lastTouchX = event.rawX
                     lastTouchY = event.rawY
                     moveAccumulator = 0f
+                    overlayTotalDist = 0f
+                    overlayDragging = false
+                    dxCarry = 0f
+                    dyCarry = 0f
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - lastTouchX
                     val dy = event.rawY - lastTouchY
+                    val dist = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
                     lastTouchX = event.rawX
                     lastTouchY = event.rawY
-                    moveAccumulator += Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
-                    if (moveAccumulator >= hapticMovePx) {
-                        v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        moveAccumulator = 0f
+                    if (!overlayDragging) {
+                        overlayTotalDist += dist
+                        if (overlayTotalDist >= tapThresholdPx) {
+                            // Confirmed drag — start fresh from here, no jump
+                            overlayDragging = true
+                            dxCarry = 0f
+                            dyCarry = 0f
+                        }
+                    } else {
+                        // Accumulate sub-pixel carry so slow movement isn't lost
+                        val totalDx = dx + dxCarry
+                        val totalDy = dy + dyCarry
+                        val sendDx = totalDx.toInt()
+                        val sendDy = totalDy.toInt()
+                        dxCarry = totalDx - sendDx
+                        dyCarry = totalDy - sendDy
+                        moveAccumulator += dist
+                        if (moveAccumulator >= hapticMovePx) {
+                            v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            moveAccumulator = 0f
+                        }
+                        if (sendDx != 0 || sendDy != 0)
+                            pointerSession?.move(sendDx.toFloat(), sendDy.toFloat())
                     }
-                    pointerSession?.move(dx, dy)
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!overlayDragging) {
+                        v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        pointerSession?.click()
+                    }
                     true
                 }
                 else -> true
             }
+        }
+
+        findViewById<View>(R.id.btn_touchpad_back).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            pointerSession?.sendKey("BACK")
         }
 
         findViewById<View>(R.id.btn_touchpad_click).setOnClickListener {
@@ -286,7 +326,7 @@ class MainActivity : AppCompatActivity() {
                     // Grow the border around the screen over 1.5s
                     resetBorder()
                     lockAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-                        duration = 1500
+                        duration = 1000
                         interpolator = LinearInterpolator()
                         addUpdateListener { lockBorder.setProgress(it.animatedValue as Float) }
                         start()
@@ -301,7 +341,7 @@ class MainActivity : AppCompatActivity() {
                                 btnExit.visibility = View.VISIBLE
                             }
                         }
-                    }, 1500)
+                    }, 1000)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
