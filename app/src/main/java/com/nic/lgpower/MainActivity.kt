@@ -134,7 +134,8 @@ class MainActivity : AppCompatActivity() {
                     volumeSendRunnable = volumeSendLoop
                     statusHandler.post(volumeSendLoop)
                 }
-            }
+            },
+            sliderEnabled = { appPrefs.getBoolean("vol_slider", true) }
         )
         findViewById<View>(R.id.btn_mute).setOnClickListener {
             currentVolume?.let { v -> runOnUiThread { setVolumeState(v, !currentMuted) } }
@@ -159,10 +160,12 @@ class MainActivity : AppCompatActivity() {
             pillId = R.id.brightness_pill,
             barId  = R.id.brightness_bar,
             getLevel = { currentBrightness },
-            onTapUp   = { currentBrightness?.let { setBrightnessBar((it + 5).coerceIn(0, 100)) }
-                          Thread { client.brightnessUp();   scheduleBrightnessRefresh() }.start() },
-            onTapDown = { currentBrightness?.let { setBrightnessBar((it - 5).coerceIn(0, 100)) }
-                          Thread { client.brightnessDown(); scheduleBrightnessRefresh() }.start() },
+            onTapUp   = { val lvl = ((currentBrightness ?: 50) + 5).coerceIn(0, 100)
+                          setBrightnessBar(lvl)
+                          Thread { client.setBrightness(lvl) }.start() },
+            onTapDown = { val lvl = ((currentBrightness ?: 50) - 5).coerceIn(0, 100)
+                          setBrightnessBar(lvl)
+                          Thread { client.setBrightness(lvl) }.start() },
             onDragEnd = { level ->
                 statusHandler.removeCallbacks(brightnessSendLoop)
                 brightnessSendRunnable = null
@@ -175,7 +178,9 @@ class MainActivity : AppCompatActivity() {
                     brightnessSendRunnable = brightnessSendLoop
                     statusHandler.post(brightnessSendLoop)
                 }
-            }
+            },
+            sliderEnabled = { appPrefs.getBoolean("brightness_slider", true) },
+            onActionUp = { scheduleBrightnessRefresh() }
         )
 
         // App settings
@@ -374,6 +379,8 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+    private val appPrefs by lazy { getSharedPreferences("webos", MODE_PRIVATE) }
+
     private fun setupPillDrag(
         pillId: Int,
         barId: Int,
@@ -381,7 +388,9 @@ class MainActivity : AppCompatActivity() {
         onTapUp: () -> Unit,
         onTapDown: () -> Unit,
         onDragEnd: (Int) -> Unit,
-        onDragMove: ((Int) -> Unit)? = null
+        onDragMove: ((Int) -> Unit)? = null,
+        sliderEnabled: () -> Boolean = { true },
+        onActionUp: (() -> Unit)? = null
     ) {
         val pill = findViewById<View>(pillId)
         val bar  = findViewById<View>(barId)
@@ -391,50 +400,67 @@ class MainActivity : AppCompatActivity() {
         var isDragging = false
         var lastHapticLevel = -1
 
+        val repeatHandler = Handler(Looper.getMainLooper())
+        var repeatIsUp = true
+        val repeatRunnable = object : Runnable {
+            override fun run() {
+                if (repeatIsUp) onTapUp() else onTapDown()
+                pill.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                repeatHandler.postDelayed(this, 120L)
+            }
+        }
+
         pill.setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     startY = event.y
                     isDragging = false
                     lastHapticLevel = -1
-                    // Prevent ScrollView from stealing our touch events
                     v.parent?.requestDisallowInterceptTouchEvent(true)
+                    if (!sliderEnabled()) {
+                        repeatIsUp = event.y < pillHeightPx / 2f
+                        if (repeatIsUp) onTapUp() else onTapDown()
+                        repeatHandler.postDelayed(repeatRunnable, 400L)
+                    }
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (!isDragging && abs(event.y - startY) > dragThreshold) {
-                        isDragging = true
-                    }
-                    if (isDragging) {
-                        val level = ((1f - event.y / pillHeightPx) * 100).toInt().coerceIn(0, 100)
-                        val targetHeight = (pillHeightPx * level / 100f).toInt()
-                        bar.layoutParams = bar.layoutParams.also { it.height = targetHeight }
-                        bar.requestLayout()
-                        onDragMove?.invoke(level)
-                        // find the label sibling in the parent LinearLayout and update it
-                        val parent = pill.parent as? android.view.ViewGroup
-                        (parent?.getChildAt(0) as? TextView)?.text = level.toString()
-                        // haptic tick every 5 units
-                        if (lastHapticLevel == -1 || abs(level - lastHapticLevel) >= 3) {
-                            v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            lastHapticLevel = level
+                    if (sliderEnabled()) {
+                        if (!isDragging && abs(event.y - startY) > dragThreshold) isDragging = true
+                        if (isDragging) {
+                            val level = ((1f - event.y / pillHeightPx) * 100).toInt().coerceIn(0, 100)
+                            val targetHeight = (pillHeightPx * level / 100f).toInt()
+                            bar.layoutParams = bar.layoutParams.also { it.height = targetHeight }
+                            bar.requestLayout()
+                            onDragMove?.invoke(level)
+                            val parent = pill.parent as? android.view.ViewGroup
+                            (parent?.getChildAt(0) as? TextView)?.text = level.toString()
+                            if (lastHapticLevel == -1 || abs(level - lastHapticLevel) >= 3) {
+                                v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                lastHapticLevel = level
+                            }
                         }
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
                     v.parent?.requestDisallowInterceptTouchEvent(false)
+                    repeatHandler.removeCallbacks(repeatRunnable)
                     v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    if (isDragging) {
-                        val level = ((1f - event.y / pillHeightPx) * 100).toInt().coerceIn(0, 100)
-                        onDragEnd(level)
-                    } else {
-                        if (event.y < pillHeightPx / 2f) onTapUp() else onTapDown()
+                    if (sliderEnabled()) {
+                        if (isDragging) {
+                            val level = ((1f - event.y / pillHeightPx) * 100).toInt().coerceIn(0, 100)
+                            onDragEnd(level)
+                        } else {
+                            if (event.y < pillHeightPx / 2f) onTapUp() else onTapDown()
+                        }
                     }
+                    onActionUp?.invoke()
                     true
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     v.parent?.requestDisallowInterceptTouchEvent(false)
+                    repeatHandler.removeCallbacks(repeatRunnable)
                     true
                 }
                 else -> false
