@@ -44,6 +44,7 @@ class MainActivity : AppCompatActivity() {
 
     private enum class TvStatus { CHECKING, CONNECTED, SEARCHING, DISCONNECTED }
     @Volatile private var currentBrightness: Int? = null
+    @Volatile private var currentVolume: Int? = null
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var hasMoved = false
@@ -104,8 +105,18 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_settings).setOnLongClickListener { sendCommand { client.pressKey("HOME") }; true }
 
         // Volume + Mute
-        setRepeatListener(findViewById(R.id.btn_volume_up))   { client.volumeUp() }
-        setRepeatListener(findViewById(R.id.btn_volume_down)) { client.volumeDown() }
+        setRepeatListener(findViewById(R.id.btn_volume_up)) {
+            currentVolume?.let { runOnUiThread { setVolumeBar((it + 1).coerceIn(0, 100)) } }
+            val r = client.volumeUp()
+            scheduleVolumeRefresh()
+            r
+        }
+        setRepeatListener(findViewById(R.id.btn_volume_down)) {
+            currentVolume?.let { runOnUiThread { setVolumeBar((it - 1).coerceIn(0, 100)) } }
+            val r = client.volumeDown()
+            scheduleVolumeRefresh()
+            r
+        }
         findViewById<View>(R.id.btn_mute).setOnClickListener  { sendCommand { client.muteToggle() } }
 
         // Brightness
@@ -262,6 +273,7 @@ class MainActivity : AppCompatActivity() {
         checkAndAutoDiscover()
         statusHandler.postDelayed(statusRunnable, statusInterval)
         scheduleBrightnessRefresh()
+        scheduleVolumeRefresh()
     }
 
     override fun onPause() {
@@ -309,10 +321,33 @@ class MainActivity : AppCompatActivity() {
                 setStatus(if (reachable) TvStatus.CONNECTED else TvStatus.DISCONNECTED)
             }
             if (reachable) {
-                val level = client.getBrightness()
-                if (level != null) runOnUiThread { setBrightnessBar(level) }
+                val brightness = client.getBrightness()
+                if (brightness != null) runOnUiThread { setBrightnessBar(brightness) }
+                val volume = client.getVolume()
+                if (volume != null) runOnUiThread { setVolumeBar(volume) }
             }
         }.start()
+    }
+
+    private val volumeRefreshRunnable = Runnable {
+        Thread {
+            val level = client.getVolume()
+            if (level != null) runOnUiThread { setVolumeBar(level) }
+        }.start()
+    }
+
+    private fun scheduleVolumeRefresh() {
+        statusHandler.removeCallbacks(volumeRefreshRunnable)
+        statusHandler.postDelayed(volumeRefreshRunnable, 200)
+    }
+
+    private fun setVolumeBar(level: Int) {
+        currentVolume = level
+        val bar = findViewById<View>(R.id.volume_bar) ?: return
+        val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
+        val targetHeight = (pillHeightPx * level / 100f).toInt()
+        bar.layoutParams = bar.layoutParams.also { it.height = targetHeight }
+        bar.requestLayout()
     }
 
     private val brightnessRefreshRunnable = Runnable {
