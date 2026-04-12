@@ -183,6 +183,21 @@ class MainActivity : AppCompatActivity() {
             onActionUp = { scheduleBrightnessRefresh() }
         )
 
+        // Input source
+        findViewById<View>(R.id.btn_input).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            Thread {
+                val (inputs, error) = client.getExternalInputList()
+                runOnUiThread {
+                    if (error != null || inputs.isEmpty()) {
+                        Toast.makeText(this, error ?: "No inputs found", Toast.LENGTH_SHORT).show()
+                        return@runOnUiThread
+                    }
+                    showInputPicker(inputs)
+                }
+            }.start()
+        }
+
         // App settings
         findViewById<View>(R.id.btn_app_settings).setOnClickListener {
             startActivity(android.content.Intent(this, SettingsActivity::class.java))
@@ -609,6 +624,58 @@ class MainActivity : AppCompatActivity() {
     override fun onBackPressed() {
         if (isLocked) exitTouchpadFn?.invoke()
         else super.onBackPressed()
+    }
+
+    private fun showInputPicker(inputs: List<WebOsClient.InputSource>) {
+        val dialog = android.app.Dialog(this)
+        dialog.setContentView(R.layout.dialog_input_picker)
+        dialog.window?.apply {
+            setBackgroundDrawableResource(android.R.color.transparent)
+            setLayout(android.view.WindowManager.LayoutParams.MATCH_PARENT, android.view.WindowManager.LayoutParams.WRAP_CONTENT)
+            setGravity(android.view.Gravity.BOTTOM)
+            attributes = attributes.also { it.windowAnimations = android.R.style.Animation_InputMethod }
+        }
+
+        val container = dialog.findViewById<LinearLayout>(R.id.inputs_container)
+        val density = resources.displayMetrics.density
+
+        inputs.forEach { input ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                background = getDrawable(R.drawable.bg_input_item)
+                isClickable = true
+                isFocusable = true
+                setPadding((16 * density).toInt(), (14 * density).toInt(), (16 * density).toInt(), (14 * density).toInt())
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.bottomMargin = (8 * density).toInt() }
+            }
+
+            val icon = android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.ic_input)
+                imageTintList = ColorStateList.valueOf(0xFF8888AA.toInt())
+                layoutParams = LinearLayout.LayoutParams((22 * density).toInt(), (22 * density).toInt())
+                    .also { it.marginEnd = (14 * density).toInt() }
+            }
+
+            val label = TextView(this).apply {
+                text = input.label
+                textSize = 16f
+                setTextColor(0xFFDDDDEE.toInt())
+            }
+
+            row.addView(icon)
+            row.addView(label)
+            row.setOnClickListener {
+                dialog.dismiss()
+                sendCommand { client.switchInput(input.id) }
+            }
+            container.addView(row)
+        }
+
+        dialog.show()
     }
 
     private fun showTextInputDialog() {
