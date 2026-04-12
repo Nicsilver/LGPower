@@ -279,41 +279,56 @@
             <Space android:layout_width="10dp" android:layout_height="1dp" />
 
             <!-- Brightness pill (right) -->
-            <LinearLayout
+            <FrameLayout
                 android:layout_width="54dp"
                 android:layout_height="230dp"
-                android:orientation="vertical"
-                android:background="@drawable/bg_pill_dark">
+                android:background="@drawable/bg_pill_dark"
+                android:clipToOutline="true">
 
-                <ImageButton
-                    android:id="@+id/btn_brightness_up"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent"
-                    android:src="@drawable/ic_brightness_up"
-                    android:scaleType="fitCenter"
-                    android:padding="14dp"
-                    android:contentDescription="Brightness Up" />
-
+                <!-- Fill bar — grows from bottom, height set programmatically -->
                 <View
-                    android:layout_width="34dp"
-                    android:layout_height="1dp"
-                    android:layout_gravity="center_horizontal"
-                    android:background="#000000" />
-
-                <ImageButton
-                    android:id="@+id/btn_brightness_down"
+                    android:id="@+id/brightness_bar"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent"
-                    android:src="@drawable/ic_brightness_down"
-                    android:scaleType="fitCenter"
-                    android:padding="14dp"
-                    android:contentDescription="Brightness Down" />
+                    android:layout_gravity="bottom"
+                    android:background="#44FFB74D" />
 
-            </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical">
+
+                    <ImageButton
+                        android:id="@+id/btn_brightness_up"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:background="@android:color/transparent"
+                        android:src="@drawable/ic_brightness_up"
+                        android:scaleType="fitCenter"
+                        android:padding="14dp"
+                        android:contentDescription="Brightness Up" />
+
+                    <View
+                        android:layout_width="34dp"
+                        android:layout_height="1dp"
+                        android:layout_gravity="center_horizontal"
+                        android:background="#000000" />
+
+                    <ImageButton
+                        android:id="@+id/btn_brightness_down"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:background="@android:color/transparent"
+                        android:src="@drawable/ic_brightness_down"
+                        android:scaleType="fitCenter"
+                        android:padding="14dp"
+                        android:contentDescription="Brightness Down" />
+
+                </LinearLayout>
+
+            </FrameLayout>
 
         </LinearLayout>
 
