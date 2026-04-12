@@ -29,7 +29,6 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import kotlin.math.abs
 
@@ -769,32 +768,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showTextInputDialog() {
-        val editText = EditText(this).apply {
-            hint = "Type to send to TV…"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT
-            setPadding(48, 32, 48, 32)
-            imeOptions = EditorInfo.IME_ACTION_SEND
+        val dialog = android.app.Dialog(this)
+        dialog.setContentView(R.layout.dialog_keyboard_input)
+        dialog.window?.apply {
+            setBackgroundDrawableResource(android.R.color.transparent)
+            setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT)
+            setGravity(android.view.Gravity.BOTTOM)
+            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            attributes = attributes.also { it.windowAnimations = android.R.style.Animation_InputMethod }
         }
 
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Send text to TV")
-            .setView(editText)
-            .setPositiveButton("Send") { _, _ ->
-                val text = editText.text.toString()
-                if (text.isNotEmpty()) sendCommand { client.sendText(text) }
-            }
-            .setNegativeButton("Cancel", null)
-            .create()
+        val editText = dialog.findViewById<EditText>(R.id.keyboard_input)
+        val sendBtn  = dialog.findViewById<Button>(R.id.keyboard_send)
+        val cancelBtn = dialog.findViewById<Button>(R.id.keyboard_cancel)
 
-        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        fun send() {
+            val text = editText.text.toString()
+            if (text.isNotEmpty()) sendCommand { client.sendText(text) }
+            dialog.dismiss()
+        }
 
+        sendBtn.setOnClickListener { send() }
+        cancelBtn.setOnClickListener { dialog.dismiss() }
         editText.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEND) {
-                val text = editText.text.toString()
-                if (text.isNotEmpty()) sendCommand { client.sendText(text) }
-                dialog.dismiss()
-                true
-            } else false
+            if (actionId == EditorInfo.IME_ACTION_SEND) { send(); true } else false
         }
 
         dialog.show()
