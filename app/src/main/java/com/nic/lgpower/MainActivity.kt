@@ -106,18 +106,19 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_settings).setOnLongClickListener { sendCommand { client.pressKey("HOME") }; true }
 
         // Volume + Mute
-        setRepeatListener(findViewById(R.id.btn_volume_up)) {
-            currentVolume?.let { runOnUiThread { setVolumeState((it + 1).coerceIn(0, 100), currentMuted) } }
-            val r = client.volumeUp()
-            scheduleVolumeRefresh()
-            r
-        }
-        setRepeatListener(findViewById(R.id.btn_volume_down)) {
-            currentVolume?.let { runOnUiThread { setVolumeState((it - 1).coerceIn(0, 100), currentMuted) } }
-            val r = client.volumeDown()
-            scheduleVolumeRefresh()
-            r
-        }
+        setupPillDrag(
+            pillId = R.id.volume_pill,
+            barId  = R.id.volume_bar,
+            getLevel = { currentVolume },
+            onTapUp   = { currentVolume?.let { setVolumeState((it + 1).coerceIn(0, 100), currentMuted) }
+                          Thread { client.volumeUp();   scheduleVolumeRefresh() }.start() },
+            onTapDown = { currentVolume?.let { setVolumeState((it - 1).coerceIn(0, 100), currentMuted) }
+                          Thread { client.volumeDown(); scheduleVolumeRefresh() }.start() },
+            onDragEnd = { level ->
+                setVolumeState(level, currentMuted)
+                Thread { client.setVolume(level); scheduleVolumeRefresh() }.start()
+            }
+        )
         findViewById<View>(R.id.btn_mute).setOnClickListener {
             currentVolume?.let { v -> runOnUiThread { setVolumeState(v, !currentMuted) } }
             sendCommand {
@@ -129,18 +130,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Brightness
-        setRepeatListener(findViewById(R.id.btn_brightness_up)) {
-            currentBrightness?.let { runOnUiThread { setBrightnessBar((it + 10).coerceIn(0, 100)) } }
-            val r = client.brightnessUp()
-            scheduleBrightnessRefresh()
-            r
-        }
-        setRepeatListener(findViewById(R.id.btn_brightness_down)) {
-            currentBrightness?.let { runOnUiThread { setBrightnessBar((it - 10).coerceIn(0, 100)) } }
-            val r = client.brightnessDown()
-            scheduleBrightnessRefresh()
-            r
-        }
+        setupPillDrag(
+            pillId = R.id.brightness_pill,
+            barId  = R.id.brightness_bar,
+            getLevel = { currentBrightness },
+            onTapUp   = { currentBrightness?.let { setBrightnessBar((it + 5).coerceIn(0, 100)) }
+                          Thread { client.brightnessUp();   scheduleBrightnessRefresh() }.start() },
+            onTapDown = { currentBrightness?.let { setBrightnessBar((it - 5).coerceIn(0, 100)) }
+                          Thread { client.brightnessDown(); scheduleBrightnessRefresh() }.start() },
+            onDragEnd = { level ->
+                setBrightnessBar(level)
+                Thread { client.setBrightness(level); scheduleBrightnessRefresh() }.start()
+            }
+        )
 
         // App settings
         findViewById<View>(R.id.btn_app_settings).setOnClickListener {
@@ -336,6 +338,62 @@ class MainActivity : AppCompatActivity() {
                 if (volumeState != null) runOnUiThread { setVolumeState(volumeState.volume, volumeState.muted) }
             }
         }.start()
+    }
+
+    private fun setupPillDrag(
+        pillId: Int,
+        barId: Int,
+        getLevel: () -> Int?,
+        onTapUp: () -> Unit,
+        onTapDown: () -> Unit,
+        onDragEnd: (Int) -> Unit
+    ) {
+        val pill = findViewById<View>(pillId)
+        val bar  = findViewById<View>(barId)
+        val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
+        val dragThreshold = 10 * resources.displayMetrics.density
+        var startY = 0f
+        var isDragging = false
+
+        pill.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    startY = event.y
+                    isDragging = false
+                    // Prevent ScrollView from stealing our touch events
+                    v.parent?.requestDisallowInterceptTouchEvent(true)
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!isDragging && abs(event.y - startY) > dragThreshold) {
+                        isDragging = true
+                    }
+                    if (isDragging) {
+                        val level = ((1f - event.y / pillHeightPx) * 100).toInt().coerceIn(0, 100)
+                        val targetHeight = (pillHeightPx * level / 100f).toInt()
+                        bar.layoutParams = bar.layoutParams.also { it.height = targetHeight }
+                        bar.requestLayout()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    v.parent?.requestDisallowInterceptTouchEvent(false)
+                    v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    if (isDragging) {
+                        val level = ((1f - event.y / pillHeightPx) * 100).toInt().coerceIn(0, 100)
+                        onDragEnd(level)
+                    } else {
+                        if (event.y < pillHeightPx / 2f) onTapUp() else onTapDown()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    v.parent?.requestDisallowInterceptTouchEvent(false)
+                    true
+                }
+                else -> false
+            }
+        }
     }
 
     private val volumeRefreshRunnable = Runnable {

@@ -173,10 +173,13 @@
 
             <!-- Volume pill -->
             <FrameLayout
+                android:id="@+id/volume_pill"
                 android:layout_width="54dp"
                 android:layout_height="230dp"
                 android:background="@drawable/bg_pill_dark"
-                android:clipToOutline="true">
+                android:clipToOutline="true"
+                android:clickable="true"
+                android:focusable="true">
 
                 <!-- Fill bar — grows from bottom, height set programmatically -->
                 <View
@@ -200,6 +203,8 @@
                         android:src="@drawable/ic_volume_up"
                         android:scaleType="fitCenter"
                         android:padding="14dp"
+                        android:clickable="false"
+                        android:focusable="false"
                         android:contentDescription="Volume Up" />
 
                     <View
@@ -217,6 +222,8 @@
                         android:src="@drawable/ic_volume_down"
                         android:scaleType="fitCenter"
                         android:padding="14dp"
+                        android:clickable="false"
+                        android:focusable="false"
                         android:contentDescription="Volume Down" />
 
                 </LinearLayout>
@@ -295,10 +302,13 @@
 
             <!-- Brightness pill (right) -->
             <FrameLayout
+                android:id="@+id/brightness_pill"
                 android:layout_width="54dp"
                 android:layout_height="230dp"
                 android:background="@drawable/bg_pill_dark"
-                android:clipToOutline="true">
+                android:clipToOutline="true"
+                android:clickable="true"
+                android:focusable="true">
 
                 <!-- Fill bar — grows from bottom, height set programmatically -->
                 <View
@@ -322,6 +332,8 @@
                         android:src="@drawable/ic_brightness_up"
                         android:scaleType="fitCenter"
                         android:padding="14dp"
+                        android:clickable="false"
+                        android:focusable="false"
                         android:contentDescription="Brightness Up" />
 
                     <View
@@ -339,6 +351,8 @@
                         android:src="@drawable/ic_brightness_down"
                         android:scaleType="fitCenter"
                         android:padding="14dp"
+                        android:clickable="false"
+                        android:focusable="false"
                         android:contentDescription="Brightness Down" />
 
                 </LinearLayout>
