@@ -46,6 +46,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var currentBrightness: Int? = null
     @Volatile private var currentVolume: Int? = null
     @Volatile private var currentMuted: Boolean = false
+    @Volatile private var currentScreenOff: Boolean = false
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var hasMoved = false
@@ -89,6 +90,7 @@ class MainActivity : AppCompatActivity() {
 
         // Screen Off — WiFi
         findViewById<View>(R.id.btn_screen_off).setOnClickListener {
+            setScreenOffButton(!currentScreenOff)
             sendCommand { client.turnOffScreen() }
         }
 
@@ -390,6 +392,8 @@ class MainActivity : AppCompatActivity() {
                 if (brightness != null) runOnUiThread { setBrightnessBar(brightness) }
                 val volumeState = client.getVolume()
                 if (volumeState != null) runOnUiThread { setVolumeState(volumeState.volume, volumeState.muted) }
+                val screenOff = client.getScreenOff()
+                if (screenOff != null) runOnUiThread { setScreenOffButton(screenOff) }
             }
         }.start()
     }
@@ -536,6 +540,22 @@ class MainActivity : AppCompatActivity() {
         val targetHeight = (pillHeightPx * level / 100f).toInt()
         bar.layoutParams = bar.layoutParams.also { it.height = targetHeight }
         bar.requestLayout()
+    }
+
+    private val screenOffRefreshRunnable = Runnable {
+        Thread {
+            val isOff = client.getScreenOff()
+            if (isOff != null) runOnUiThread { setScreenOffButton(isOff) }
+        }.start()
+    }
+
+    private fun setScreenOffButton(isOff: Boolean) {
+        currentScreenOff = isOff
+        val btn = findViewById<android.widget.ImageButton>(R.id.btn_screen_off) ?: return
+        btn.setBackgroundResource(if (isOff) R.drawable.bg_circle_white else R.drawable.bg_circle_dark)
+        btn.imageTintList = ColorStateList.valueOf(
+            if (isOff) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        )
     }
 
     private fun autoDiscover() {
@@ -741,6 +761,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendCommand(block: () -> WebOsClient.Result) {
         window.decorView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        statusHandler.removeCallbacks(screenOffRefreshRunnable)
+        statusHandler.postDelayed(screenOffRefreshRunnable, 1200)
         Thread {
             val result = block()
             runOnUiThread {
