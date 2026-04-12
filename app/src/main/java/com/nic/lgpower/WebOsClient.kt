@@ -304,6 +304,50 @@ class WebOsClient(private val context: Context) {
     fun volumeDown()    = pressKey("VOLUMEDOWN")
     fun muteToggle()    = pressKey("MUTE")
 
+    fun getVolume(): Int? {
+        val latch = CountDownLatch(1)
+        var level: Int? = null
+        val savedKey = prefs.getString("client_key", null)
+        val client = buildClient()
+        client.newWebSocket(
+            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+            object : WebSocketListener() {
+                override fun onOpen(ws: WebSocket, response: Response) {
+                    ws.send(buildRegistration(savedKey))
+                }
+                override fun onMessage(ws: WebSocket, text: String) {
+                    val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                    when (json.optString("type")) {
+                        "registered" -> {
+                            val key = json.optJSONObject("payload")?.optString("client-key")
+                            if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                            ws.send(JSONObject().apply {
+                                put("id", "cmd_vol")
+                                put("type", "request")
+                                put("uri", "ssap://audio/getVolume")
+                                put("payload", JSONObject())
+                            }.toString())
+                        }
+                        "response" -> if (json.optString("id") == "cmd_vol") {
+                            val payload = json.optJSONObject("payload")
+                            // Some WebOS versions nest volume inside volumeStatus
+                            level = payload?.optInt("volume", -1)?.takeIf { it >= 0 }
+                                ?: payload?.optJSONObject("volumeStatus")?.optInt("volume", -1)?.takeIf { it >= 0 }
+                            ws.close(1000, null)
+                            latch.countDown()
+                        }
+                        "error" -> { ws.close(1000, null); latch.countDown() }
+                    }
+                }
+                override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) { latch.countDown() }
+                override fun onClosed(ws: WebSocket, code: Int, reason: String) { latch.countDown() }
+            }
+        )
+        latch.await(6, TimeUnit.SECONDS)
+        client.dispatcher.executorService.shutdown()
+        return level
+    }
+
     fun brightnessUp()   = adjustBrightness(+10)
     fun brightnessDown() = adjustBrightness(-10)
 
