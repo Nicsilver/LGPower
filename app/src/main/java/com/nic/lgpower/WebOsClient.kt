@@ -247,6 +247,7 @@ class WebOsClient(private val context: Context) {
 
         fun sendKey(keyCode: String) { pointerWs?.send("type:button\nname:$keyCode\n\n") }
         fun move(dx: Float, dy: Float) { pointerWs?.send("type:move\ndx:${dx.toInt()}\ndy:${dy.toInt()}\n\n") }
+        fun scroll(dx: Float, dy: Float) { pointerWs?.send("type:scroll\ndx:${dx.toInt()}\ndy:${dy.toInt()}\n\n") }
         fun click() { pointerWs?.send("type:click\n\n") }
 
         fun close() {
