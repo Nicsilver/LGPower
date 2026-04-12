@@ -4,31 +4,23 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Monitor outline -->
+    <!-- Rounded square outline (LG-style) -->
     <path
         android:fillColor="@android:color/transparent"
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M2,4 L22,4 A1,1 0 0,1 23,5 L23,16 A1,1 0 0,1 22,17 L2,17 A1,1 0 0,1 1,16 L1,5 A1,1 0 0,1 2,4 Z" />
-    <!-- Stand stem -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2"
-        android:strokeLineCap="round"
-        android:pathData="M12,17 L12,20" />
-    <!-- Stand base -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2"
-        android:strokeLineCap="round"
-        android:pathData="M8,20 L16,20" />
-    <!-- Z for sleep -->
-    <path
-        android:strokeColor="#FFFFFFFF"
         android:strokeWidth="1.5"
+        android:pathData="M5,1.5 H19 A3.5,3.5 0 0 1 22.5,5 V19 A3.5,3.5 0 0 1 19,22.5 H5 A3.5,3.5 0 0 1 1.5,19 V5 A3.5,3.5 0 0 1 5,1.5 Z" />
+    <!-- Power arc — gap at top (~90 degrees), goes clockwise around bottom -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
         android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M9.5,13 L14.5,13 L9.5,8 L14.5,8" />
+        android:pathData="M15.54,8.96 A5,5 0 1 1 8.46,8.96" />
+    <!-- Power stem -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M12,7 L12,12.5" />
 </vector>
