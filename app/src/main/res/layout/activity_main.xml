@@ -79,32 +79,6 @@
                 android:orientation="vertical"
                 android:gravity="center">
 
-                <ImageButton
-                    android:id="@+id/btn_keyboard"
-                    android:layout_width="72dp"
-                    android:layout_height="72dp"
-                    android:background="@drawable/bg_circle_dark"
-                    android:src="@drawable/ic_keyboard"
-                    android:scaleType="center"
-                    android:contentDescription="Keyboard" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Keyboard"
-                    android:textColor="#AAAACC"
-                    android:textSize="11sp"
-                    android:layout_marginTop="5dp" />
-            </LinearLayout>
-
-            <Space android:layout_width="28dp" android:layout_height="1dp" />
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center">
-
                 <FrameLayout
                     android:id="@+id/btn_touchpad"
                     android:layout_width="72dp"
@@ -130,6 +104,32 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Touchpad"
+                    android:textColor="#AAAACC"
+                    android:textSize="11sp"
+                    android:layout_marginTop="5dp" />
+            </LinearLayout>
+
+            <Space android:layout_width="28dp" android:layout_height="1dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/btn_keyboard"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:background="@drawable/bg_circle_dark"
+                    android:src="@drawable/ic_keyboard"
+                    android:scaleType="center"
+                    android:contentDescription="Keyboard" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Keyboard"
                     android:textColor="#AAAACC"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
