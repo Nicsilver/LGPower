@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusRunnable: Runnable
 
     private enum class TvStatus { CHECKING, CONNECTED, SEARCHING, DISCONNECTED }
+    @Volatile private var currentBrightness: Int? = null
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var hasMoved = false
@@ -108,8 +109,18 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_mute).setOnClickListener  { sendCommand { client.muteToggle() } }
 
         // Brightness
-        setRepeatListener(findViewById(R.id.btn_brightness_up))   { client.brightnessUp() }
-        setRepeatListener(findViewById(R.id.btn_brightness_down)) { client.brightnessDown() }
+        setRepeatListener(findViewById(R.id.btn_brightness_up)) {
+            currentBrightness?.let { runOnUiThread { setBrightnessBar((it + 10).coerceIn(0, 100)) } }
+            val r = client.brightnessUp()
+            scheduleBrightnessRefresh()
+            r
+        }
+        setRepeatListener(findViewById(R.id.btn_brightness_down)) {
+            currentBrightness?.let { runOnUiThread { setBrightnessBar((it - 10).coerceIn(0, 100)) } }
+            val r = client.brightnessDown()
+            scheduleBrightnessRefresh()
+            r
+        }
 
         // App settings
         findViewById<View>(R.id.btn_app_settings).setOnClickListener {
@@ -250,6 +261,7 @@ class MainActivity : AppCompatActivity() {
         refreshShortcuts()
         checkAndAutoDiscover()
         statusHandler.postDelayed(statusRunnable, statusInterval)
+        scheduleBrightnessRefresh()
     }
 
     override fun onPause() {
@@ -296,7 +308,32 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 setStatus(if (reachable) TvStatus.CONNECTED else TvStatus.DISCONNECTED)
             }
+            if (reachable) {
+                val level = client.getBrightness()
+                if (level != null) runOnUiThread { setBrightnessBar(level) }
+            }
         }.start()
+    }
+
+    private val brightnessRefreshRunnable = Runnable {
+        Thread {
+            val level = client.getBrightness()
+            if (level != null) runOnUiThread { setBrightnessBar(level) }
+        }.start()
+    }
+
+    private fun scheduleBrightnessRefresh() {
+        statusHandler.removeCallbacks(brightnessRefreshRunnable)
+        statusHandler.postDelayed(brightnessRefreshRunnable, 200)
+    }
+
+    private fun setBrightnessBar(level: Int) {
+        currentBrightness = level
+        val bar = findViewById<View>(R.id.brightness_bar) ?: return
+        val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
+        val targetHeight = (pillHeightPx * level / 100f).toInt()
+        bar.layoutParams = bar.layoutParams.also { it.height = targetHeight }
+        bar.requestLayout()
     }
 
     private fun autoDiscover() {
