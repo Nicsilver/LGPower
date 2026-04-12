@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_bottom_sheet"
+    android:paddingBottom="32dp">
+
+    <!-- Drag handle -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="20dp"
+        android:background="#444466" />
+
+    <!-- Title -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Send text to TV"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:paddingHorizontal="24dp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Text field -->
+    <EditText
+        android:id="@+id/keyboard_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/bg_text_field"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#555577"
+        android:hint="Type here…"
+        android:padding="16dp"
+        android:textSize="16sp"
+        android:inputType="text"
+        android:imeOptions="actionSend"
+        android:singleLine="true" />
+
+    <!-- Cancel + Send -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/keyboard_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cancel"
+            android:textColor="#6666AA"
+            android:background="@android:color/transparent"
+            android:paddingHorizontal="16dp"
+            android:layout_marginEnd="8dp"
+            android:stateListAnimator="@null" />
+
+        <Button
+            android:id="@+id/keyboard_send"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Send"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:background="@drawable/bg_send_button"
+            android:paddingHorizontal="28dp"
+            android:stateListAnimator="@null" />
+
+    </LinearLayout>
+
+</LinearLayout>
