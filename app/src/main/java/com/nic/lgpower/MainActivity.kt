@@ -80,6 +80,8 @@ class MainActivity : AppCompatActivity() {
             if (irManager?.hasIrEmitter() == true) {
                 runCatching { irManager.transmit(38000, LGPowerWidget.LG_POWER_PATTERN) }
             }
+            // Re-check status after TV has had time to respond to the IR command
+            statusHandler.postDelayed({ checkStatus() }, 2500)
         }
 
         // Screen Off — WiFi
