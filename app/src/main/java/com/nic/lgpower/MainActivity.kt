@@ -90,7 +90,8 @@ class MainActivity : AppCompatActivity() {
 
         // Screen Off — WiFi
         findViewById<View>(R.id.btn_screen_off).setOnClickListener {
-            setScreenOffButton(!currentScreenOff)
+            if (currentScreenOff) return@setOnClickListener
+            setScreenOffButton(true)
             sendCommand { client.turnOffScreen() }
         }
 
@@ -350,19 +351,17 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun setStatus(status: TvStatus) {
-        val dot   = findViewById<View>(R.id.status_dot)
-        val label = findViewById<TextView>(R.id.status_label)
-        val (color, text) = when (status) {
-            TvStatus.CHECKING      -> 0xFF888888.toInt() to "Checking…"
-            TvStatus.CONNECTED     -> 0xFF4CAF50.toInt() to "Connected"
-            TvStatus.SEARCHING     -> 0xFFFF9800.toInt() to "Searching for TV…"
-            TvStatus.DISCONNECTED  -> 0xFFF44336.toInt() to "TV not found"
+        val dot = findViewById<View>(R.id.status_dot)
+        val color = when (status) {
+            TvStatus.CHECKING     -> 0xFF888888.toInt()
+            TvStatus.CONNECTED    -> 0xFF4CAF50.toInt()
+            TvStatus.SEARCHING    -> 0xFFFF9800.toInt()
+            TvStatus.DISCONNECTED -> 0xFFF44336.toInt()
         }
         dot.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(color)
         }
-        label.text = text
     }
 
     private fun checkAndAutoDiscover() {

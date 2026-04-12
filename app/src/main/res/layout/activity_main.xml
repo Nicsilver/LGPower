@@ -29,31 +29,6 @@
             android:textStyle="bold"
             android:gravity="center" />
 
-        <!-- TV connection status indicator -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginTop="6dp">
-
-            <View
-                android:id="@+id/status_dot"
-                android:layout_width="8dp"
-                android:layout_height="8dp"
-                android:layout_marginEnd="6dp" />
-
-            <TextView
-                android:id="@+id/status_label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Checking…"
-                android:textColor="#88FFFFFF"
-                android:textSize="12sp" />
-
-        </LinearLayout>
-
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
         <!-- App shortcuts (populated dynamically from settings) -->
@@ -536,18 +511,32 @@
     </LinearLayout>
 </ScrollView>
 
-<!-- App settings button — top-right corner -->
-<ImageButton
-    android:id="@+id/btn_app_settings"
-    android:layout_width="44dp"
-    android:layout_height="44dp"
+<!-- Status dot + settings button — top-right corner -->
+<LinearLayout
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
     android:layout_gravity="top|end"
-    android:layout_margin="8dp"
-    android:background="@android:color/transparent"
-    android:src="@drawable/ic_settings"
-    android:scaleType="center"
-    android:alpha="0.35"
-    android:contentDescription="App Settings" />
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:layout_margin="8dp">
+
+    <View
+        android:id="@+id/status_dot"
+        android:layout_width="6dp"
+        android:layout_height="6dp"
+        android:layout_marginEnd="4dp" />
+
+    <ImageButton
+        android:id="@+id/btn_app_settings"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@android:color/transparent"
+        android:src="@drawable/ic_settings"
+        android:scaleType="center"
+        android:alpha="0.35"
+        android:contentDescription="App Settings" />
+
+</LinearLayout>
 
 <!-- Touchpad overlay — sits on top of everything, shown only during touchpad mode -->
 <FrameLayout
