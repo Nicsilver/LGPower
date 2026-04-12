@@ -247,7 +247,11 @@ class MainActivity : AppCompatActivity() {
         var overlayTotalDist = 0f
         var dxCarry = 0f
         var dyCarry = 0f
+        var isScrolling = false
+        var lastScrollY = 0f
+        var scrollCarry = 0f
         val tapThresholdPx = 12 * resources.displayMetrics.density
+        val scrollSensitivity = 18f  // px per scroll unit
         touchpadOverlay.setOnTouchListener { v, event ->
             if (!isLocked) return@setOnTouchListener false
             when (event.actionMasked) {
@@ -259,45 +263,76 @@ class MainActivity : AppCompatActivity() {
                     overlayDragging = false
                     dxCarry = 0f
                     dyCarry = 0f
+                    isScrolling = false
+                    scrollCarry = 0f
+                    true
+                }
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    // Second finger down — switch to scroll mode
+                    if (event.pointerCount == 2) {
+                        isScrolling = true
+                        overlayDragging = false
+                        lastScrollY = (event.getY(0) + event.getY(1)) / 2f
+                        scrollCarry = 0f
+                    }
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = event.rawX - lastTouchX
-                    val dy = event.rawY - lastTouchY
-                    val dist = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
-                    lastTouchX = event.rawX
-                    lastTouchY = event.rawY
-                    if (!overlayDragging) {
-                        overlayTotalDist += dist
-                        if (overlayTotalDist >= tapThresholdPx) {
-                            // Confirmed drag — start fresh from here, no jump
-                            overlayDragging = true
-                            dxCarry = 0f
-                            dyCarry = 0f
+                    if (isScrolling && event.pointerCount == 2) {
+                        val midY = (event.getY(0) + event.getY(1)) / 2f
+                        val rawDy = midY - lastScrollY
+                        lastScrollY = midY
+                        val total = rawDy + scrollCarry
+                        val units = (total / scrollSensitivity).toInt()
+                        scrollCarry = total - units * scrollSensitivity
+                        if (units != 0) pointerSession?.scroll(0f, -units.toFloat())
+                    } else if (!isScrolling) {
+                        val dx = event.rawX - lastTouchX
+                        val dy = event.rawY - lastTouchY
+                        val dist = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+                        lastTouchX = event.rawX
+                        lastTouchY = event.rawY
+                        if (!overlayDragging) {
+                            overlayTotalDist += dist
+                            if (overlayTotalDist >= tapThresholdPx) {
+                                overlayDragging = true
+                                dxCarry = 0f
+                                dyCarry = 0f
+                            }
+                        } else {
+                            val totalDx = dx + dxCarry
+                            val totalDy = dy + dyCarry
+                            val sendDx = totalDx.toInt()
+                            val sendDy = totalDy.toInt()
+                            dxCarry = totalDx - sendDx
+                            dyCarry = totalDy - sendDy
+                            moveAccumulator += dist
+                            if (moveAccumulator >= hapticMovePx) {
+                                v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                moveAccumulator = 0f
+                            }
+                            if (sendDx != 0 || sendDy != 0)
+                                pointerSession?.move(sendDx.toFloat(), sendDy.toFloat())
                         }
-                    } else {
-                        // Accumulate sub-pixel carry so slow movement isn't lost
-                        val totalDx = dx + dxCarry
-                        val totalDy = dy + dyCarry
-                        val sendDx = totalDx.toInt()
-                        val sendDy = totalDy.toInt()
-                        dxCarry = totalDx - sendDx
-                        dyCarry = totalDy - sendDy
-                        moveAccumulator += dist
-                        if (moveAccumulator >= hapticMovePx) {
-                            v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            moveAccumulator = 0f
-                        }
-                        if (sendDx != 0 || sendDy != 0)
-                            pointerSession?.move(sendDx.toFloat(), sendDy.toFloat())
                     }
                     true
                 }
+                MotionEvent.ACTION_POINTER_UP -> {
+                    // Back to single finger — stop scrolling
+                    isScrolling = false
+                    overlayDragging = false
+                    overlayTotalDist = 0f
+                    val remaining = if (event.actionIndex == 0) 1 else 0
+                    lastTouchX = event.getX(remaining) + (v as View).x
+                    lastTouchY = event.getY(remaining) + v.y
+                    true
+                }
                 MotionEvent.ACTION_UP -> {
-                    if (!overlayDragging) {
+                    if (!overlayDragging && !isScrolling) {
                         v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                         pointerSession?.click()
                     }
+                    isScrolling = false
                     true
                 }
                 else -> true
