@@ -338,6 +338,12 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         client.resetConnection()
         refreshShortcuts()
+        // Restore cached values immediately so bars aren't empty while network fetches
+        val cachedVolume = appPrefs.getInt("last_volume", -1)
+        val cachedMuted  = appPrefs.getBoolean("last_muted", false)
+        if (cachedVolume >= 0) setVolumeState(cachedVolume, cachedMuted)
+        val cachedBrightness = appPrefs.getInt("last_brightness", -1)
+        if (cachedBrightness >= 0) setBrightnessBar(cachedBrightness)
         checkAndAutoDiscover()
         statusHandler.postDelayed(statusRunnable, statusInterval)
         scheduleBrightnessRefresh()
@@ -501,6 +507,7 @@ class MainActivity : AppCompatActivity() {
     private fun setVolumeState(level: Int, muted: Boolean) {
         currentVolume = level
         currentMuted = muted
+        appPrefs.edit().putInt("last_volume", level).putBoolean("last_muted", muted).apply()
         findViewById<TextView>(R.id.volume_label)?.text = level.toString()
         val bar = findViewById<View>(R.id.volume_bar) ?: return
         val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
@@ -533,6 +540,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setBrightnessBar(level: Int) {
         currentBrightness = level
+        appPrefs.edit().putInt("last_brightness", level).apply()
         findViewById<TextView>(R.id.brightness_label)?.text = level.toString()
         val bar = findViewById<View>(R.id.brightness_bar) ?: return
         val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
@@ -633,8 +641,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         return when (keyCode) {
-            KeyEvent.KEYCODE_VOLUME_UP -> { sendCommand { client.volumeUp() }; true }
-            KeyEvent.KEYCODE_VOLUME_DOWN -> { sendCommand { client.volumeDown() }; true }
+            KeyEvent.KEYCODE_VOLUME_UP -> {
+                currentVolume?.let { setVolumeState((it + 1).coerceIn(0, 100), currentMuted) }
+                sendCommand { client.volumeUp() }
+                scheduleVolumeRefresh()
+                true
+            }
+            KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                currentVolume?.let { setVolumeState((it - 1).coerceIn(0, 100), currentMuted) }
+                sendCommand { client.volumeDown() }
+                scheduleVolumeRefresh()
+                true
+            }
             else -> super.onKeyDown(keyCode, event)
         }
     }
