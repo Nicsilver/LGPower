@@ -293,6 +293,7 @@ class WebOsClient(private val context: Context) {
     // ── SSAP commands ─────────────────────────────────────────────────────────
 
     fun turnOffScreen() = execute("ssap://com.webos.service.tvpower/power/turnOffScreen")
+    fun turnOff()       = execute("ssap://system/turnOff")
 
     /** Returns true if screen is currently off, false if on, null on failure. */
     fun getScreenOff(): Boolean? {
