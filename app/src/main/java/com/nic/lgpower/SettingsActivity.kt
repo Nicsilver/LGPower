@@ -5,6 +5,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -28,6 +29,14 @@ class SettingsActivity : AppCompatActivity() {
 
         val editIp          = findViewById<EditText>(R.id.edit_tv_ip)
         val discoverSpinner = findViewById<ProgressBar>(R.id.discover_spinner)
+
+        // Controls toggles
+        val switchVolSlider  = findViewById<Switch>(R.id.switch_vol_slider)
+        val switchBrtSlider  = findViewById<Switch>(R.id.switch_brightness_slider)
+        switchVolSlider.isChecked  = prefs.getBoolean("vol_slider", true)
+        switchBrtSlider.isChecked  = prefs.getBoolean("brightness_slider", true)
+        switchVolSlider.setOnCheckedChangeListener  { _, v -> prefs.edit().putBoolean("vol_slider", v).apply() }
+        switchBrtSlider.setOnCheckedChangeListener  { _, v -> prefs.edit().putBoolean("brightness_slider", v).apply() }
         tvShortcutsSummary  = findViewById(R.id.tv_shortcuts_summary)
         appsGrid            = findViewById(R.id.apps_grid)
 
