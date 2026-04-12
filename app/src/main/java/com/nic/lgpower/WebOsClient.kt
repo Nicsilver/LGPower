@@ -304,9 +304,11 @@ class WebOsClient(private val context: Context) {
     fun volumeDown()    = pressKey("VOLUMEDOWN")
     fun muteToggle()    = pressKey("MUTE")
 
-    fun getVolume(): Int? {
+    data class VolumeState(val volume: Int, val muted: Boolean)
+
+    fun getVolume(): VolumeState? {
         val latch = CountDownLatch(1)
-        var level: Int? = null
+        var level: VolumeState? = null
         val savedKey = prefs.getString("client_key", null)
         val client = buildClient()
         client.newWebSocket(
@@ -331,8 +333,15 @@ class WebOsClient(private val context: Context) {
                         "response" -> if (json.optString("id") == "cmd_vol") {
                             val payload = json.optJSONObject("payload")
                             // Some WebOS versions nest volume inside volumeStatus
-                            level = payload?.optInt("volume", -1)?.takeIf { it >= 0 }
-                                ?: payload?.optJSONObject("volumeStatus")?.optInt("volume", -1)?.takeIf { it >= 0 }
+                            val nested = payload?.optJSONObject("volumeStatus")
+                            val src = nested ?: payload
+                            val vol = src?.optInt("volume", -1)?.takeIf { it >= 0 }
+                            // Top-level uses "muted", nested volumeStatus uses "muteStatus"
+                            val muted = if (nested != null)
+                                nested.optBoolean("muteStatus", false)
+                            else
+                                payload?.optBoolean("muted", false) ?: false
+                            if (vol != null) level = VolumeState(vol, muted)
                             ws.close(1000, null)
                             latch.countDown()
                         }

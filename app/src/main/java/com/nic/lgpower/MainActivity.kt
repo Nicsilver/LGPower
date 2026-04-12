@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity() {
     private enum class TvStatus { CHECKING, CONNECTED, SEARCHING, DISCONNECTED }
     @Volatile private var currentBrightness: Int? = null
     @Volatile private var currentVolume: Int? = null
+    @Volatile private var currentMuted: Boolean = false
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var hasMoved = false
@@ -106,18 +107,26 @@ class MainActivity : AppCompatActivity() {
 
         // Volume + Mute
         setRepeatListener(findViewById(R.id.btn_volume_up)) {
-            currentVolume?.let { runOnUiThread { setVolumeBar((it + 1).coerceIn(0, 100)) } }
+            currentVolume?.let { runOnUiThread { setVolumeState((it + 1).coerceIn(0, 100), currentMuted) } }
             val r = client.volumeUp()
             scheduleVolumeRefresh()
             r
         }
         setRepeatListener(findViewById(R.id.btn_volume_down)) {
-            currentVolume?.let { runOnUiThread { setVolumeBar((it - 1).coerceIn(0, 100)) } }
+            currentVolume?.let { runOnUiThread { setVolumeState((it - 1).coerceIn(0, 100), currentMuted) } }
             val r = client.volumeDown()
             scheduleVolumeRefresh()
             r
         }
-        findViewById<View>(R.id.btn_mute).setOnClickListener  { sendCommand { client.muteToggle() } }
+        findViewById<View>(R.id.btn_mute).setOnClickListener {
+            currentVolume?.let { v -> runOnUiThread { setVolumeState(v, !currentMuted) } }
+            sendCommand {
+                val r = client.muteToggle()
+                statusHandler.removeCallbacks(volumeRefreshRunnable)
+                statusHandler.postDelayed(volumeRefreshRunnable, 1500)
+                r
+            }
+        }
 
         // Brightness
         setRepeatListener(findViewById(R.id.btn_brightness_up)) {
@@ -323,16 +332,16 @@ class MainActivity : AppCompatActivity() {
             if (reachable) {
                 val brightness = client.getBrightness()
                 if (brightness != null) runOnUiThread { setBrightnessBar(brightness) }
-                val volume = client.getVolume()
-                if (volume != null) runOnUiThread { setVolumeBar(volume) }
+                val volumeState = client.getVolume()
+                if (volumeState != null) runOnUiThread { setVolumeState(volumeState.volume, volumeState.muted) }
             }
         }.start()
     }
 
     private val volumeRefreshRunnable = Runnable {
         Thread {
-            val level = client.getVolume()
-            if (level != null) runOnUiThread { setVolumeBar(level) }
+            val state = client.getVolume()
+            if (state != null) runOnUiThread { setVolumeState(state.volume, state.muted) }
         }.start()
     }
 
@@ -341,13 +350,24 @@ class MainActivity : AppCompatActivity() {
         statusHandler.postDelayed(volumeRefreshRunnable, 200)
     }
 
-    private fun setVolumeBar(level: Int) {
+    private fun setVolumeState(level: Int, muted: Boolean) {
         currentVolume = level
+        currentMuted = muted
         val bar = findViewById<View>(R.id.volume_bar) ?: return
         val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
         val targetHeight = (pillHeightPx * level / 100f).toInt()
         bar.layoutParams = bar.layoutParams.also { it.height = targetHeight }
         bar.requestLayout()
+        // Gray out bar when muted
+        bar.backgroundTintList = ColorStateList.valueOf(
+            if (muted) 0x66888888.toInt() else 0x664FC3F7.toInt()
+        )
+        // Inverted mute button: white bg + black icon when muted, dark bg + white icon when not
+        val muteBtn = findViewById<android.widget.ImageButton>(R.id.btn_mute)
+        muteBtn?.setBackgroundResource(if (muted) R.drawable.bg_circle_white else R.drawable.bg_circle_dark)
+        muteBtn?.imageTintList = ColorStateList.valueOf(
+            if (muted) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        )
     }
 
     private val brightnessRefreshRunnable = Runnable {
