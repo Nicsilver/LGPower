@@ -399,12 +399,12 @@
 
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
-        <!-- Back + Screen Off + Settings + Mute -->
+        <!-- Back + Screen Off + Settings + Mute + Input -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:weightSum="4">
+            android:weightSum="5">
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -501,6 +501,31 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Mute"
+                    android:textColor="#AAAACC"
+                    android:textSize="11sp"
+                    android:layout_marginTop="5dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/btn_input"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_circle_dark"
+                    android:src="@drawable/ic_input"
+                    android:scaleType="center"
+                    android:contentDescription="Input Source" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Input"
                     android:textColor="#AAAACC"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />

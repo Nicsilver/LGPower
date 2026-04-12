@@ -503,6 +503,64 @@ class WebOsClient(private val context: Context) {
         return result
     }
 
+    data class InputSource(val id: String, val label: String)
+
+    fun getExternalInputList(): Pair<List<InputSource>, String?> {
+        val latch = CountDownLatch(1)
+        var inputs = emptyList<InputSource>()
+        var errorMsg: String? = null
+        val savedKey = prefs.getString("client_key", null)
+        val client = buildClient()
+        client.newWebSocket(
+            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+            object : WebSocketListener() {
+                override fun onOpen(ws: WebSocket, response: Response) { ws.send(buildRegistration(savedKey)) }
+                override fun onMessage(ws: WebSocket, text: String) {
+                    val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                    when (json.optString("type")) {
+                        "registered" -> {
+                            val key = json.optJSONObject("payload")?.optString("client-key")
+                            if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                            ws.send(JSONObject().apply {
+                                put("id", "cmd_0")
+                                put("type", "request")
+                                put("uri", "ssap://tv/getExternalInputList")
+                                put("payload", JSONObject())
+                            }.toString())
+                        }
+                        "response" -> if (json.optString("id") == "cmd_0") {
+                            val devices = json.optJSONObject("payload")?.optJSONArray("devices")
+                            if (devices != null) {
+                                val list = mutableListOf<InputSource>()
+                                for (i in 0 until devices.length()) {
+                                    val d = devices.getJSONObject(i)
+                                    val id = d.optString("id").takeIf { it.isNotEmpty() } ?: continue
+                                    val label = d.optString("label").ifEmpty { id }
+                                    list.add(InputSource(id, label))
+                                }
+                                inputs = list
+                            } else {
+                                errorMsg = "No inputs found"
+                            }
+                            ws.close(1000, null); latch.countDown()
+                        }
+                        "error" -> { errorMsg = json.optJSONObject("payload")?.optString("errorText") ?: "Error"; ws.close(1000, null); latch.countDown() }
+                    }
+                }
+                override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) { errorMsg = t.message; latch.countDown() }
+                override fun onClosed(ws: WebSocket, code: Int, reason: String) { latch.countDown() }
+            }
+        )
+        latch.await(8, TimeUnit.SECONDS)
+        client.dispatcher.executorService.shutdown()
+        return Pair(inputs, errorMsg)
+    }
+
+    fun switchInput(inputId: String) = execute(
+        "ssap://tv/switchInput",
+        JSONObject().put("inputId", inputId)
+    )
+
     fun launchApp(appId: String) = execute(
         "ssap://system.launcher/launch",
         JSONObject().put("id", appId)
