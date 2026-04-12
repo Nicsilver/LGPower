@@ -389,12 +389,14 @@ class MainActivity : AppCompatActivity() {
         val dragThreshold = 10 * resources.displayMetrics.density
         var startY = 0f
         var isDragging = false
+        var lastHapticLevel = -1
 
         pill.setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     startY = event.y
                     isDragging = false
+                    lastHapticLevel = -1
                     // Prevent ScrollView from stealing our touch events
                     v.parent?.requestDisallowInterceptTouchEvent(true)
                     true
@@ -412,6 +414,11 @@ class MainActivity : AppCompatActivity() {
                         // find the label sibling in the parent LinearLayout and update it
                         val parent = pill.parent as? android.view.ViewGroup
                         (parent?.getChildAt(0) as? TextView)?.text = level.toString()
+                        // haptic tick every 5 units
+                        if (lastHapticLevel == -1 || abs(level - lastHapticLevel) >= 3) {
+                            v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            lastHapticLevel = level
+                        }
                     }
                     true
                 }
