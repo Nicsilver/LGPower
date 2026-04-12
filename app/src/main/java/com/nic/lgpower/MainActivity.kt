@@ -77,7 +77,7 @@ class MainActivity : AppCompatActivity() {
         @Suppress("DEPRECATION")
         setTaskDescription(ActivityManager.TaskDescription(getString(R.string.app_name), iconBmp, Color.TRANSPARENT))
 
-        // Power — IR toggle
+        // Power — IR toggle (tap), WiFi turn off (long press)
         findViewById<View>(R.id.btn_power).setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             val irManager = getSystemService(CONSUMER_IR_SERVICE) as? ConsumerIrManager
@@ -86,6 +86,12 @@ class MainActivity : AppCompatActivity() {
             }
             // Re-check status after TV has had time to respond to the IR command
             statusHandler.postDelayed({ checkStatus() }, 2500)
+        }
+        findViewById<View>(R.id.btn_power).setOnLongClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            sendCommand { client.turnOff() }
+            statusHandler.postDelayed({ checkStatus() }, 3000)
+            true
         }
 
         // Screen Off — WiFi
@@ -424,22 +430,29 @@ class MainActivity : AppCompatActivity() {
     private fun checkStatus() {
         val ip = client.tvIp
         if (ip.isBlank()) return
+        runOnUiThread { setStatus(TvStatus.CHECKING) }
         Thread {
-            val reachable = runCatching {
+            val portOpen = runCatching {
                 Socket().use { it.connect(InetSocketAddress(ip, 3001), 2000) }
                 true
             }.getOrElse { false }
-            runOnUiThread {
-                setStatus(if (reachable) TvStatus.CONNECTED else TvStatus.DISCONNECTED)
+            if (!portOpen) {
+                runOnUiThread { setStatus(TvStatus.DISCONNECTED) }
+                return@Thread
             }
-            if (reachable) {
-                val brightness = client.getBrightness()
-                if (brightness != null) runOnUiThread { setBrightnessBar(brightness) }
-                val volumeState = client.getVolume()
-                if (volumeState != null) runOnUiThread { setVolumeState(volumeState.volume, volumeState.muted) }
-                val screenOff = client.getScreenOff()
-                if (screenOff != null) runOnUiThread { setScreenOffButton(screenOff) }
+            // Port open — show connected immediately, then confirm via WebOS
+            runOnUiThread { setStatus(TvStatus.CONNECTED) }
+            val brightness = client.getBrightness()
+            if (brightness == null) {
+                // Port open but WebOS not responding — TV is in standby (Quick Start)
+                runOnUiThread { setStatus(TvStatus.DISCONNECTED) }
+                return@Thread
             }
+            runOnUiThread { setBrightnessBar(brightness) }
+            val volumeState = client.getVolume()
+            if (volumeState != null) runOnUiThread { setVolumeState(volumeState.volume, volumeState.muted) }
+            val screenOff = client.getScreenOff()
+            if (screenOff != null) runOnUiThread { setScreenOffButton(screenOff) }
         }.start()
     }
 
