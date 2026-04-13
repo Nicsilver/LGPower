@@ -606,6 +606,13 @@ class WebOsClient(private val context: Context) {
         JSONObject().put("inputId", inputId)
     )
 
+    fun setPictureMode(mode: String) = execute(
+        "ssap://settings/setSystemSettings",
+        JSONObject()
+            .put("category", "picture")
+            .put("settings", JSONObject().put("pictureMode", mode))
+    )
+
     fun launchApp(appId: String) = execute(
         "ssap://system.launcher/launch",
         JSONObject().put("id", appId)
