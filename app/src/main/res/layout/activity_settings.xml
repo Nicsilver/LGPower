@@ -135,7 +135,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="16dp">
+            android:layout_marginBottom="14dp">
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -162,6 +162,45 @@
 
             <Switch
                 android:id="@+id/switch_brightness_slider"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:thumbTint="#AAAAFF"
+                android:trackTint="#333355" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Swap brightness for channel"
+                    android:textColor="#CCCCEE"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Replace brightness pill with channel up / down. Off = brightness."
+                    android:textColor="#666688"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/switch_right_pill_channel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:thumbTint="#AAAAFF"

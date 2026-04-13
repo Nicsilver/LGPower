@@ -56,6 +56,14 @@ class MainActivity : AppCompatActivity() {
     private var exitTouchpadFn: (() -> Unit)? = null
     private var moveAccumulator = 0f
     private val hapticMovePx = 32f
+    private var brightnessDragLevel = 0
+    private var brightnessSendRunnable: Runnable? = null
+    private val brightnessSendLoop: Runnable = object : Runnable {
+        override fun run() {
+            Thread { client.setBrightness(brightnessDragLevel) }.start()
+            statusHandler.postDelayed(this, 50)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -156,41 +164,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Brightness
-        var brightnessDragLevel = 0
-        var brightnessSendRunnable: Runnable? = null
-        val brightnessSendLoop: Runnable = object : Runnable {
-            override fun run() {
-                Thread { client.setBrightness(brightnessDragLevel) }.start()
-                statusHandler.postDelayed(this, 50)
-            }
-        }
-        setupPillDrag(
-            pillId = R.id.brightness_pill,
-            barId  = R.id.brightness_bar,
-            getLevel = { currentBrightness },
-            onTapUp   = { val lvl = ((currentBrightness ?: 50) + 5).coerceIn(0, 100)
-                          setBrightnessBar(lvl)
-                          Thread { client.setBrightness(lvl) }.start() },
-            onTapDown = { val lvl = ((currentBrightness ?: 50) - 5).coerceIn(0, 100)
-                          setBrightnessBar(lvl)
-                          Thread { client.setBrightness(lvl) }.start() },
-            onDragEnd = { level ->
-                statusHandler.removeCallbacks(brightnessSendLoop)
-                brightnessSendRunnable = null
-                setBrightnessBar(level)
-                Thread { client.setBrightness(level); scheduleBrightnessRefresh() }.start()
-            },
-            onDragMove = { level ->
-                brightnessDragLevel = level
-                if (brightnessSendRunnable == null) {
-                    brightnessSendRunnable = brightnessSendLoop
-                    statusHandler.post(brightnessSendLoop)
-                }
-            },
-            sliderEnabled = { appPrefs.getBoolean("brightness_slider", true) },
-            onActionUp = { scheduleBrightnessRefresh() }
-        )
+        // Right pill (brightness or channel) — configured in onResume via configureRightPill()
 
         // Input source
         findViewById<View>(R.id.btn_input).setOnClickListener {
@@ -424,6 +398,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         client.resetConnection()
+        configureRightPill()
         refreshShortcuts()
         // Restore cached values immediately so bars aren't empty while network fetches
         val cachedVolume = appPrefs.getInt("last_volume", -1)
@@ -498,6 +473,61 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val appPrefs by lazy { getSharedPreferences("webos", MODE_PRIVATE) }
+
+    private fun configureRightPill() {
+        if (appPrefs.getBoolean("right_pill_channel", false)) setupChannelPill()
+        else setupBrightnessPill()
+    }
+
+    private fun setupBrightnessPill() {
+        findViewById<View>(R.id.brightness_bar).visibility = View.VISIBLE
+        findViewById<android.widget.ImageButton>(R.id.btn_brightness_up).setImageResource(R.drawable.ic_brightness_up)
+        findViewById<android.widget.ImageButton>(R.id.btn_brightness_down).setImageResource(R.drawable.ic_brightness_down)
+        setupPillDrag(
+            pillId = R.id.brightness_pill,
+            barId  = R.id.brightness_bar,
+            getLevel = { currentBrightness },
+            onTapUp   = { val lvl = ((currentBrightness ?: 50) + 5).coerceIn(0, 100)
+                          setBrightnessBar(lvl)
+                          Thread { client.setBrightness(lvl) }.start() },
+            onTapDown = { val lvl = ((currentBrightness ?: 50) - 5).coerceIn(0, 100)
+                          setBrightnessBar(lvl)
+                          Thread { client.setBrightness(lvl) }.start() },
+            onDragEnd = { level ->
+                statusHandler.removeCallbacks(brightnessSendLoop)
+                brightnessSendRunnable = null
+                setBrightnessBar(level)
+                Thread { client.setBrightness(level); scheduleBrightnessRefresh() }.start()
+            },
+            onDragMove = { level ->
+                brightnessDragLevel = level
+                if (brightnessSendRunnable == null) {
+                    brightnessSendRunnable = brightnessSendLoop
+                    statusHandler.post(brightnessSendLoop)
+                }
+            },
+            sliderEnabled = { appPrefs.getBoolean("brightness_slider", true) },
+            onActionUp = { scheduleBrightnessRefresh() }
+        )
+    }
+
+    private fun setupChannelPill() {
+        val bar   = findViewById<View>(R.id.brightness_bar)
+        val label = findViewById<TextView>(R.id.brightness_label)
+        val pill  = findViewById<View>(R.id.brightness_pill)
+        bar.visibility = View.INVISIBLE
+        label.text = ""
+        findViewById<android.widget.ImageButton>(R.id.btn_brightness_up).setImageResource(R.drawable.ic_channel_up)
+        findViewById<android.widget.ImageButton>(R.id.btn_brightness_down).setImageResource(R.drawable.ic_channel_down)
+        pill.setOnTouchListener { v, event ->
+            if (event.action == MotionEvent.ACTION_UP) {
+                v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                if (event.y < v.height / 2f) sendCommand { client.channelUp() }
+                else sendCommand { client.channelDown() }
+            }
+            true
+        }
+    }
 
     private fun setupPillDrag(
         pillId: Int,
@@ -635,6 +665,7 @@ class MainActivity : AppCompatActivity() {
     private fun setBrightnessBar(level: Int) {
         currentBrightness = level
         appPrefs.edit().putInt("last_brightness", level).apply()
+        if (appPrefs.getBoolean("right_pill_channel", false)) return
         findViewById<TextView>(R.id.brightness_label)?.text = level.toString()
         val bar = findViewById<View>(R.id.brightness_bar) ?: return
         val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
