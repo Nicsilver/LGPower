@@ -139,234 +139,303 @@
 
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
-        <!-- D-pad + Volume pill -->
+        <!-- D-pad + pills + Back/Menu -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
 
-            <!-- Volume pill + label -->
+            <!-- Pills + D-pad row -->
             <LinearLayout
-                android:layout_width="54dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal">
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
-                <TextView
-                    android:id="@+id/volume_label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text=""
-                    android:textColor="#CCFFFFFF"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="6dp" />
-
-            <FrameLayout
-                android:id="@+id/volume_pill"
-                android:layout_width="54dp"
-                android:layout_height="230dp"
-                android:background="@drawable/bg_pill_dark"
-                android:clipToOutline="true"
-                android:clickable="true"
-                android:focusable="true">
-
-                <!-- Fill bar — grows from bottom, height set programmatically -->
-                <View
-                    android:id="@+id/volume_bar"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_gravity="bottom"
-                    android:background="#664FC3F7" />
-
+                <!-- Volume pill + label -->
                 <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="vertical">
+                    android:layout_width="54dp"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal">
 
-                    <ImageButton
-                        android:id="@+id/btn_volume_up"
-                        android:layout_width="match_parent"
-                        android:layout_height="0dp"
-                        android:layout_weight="1"
-                        android:background="@android:color/transparent"
-                        android:src="@drawable/ic_volume_up"
-                        android:scaleType="fitCenter"
-                        android:padding="14dp"
-                        android:clickable="false"
-                        android:focusable="false"
-                        android:contentDescription="Volume Up" />
+                    <TextView
+                        android:id="@+id/volume_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textColor="#CCFFFFFF"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="6dp" />
 
-                    <View
-                        android:layout_width="34dp"
-                        android:layout_height="1dp"
-                        android:layout_gravity="center_horizontal"
-                        android:background="#000000" />
+                    <FrameLayout
+                        android:id="@+id/volume_pill"
+                        android:layout_width="54dp"
+                        android:layout_height="230dp"
+                        android:background="@drawable/bg_pill_dark"
+                        android:clipToOutline="true"
+                        android:clickable="true"
+                        android:focusable="true">
 
-                    <ImageButton
-                        android:id="@+id/btn_volume_down"
-                        android:layout_width="match_parent"
-                        android:layout_height="0dp"
-                        android:layout_weight="1"
-                        android:background="@android:color/transparent"
-                        android:src="@drawable/ic_volume_down"
-                        android:scaleType="fitCenter"
-                        android:padding="14dp"
-                        android:clickable="false"
-                        android:focusable="false"
-                        android:contentDescription="Volume Down" />
+                        <View
+                            android:id="@+id/volume_bar"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_gravity="bottom"
+                            android:background="#664FC3F7" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical">
+
+                            <ImageButton
+                                android:id="@+id/btn_volume_up"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:background="@android:color/transparent"
+                                android:src="@drawable/ic_volume_up"
+                                android:scaleType="fitCenter"
+                                android:padding="14dp"
+                                android:clickable="false"
+                                android:focusable="false"
+                                android:contentDescription="Volume Up" />
+
+                            <View
+                                android:layout_width="34dp"
+                                android:layout_height="1dp"
+                                android:layout_gravity="center_horizontal"
+                                android:background="#000000" />
+
+                            <ImageButton
+                                android:id="@+id/btn_volume_down"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:background="@android:color/transparent"
+                                android:src="@drawable/ic_volume_down"
+                                android:scaleType="fitCenter"
+                                android:padding="14dp"
+                                android:clickable="false"
+                                android:focusable="false"
+                                android:contentDescription="Volume Down" />
+
+                        </LinearLayout>
+
+                    </FrameLayout>
 
                 </LinearLayout>
 
-            </FrameLayout>
+                <Space android:layout_width="10dp" android:layout_height="1dp" />
+
+                <FrameLayout
+                    android:layout_width="230dp"
+                    android:layout_height="230dp">
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/bg_circle_dark" />
+
+                    <ImageButton
+                        android:id="@+id/btn_up"
+                        android:layout_width="68dp"
+                        android:layout_height="68dp"
+                        android:layout_gravity="top|center_horizontal"
+                        android:layout_marginTop="4dp"
+                        android:background="@android:color/transparent"
+                        android:src="@drawable/ic_arrow_up"
+                        android:scaleType="centerInside"
+                        android:contentDescription="Up" />
+
+                    <ImageButton
+                        android:id="@+id/btn_down"
+                        android:layout_width="68dp"
+                        android:layout_height="68dp"
+                        android:layout_gravity="bottom|center_horizontal"
+                        android:layout_marginBottom="4dp"
+                        android:background="@android:color/transparent"
+                        android:src="@drawable/ic_arrow_down"
+                        android:scaleType="centerInside"
+                        android:contentDescription="Down" />
+
+                    <ImageButton
+                        android:id="@+id/btn_left"
+                        android:layout_width="68dp"
+                        android:layout_height="68dp"
+                        android:layout_gravity="start|center_vertical"
+                        android:layout_marginStart="4dp"
+                        android:background="@android:color/transparent"
+                        android:src="@drawable/ic_arrow_left"
+                        android:scaleType="centerInside"
+                        android:contentDescription="Left" />
+
+                    <ImageButton
+                        android:id="@+id/btn_right"
+                        android:layout_width="68dp"
+                        android:layout_height="68dp"
+                        android:layout_gravity="end|center_vertical"
+                        android:layout_marginEnd="4dp"
+                        android:background="@android:color/transparent"
+                        android:src="@drawable/ic_arrow_right"
+                        android:scaleType="centerInside"
+                        android:contentDescription="Right" />
+
+                    <Button
+                        android:id="@+id/btn_ok"
+                        android:layout_width="96dp"
+                        android:layout_height="96dp"
+                        android:layout_gravity="center"
+                        android:background="@drawable/bg_circle_ok"
+                        android:text="OK"
+                        android:textColor="#FFFFFF"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                </FrameLayout>
+
+                <Space android:layout_width="10dp" android:layout_height="1dp" />
+
+                <!-- Brightness pill + label -->
+                <LinearLayout
+                    android:layout_width="54dp"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal">
+
+                    <TextView
+                        android:id="@+id/brightness_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textColor="#CCFFFFFF"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="6dp" />
+
+                    <FrameLayout
+                        android:id="@+id/brightness_pill"
+                        android:layout_width="54dp"
+                        android:layout_height="230dp"
+                        android:background="@drawable/bg_pill_dark"
+                        android:clipToOutline="true"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <View
+                            android:id="@+id/brightness_bar"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_gravity="bottom"
+                            android:background="#44FFB74D" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical">
+
+                            <ImageButton
+                                android:id="@+id/btn_brightness_up"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:background="@android:color/transparent"
+                                android:src="@drawable/ic_brightness_up"
+                                android:scaleType="fitCenter"
+                                android:padding="14dp"
+                                android:clickable="false"
+                                android:focusable="false"
+                                android:contentDescription="Brightness Up" />
+
+                            <View
+                                android:layout_width="34dp"
+                                android:layout_height="1dp"
+                                android:layout_gravity="center_horizontal"
+                                android:background="#000000" />
+
+                            <ImageButton
+                                android:id="@+id/btn_brightness_down"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:background="@android:color/transparent"
+                                android:src="@drawable/ic_brightness_down"
+                                android:scaleType="fitCenter"
+                                android:padding="14dp"
+                                android:clickable="false"
+                                android:focusable="false"
+                                android:contentDescription="Brightness Down" />
+
+                        </LinearLayout>
+
+                    </FrameLayout>
+
+                </LinearLayout>
 
             </LinearLayout>
 
-            <Space android:layout_width="10dp" android:layout_height="1dp" />
-
-            <FrameLayout
-                android:layout_width="230dp"
-                android:layout_height="230dp">
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/bg_circle_dark" />
-
-                <ImageButton
-                    android:id="@+id/btn_up"
-                    android:layout_width="68dp"
-                    android:layout_height="68dp"
-                    android:layout_gravity="top|center_horizontal"
-                    android:layout_marginTop="4dp"
-                    android:background="@android:color/transparent"
-                    android:src="@drawable/ic_arrow_up"
-                    android:scaleType="centerInside"
-                    android:contentDescription="Up" />
-
-                <ImageButton
-                    android:id="@+id/btn_down"
-                    android:layout_width="68dp"
-                    android:layout_height="68dp"
-                    android:layout_gravity="bottom|center_horizontal"
-                    android:layout_marginBottom="4dp"
-                    android:background="@android:color/transparent"
-                    android:src="@drawable/ic_arrow_down"
-                    android:scaleType="centerInside"
-                    android:contentDescription="Down" />
-
-                <ImageButton
-                    android:id="@+id/btn_left"
-                    android:layout_width="68dp"
-                    android:layout_height="68dp"
-                    android:layout_gravity="start|center_vertical"
-                    android:layout_marginStart="4dp"
-                    android:background="@android:color/transparent"
-                    android:src="@drawable/ic_arrow_left"
-                    android:scaleType="centerInside"
-                    android:contentDescription="Left" />
-
-                <ImageButton
-                    android:id="@+id/btn_right"
-                    android:layout_width="68dp"
-                    android:layout_height="68dp"
-                    android:layout_gravity="end|center_vertical"
-                    android:layout_marginEnd="4dp"
-                    android:background="@android:color/transparent"
-                    android:src="@drawable/ic_arrow_right"
-                    android:scaleType="centerInside"
-                    android:contentDescription="Right" />
-
-                <Button
-                    android:id="@+id/btn_ok"
-                    android:layout_width="96dp"
-                    android:layout_height="96dp"
-                    android:layout_gravity="center"
-                    android:background="@drawable/bg_circle_ok"
-                    android:text="OK"
-                    android:textColor="#FFFFFF"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-
-            </FrameLayout>
-
-            <Space android:layout_width="10dp" android:layout_height="1dp" />
-
-            <!-- Brightness pill + label -->
+            <!-- Back + Menu — tight below the d-pad circle -->
             <LinearLayout
-                android:layout_width="54dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal">
+                android:orientation="horizontal"
+                android:layout_marginTop="-8dp">
 
-                <TextView
-                    android:id="@+id/brightness_label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text=""
-                    android:textColor="#CCFFFFFF"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="6dp" />
-
-            <FrameLayout
-                android:id="@+id/brightness_pill"
-                android:layout_width="54dp"
-                android:layout_height="230dp"
-                android:background="@drawable/bg_pill_dark"
-                android:clipToOutline="true"
-                android:clickable="true"
-                android:focusable="true">
-
-                <!-- Fill bar — grows from bottom, height set programmatically -->
-                <View
-                    android:id="@+id/brightness_bar"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_gravity="bottom"
-                    android:background="#44FFB74D" />
+                <!-- Offset to align with left edge of d-pad: vol pill (54) + space (10) -->
+                <View android:layout_width="64dp" android:layout_height="1dp" />
 
                 <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="vertical">
-
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal">
                     <ImageButton
-                        android:id="@+id/btn_brightness_up"
-                        android:layout_width="match_parent"
-                        android:layout_height="0dp"
-                        android:layout_weight="1"
-                        android:background="@android:color/transparent"
-                        android:src="@drawable/ic_brightness_up"
-                        android:scaleType="fitCenter"
-                        android:padding="14dp"
-                        android:clickable="false"
-                        android:focusable="false"
-                        android:contentDescription="Brightness Up" />
-
-                    <View
-                        android:layout_width="34dp"
-                        android:layout_height="1dp"
-                        android:layout_gravity="center_horizontal"
-                        android:background="#000000" />
-
-                    <ImageButton
-                        android:id="@+id/btn_brightness_down"
-                        android:layout_width="match_parent"
-                        android:layout_height="0dp"
-                        android:layout_weight="1"
-                        android:background="@android:color/transparent"
-                        android:src="@drawable/ic_brightness_down"
-                        android:scaleType="fitCenter"
-                        android:padding="14dp"
-                        android:clickable="false"
-                        android:focusable="false"
-                        android:contentDescription="Brightness Down" />
-
+                        android:id="@+id/btn_back"
+                        android:layout_width="52dp"
+                        android:layout_height="52dp"
+                        android:background="@drawable/bg_circle_dark"
+                        android:src="@drawable/ic_back"
+                        android:scaleType="center"
+                        android:contentDescription="Back" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Back"
+                        android:textColor="#AAAACC"
+                        android:textSize="11sp"
+                        android:layout_marginTop="4dp" />
                 </LinearLayout>
 
-            </FrameLayout>
+                <!-- Center gap: d-pad width (230) minus two buttons (52+52) = 126dp -->
+                <View android:layout_width="126dp" android:layout_height="1dp" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal">
+                    <ImageButton
+                        android:id="@+id/btn_settings"
+                        android:layout_width="52dp"
+                        android:layout_height="52dp"
+                        android:background="@drawable/bg_circle_dark"
+                        android:src="@drawable/ic_settings"
+                        android:scaleType="center"
+                        android:contentDescription="Settings" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Menu"
+                        android:textColor="#AAAACC"
+                        android:textSize="11sp"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+
+                <!-- Mirror the left offset: space (10) + brightness pill (54) = 64dp -->
+                <View android:layout_width="64dp" android:layout_height="1dp" />
 
             </LinearLayout>
 
@@ -374,37 +443,12 @@
 
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
-        <!-- Back + Screen Off + Settings + Mute + Input + Picture -->
+        <!-- Screen Off + Mute + Input + Picture -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:weightSum="6">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:gravity="center">
-
-                <ImageButton
-                    android:id="@+id/btn_back"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:background="@drawable/bg_circle_dark"
-                    android:src="@drawable/ic_back"
-                    android:scaleType="center"
-                    android:contentDescription="Back" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Back"
-                    android:textColor="#AAAACC"
-                    android:textSize="11sp"
-                    android:layout_marginTop="5dp" />
-            </LinearLayout>
+            android:weightSum="4">
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -426,31 +470,6 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Screen Off"
-                    android:textColor="#AAAACC"
-                    android:textSize="11sp"
-                    android:layout_marginTop="5dp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:gravity="center">
-
-                <ImageButton
-                    android:id="@+id/btn_settings"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:background="@drawable/bg_circle_dark"
-                    android:src="@drawable/ic_settings"
-                    android:scaleType="center"
-                    android:contentDescription="Settings" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Settings"
                     android:textColor="#AAAACC"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
