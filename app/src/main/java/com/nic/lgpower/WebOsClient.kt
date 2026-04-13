@@ -348,6 +348,8 @@ class WebOsClient(private val context: Context) {
     fun volumeUp()      = pressKey("VOLUMEUP")
     fun volumeDown()    = pressKey("VOLUMEDOWN")
     fun muteToggle()    = pressKey("MUTE")
+    fun channelUp()     = pressKey("CHANNELUP")
+    fun channelDown()   = pressKey("CHANNELDOWN")
 
     data class VolumeState(val volume: Int, val muted: Boolean)
 
