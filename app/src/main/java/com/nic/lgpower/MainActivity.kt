@@ -757,16 +757,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPicturePicker() {
-        data class PictureMode(val id: String, val label: String)
+        // LG C4 SDR picture modes — the API doesn't expose a modes list
         val modes = listOf(
-            PictureMode("vivid",      "Vivid"),
-            PictureMode("standard",   "Standard"),
-            PictureMode("cinema",     "Cinema"),
-            PictureMode("game",       "Game Optimizer"),
-            PictureMode("filmMaker",  "Filmmaker Mode"),
-            PictureMode("sports",     "Sports"),
+            "vivid"      to "Vivid",
+            "standard"   to "Standard",
+            "eco"        to "Eco",
+            "cinema"     to "Cinema",
+            "expert1"    to "Expert (Bright Room)",
+            "expert2"    to "Expert (Dark Room)",
+            "game"       to "Game Optimizer",
+            "filmMaker"  to "Filmmaker Mode",
+            "sports"     to "Sports",
         )
+        Thread {
+            val current = client.getCurrentPictureMode()
+            runOnUiThread { displayPicturePicker(modes, current) }
+        }.start()
+    }
 
+    private fun displayPicturePicker(modes: List<Pair<String, String>>, current: String?) {
         val dialog = android.app.Dialog(this)
         dialog.setContentView(R.layout.dialog_input_picker)
         dialog.window?.apply {
@@ -781,7 +790,7 @@ class MainActivity : AppCompatActivity() {
         val container = dialog.findViewById<LinearLayout>(R.id.inputs_container)
         val density = resources.displayMetrics.density
 
-        modes.forEach { mode ->
+        modes.forEach { (id, label) ->
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -802,17 +811,19 @@ class MainActivity : AppCompatActivity() {
                     .also { it.marginEnd = (14 * density).toInt() }
             }
 
-            val label = TextView(this).apply {
-                text = mode.label
+            val isActive = id == current
+            val labelView = TextView(this).apply {
+                text = if (isActive) "$label  ✓" else label
                 textSize = 16f
-                setTextColor(0xFFDDDDEE.toInt())
+                setTextColor(if (isActive) 0xFFFFFFFF.toInt() else 0xFFDDDDEE.toInt())
+                if (isActive) setTypeface(null, android.graphics.Typeface.BOLD)
             }
 
             row.addView(icon)
-            row.addView(label)
+            row.addView(labelView)
             row.setOnClickListener {
                 dialog.dismiss()
-                sendCommand { client.setPictureMode(mode.id) }
+                sendCommand { client.setPictureMode(id) }
             }
             container.addView(row)
         }
