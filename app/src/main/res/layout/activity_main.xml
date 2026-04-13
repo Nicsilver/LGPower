@@ -146,6 +146,92 @@
             android:orientation="vertical"
             android:gravity="center_horizontal">
 
+            <!-- Home + Input — above the d-pad circle -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="-8dp">
+
+                <!-- Offset to align with left edge of d-pad: vol pill (54) + space (10) -->
+                <View android:layout_width="64dp" android:layout_height="1dp" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal">
+                    <ImageButton
+                        android:id="@+id/btn_home"
+                        android:layout_width="52dp"
+                        android:layout_height="52dp"
+                        android:background="@drawable/bg_circle_dark"
+                        android:src="@drawable/ic_home"
+                        android:scaleType="center"
+                        android:contentDescription="Home" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Home"
+                        android:textColor="#AAAACC"
+                        android:textSize="11sp"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+
+                <!-- Two equal gaps: (230 - 3×52) / 2 = 37dp each -->
+                <View android:layout_width="37dp" android:layout_height="1dp" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal">
+                    <ImageButton
+                        android:id="@+id/btn_mute"
+                        android:layout_width="52dp"
+                        android:layout_height="52dp"
+                        android:background="@drawable/bg_circle_dark"
+                        android:src="@drawable/ic_mute"
+                        android:scaleType="center"
+                        android:contentDescription="Mute" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Mute"
+                        android:textColor="#AAAACC"
+                        android:textSize="11sp"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+
+                <View android:layout_width="37dp" android:layout_height="1dp" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal">
+                    <ImageButton
+                        android:id="@+id/btn_input"
+                        android:layout_width="52dp"
+                        android:layout_height="52dp"
+                        android:background="@drawable/bg_circle_dark"
+                        android:src="@drawable/ic_input"
+                        android:scaleType="center"
+                        android:contentDescription="Input Source" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Input"
+                        android:textColor="#AAAACC"
+                        android:textSize="11sp"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+
+                <!-- Mirror the left offset: space (10) + brightness pill (54) = 64dp -->
+                <View android:layout_width="64dp" android:layout_height="1dp" />
+
+            </LinearLayout>
+
             <!-- Pills + D-pad row -->
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -443,12 +529,12 @@
 
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
-        <!-- Screen Off + Mute + Input + Picture -->
+        <!-- Screen Off + Picture -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:weightSum="4">
+            android:weightSum="2">
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -470,56 +556,6 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Screen Off"
-                    android:textColor="#AAAACC"
-                    android:textSize="11sp"
-                    android:layout_marginTop="5dp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:gravity="center">
-
-                <ImageButton
-                    android:id="@+id/btn_mute"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:background="@drawable/bg_circle_dark"
-                    android:src="@drawable/ic_mute"
-                    android:scaleType="center"
-                    android:contentDescription="Mute" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Mute"
-                    android:textColor="#AAAACC"
-                    android:textSize="11sp"
-                    android:layout_marginTop="5dp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:gravity="center">
-
-                <ImageButton
-                    android:id="@+id/btn_input"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:background="@drawable/bg_circle_dark"
-                    android:src="@drawable/ic_input"
-                    android:scaleType="center"
-                    android:contentDescription="Input Source" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Input"
                     android:textColor="#AAAACC"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
