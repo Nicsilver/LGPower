@@ -107,7 +107,8 @@ class MainActivity : AppCompatActivity() {
         setRepeatListener(findViewById(R.id.btn_right)) { client.pressRight() }
         findViewById<View>(R.id.btn_ok).setOnClickListener { sendCommand { client.pressEnter() } }
 
-        // Back / Settings
+        // Home / Back / Settings
+        findViewById<View>(R.id.btn_home).setOnClickListener     { sendCommand { client.pressKey("HOME") } }
         findViewById<View>(R.id.btn_back).setOnClickListener     { sendCommand { client.pressKey("BACK") } }
         findViewById<View>(R.id.btn_back).setOnLongClickListener { sendCommand { client.pressKey("HOME") }; true }
         findViewById<View>(R.id.btn_settings).setOnClickListener     { sendCommand { client.pressKey("MENU") } }
