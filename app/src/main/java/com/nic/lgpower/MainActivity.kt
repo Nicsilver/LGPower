@@ -42,6 +42,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusRunnable: Runnable
 
     private enum class TvStatus { CHECKING, CONNECTED, SEARCHING, DISCONNECTED }
+    @Volatile private var tvConnected = false
+    @Volatile private var wakeHomeGen = 0
     @Volatile private var currentBrightness: Int? = null
     @Volatile private var currentVolume: Int? = null
     @Volatile private var currentMuted: Boolean = false
@@ -84,14 +86,24 @@ class MainActivity : AppCompatActivity() {
         @Suppress("DEPRECATION")
         setTaskDescription(ActivityManager.TaskDescription(getString(R.string.app_name), iconBmp, Color.TRANSPARENT))
 
-        // Power — IR toggle (tap), WiFi turn off (long press)
+        // Power — WoL (tap), WiFi turn off (long press)
         findViewById<View>(R.id.btn_power).setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            val irManager = getSystemService(CONSUMER_IR_SERVICE) as? ConsumerIrManager
-            if (irManager?.hasIrEmitter() == true) {
-                runCatching { irManager.transmit(38000, LGPowerWidget.LG_POWER_PATTERN) }
-            }
-            // Re-check status after TV has had time to respond to the IR command
+            Thread { client.sendWakeOnLan() }.start()
+            // WoL bug: TV always boots to live TV regardless of "Power on screen" setting.
+            // Always fire goHome() every second after a power press; stops as soon as one lands.
+            // Generation counter cancels any loop from a previous press.
+            val gen = ++wakeHomeGen
+            Thread {
+                repeat(15) {
+                    if (wakeHomeGen != gen) return@Thread
+                    Thread {
+                        if (wakeHomeGen == gen && client.goHome() is WebOsClient.Result.Success)
+                            ++wakeHomeGen
+                    }.start()
+                    Thread.sleep(1_000)
+                }
+            }.start()
             statusHandler.postDelayed({ checkStatus() }, 2500)
         }
         findViewById<View>(R.id.btn_power).setOnLongClickListener {
@@ -419,6 +431,7 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun setStatus(status: TvStatus) {
+        tvConnected = (status == TvStatus.CONNECTED)
         val dot = findViewById<View>(R.id.status_dot)
         val color = when (status) {
             TvStatus.CHECKING     -> 0xFF888888.toInt()

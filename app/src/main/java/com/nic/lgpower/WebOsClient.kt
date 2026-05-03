@@ -21,8 +21,66 @@ class WebOsClient(private val context: Context) {
     private val prefs = context.getSharedPreferences("webos", Context.MODE_PRIVATE)
 
     val tvIp: String get() = prefs.getString("tv_ip", DEFAULT_TV_IP) ?: DEFAULT_TV_IP
+    val tvMac: String get() = prefs.getString("tv_mac", "") ?: ""
 
     fun saveTvIp(ip: String) { prefs.edit().putString("tv_ip", ip).apply() }
+    fun saveTvMac(mac: String) { prefs.edit().putString("tv_mac", mac).apply() }
+
+    /** Queries the TV directly via WebSocket to get its own MAC address. TV must be on. */
+    fun getMacFromDevice(): String? {
+        val latch = CountDownLatch(1)
+        var mac: String? = null
+        val savedKey = prefs.getString("client_key", null)
+        val client = buildClient()
+        client.newWebSocket(
+            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+            object : WebSocketListener() {
+                override fun onOpen(ws: WebSocket, response: Response) { ws.send(buildRegistration(savedKey)) }
+                override fun onMessage(ws: WebSocket, text: String) {
+                    val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                    when (json.optString("type")) {
+                        "registered" -> {
+                            val key = json.optJSONObject("payload")?.optString("client-key")
+                            if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                            ws.send(JSONObject().apply {
+                                put("id", "cmd_netinfo")
+                                put("type", "request")
+                                put("uri", "ssap://com.webos.service.connectionmanager/getinfo")
+                            }.toString())
+                        }
+                        "response" -> if (json.optString("id") == "cmd_netinfo") {
+                            val payload = json.optJSONObject("payload")
+                            mac = payload?.optJSONObject("wifiInfo")?.optString("macAddress")?.takeIf { it.isNotEmpty() }
+                                ?: payload?.optJSONObject("wiredInfo")?.optString("macAddress")?.takeIf { it.isNotEmpty() }
+                            ws.close(1000, null); latch.countDown()
+                        }
+                        "error" -> { ws.close(1000, null); latch.countDown() }
+                    }
+                }
+                override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) { latch.countDown() }
+                override fun onClosed(ws: WebSocket, code: Int, reason: String) { latch.countDown() }
+            }
+        )
+        latch.await(8, TimeUnit.SECONDS)
+        client.dispatcher.executorService.shutdown()
+        return mac
+    }
+
+    fun sendWakeOnLan() {
+        val mac = tvMac.ifEmpty { return }
+        try {
+            val macBytes = mac.split(":").map { it.toInt(16).toByte() }.toByteArray()
+            if (macBytes.size != 6) return
+            val packet = ByteArray(6 + 16 * 6)
+            for (i in 0..5) packet[i] = 0xFF.toByte()
+            for (i in 0..15) for (j in 0..5) packet[6 + i * 6 + j] = macBytes[j]
+            java.net.DatagramSocket().use { socket ->
+                socket.broadcast = true
+                val addr = java.net.InetAddress.getByName("255.255.255.255")
+                socket.send(java.net.DatagramPacket(packet, packet.size, addr, 9))
+            }
+        } catch (_: Exception) { }
+    }
 
     sealed class Result {
         object Success : Result()
@@ -660,6 +718,7 @@ class WebOsClient(private val context: Context) {
         "ssap://system.launcher/launch",
         JSONObject().put("id", appId)
     )
+    fun goHome() = execute("ssap://system.launcher/launch", JSONObject().put("id", "com.webos.app.home"), timeoutSecs = 3)
     fun launchYouTube() = launchApp("youtube.leanback.v4")
     fun launchStremio() = launchApp("io.strem.tv")
 

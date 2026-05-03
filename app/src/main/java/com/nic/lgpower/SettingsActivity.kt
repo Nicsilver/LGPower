@@ -28,6 +28,7 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_settings)
 
         val editIp          = findViewById<EditText>(R.id.edit_tv_ip)
+        val editMac         = findViewById<EditText>(R.id.edit_tv_mac)
         val discoverSpinner = findViewById<ProgressBar>(R.id.discover_spinner)
 
         // Controls toggles
@@ -46,6 +47,24 @@ class SettingsActivity : AppCompatActivity() {
         val currentIp = prefs.getString("tv_ip", WebOsClient.DEFAULT_TV_IP) ?: WebOsClient.DEFAULT_TV_IP
         editIp.setText(currentIp)
         editIp.setSelection(editIp.text.length)
+
+        editMac.setText(client.tvMac)
+        findViewById<Button>(R.id.btn_detect_mac).setOnClickListener {
+            it.isEnabled = false
+            Thread {
+                val found = client.getMacFromDevice()
+                runOnUiThread {
+                    it.isEnabled = true
+                    if (found != null) {
+                        editMac.setText(found)
+                        client.saveTvMac(found)
+                        Toast.makeText(this, "Found $found", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, "Not found — TV must be on to auto-detect", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }.start()
+        }
 
         // Auto-save on every selection/reorder change
         adapter = AppGridAdapter(this, client) { chosen ->
@@ -158,6 +177,8 @@ class SettingsActivity : AppCompatActivity() {
         super.onPause()
         val ip = findViewById<EditText>(R.id.edit_tv_ip).text.toString().trim()
         if (ip.isNotEmpty()) prefs.edit().putString("tv_ip", ip).apply()
+        val mac = findViewById<EditText>(R.id.edit_tv_mac).text.toString().trim()
+        client.saveTvMac(mac)
     }
 
     private fun updateSummary(chosen: List<WebOsClient.TvApp>) {
