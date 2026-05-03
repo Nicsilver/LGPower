@@ -86,7 +86,7 @@ class MainActivity : AppCompatActivity() {
         @Suppress("DEPRECATION")
         setTaskDescription(ActivityManager.TaskDescription(getString(R.string.app_name), iconBmp, Color.TRANSPARENT))
 
-        // Power — IR toggle if enabled (tap), WoL + goHome always (tap), WiFi turn off (long press)
+        // Power — probe port 3001 (500ms) to decide on/off, IR toggle if enabled
         findViewById<View>(R.id.btn_power).setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             if (appPrefs.getBoolean("ir_power", true)) {
@@ -94,28 +94,27 @@ class MainActivity : AppCompatActivity() {
                 if (irManager?.hasIrEmitter() == true)
                     runCatching { irManager.transmit(38000, LGPowerWidget.LG_POWER_PATTERN) }
             }
-            Thread { client.sendWakeOnLan() }.start()
-            // WoL bug: TV always boots to live TV regardless of "Power on screen" setting.
-            // Always fire goHome() every second after a power press; stops as soon as one lands.
-            // Generation counter cancels any loop from a previous press.
             val gen = ++wakeHomeGen
             Thread {
-                repeat(15) {
-                    if (wakeHomeGen != gen) return@Thread
-                    Thread {
-                        if (wakeHomeGen == gen && client.goHome() is WebOsClient.Result.Success)
-                            ++wakeHomeGen
-                    }.start()
-                    Thread.sleep(1_000)
+                val tvOn = runCatching {
+                    Socket().use { it.connect(InetSocketAddress(client.tvIp, 3001), 500) }
+                    true
+                }.getOrElse { false }
+                if (tvOn) {
+                    client.turnOff()
+                } else {
+                    client.sendWakeOnLan()
+                    repeat(15) {
+                        if (wakeHomeGen != gen) return@Thread
+                        Thread {
+                            if (wakeHomeGen == gen && client.goHome() is WebOsClient.Result.Success)
+                                ++wakeHomeGen
+                        }.start()
+                        Thread.sleep(1_000)
+                    }
                 }
             }.start()
             statusHandler.postDelayed({ checkStatus() }, 2500)
-        }
-        findViewById<View>(R.id.btn_power).setOnLongClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            sendCommand { client.turnOff() }
-            statusHandler.postDelayed({ checkStatus() }, 3000)
-            true
         }
 
         // Screen Off — WiFi
