@@ -32,12 +32,15 @@ class SettingsActivity : AppCompatActivity() {
         val discoverSpinner = findViewById<ProgressBar>(R.id.discover_spinner)
 
         // Controls toggles
+        val switchIrPower          = findViewById<Switch>(R.id.switch_ir_power)
         val switchVolSlider        = findViewById<Switch>(R.id.switch_vol_slider)
         val switchBrtSlider        = findViewById<Switch>(R.id.switch_brightness_slider)
         val switchRightPillChannel = findViewById<Switch>(R.id.switch_right_pill_channel)
+        switchIrPower.isChecked          = prefs.getBoolean("ir_power", true)
         switchVolSlider.isChecked        = prefs.getBoolean("vol_slider", true)
         switchBrtSlider.isChecked        = prefs.getBoolean("brightness_slider", true)
         switchRightPillChannel.isChecked = prefs.getBoolean("right_pill_channel", false)
+        switchIrPower.setOnCheckedChangeListener          { _, v -> prefs.edit().putBoolean("ir_power", v).apply() }
         switchVolSlider.setOnCheckedChangeListener        { _, v -> prefs.edit().putBoolean("vol_slider", v).apply() }
         switchBrtSlider.setOnCheckedChangeListener        { _, v -> prefs.edit().putBoolean("brightness_slider", v).apply() }
         switchRightPillChannel.setOnCheckedChangeListener { _, v -> prefs.edit().putBoolean("right_pill_channel", v).apply() }

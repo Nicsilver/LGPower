@@ -86,9 +86,14 @@ class MainActivity : AppCompatActivity() {
         @Suppress("DEPRECATION")
         setTaskDescription(ActivityManager.TaskDescription(getString(R.string.app_name), iconBmp, Color.TRANSPARENT))
 
-        // Power — WoL (tap), WiFi turn off (long press)
+        // Power — IR toggle if enabled (tap), WoL + goHome always (tap), WiFi turn off (long press)
         findViewById<View>(R.id.btn_power).setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            if (appPrefs.getBoolean("ir_power", true)) {
+                val irManager = getSystemService(CONSUMER_IR_SERVICE) as? ConsumerIrManager
+                if (irManager?.hasIrEmitter() == true)
+                    runCatching { irManager.transmit(38000, LGPowerWidget.LG_POWER_PATTERN) }
+            }
             Thread { client.sendWakeOnLan() }.start()
             // WoL bug: TV always boots to live TV regardless of "Power on screen" setting.
             // Always fire goHome() every second after a power press; stops as soon as one lands.
