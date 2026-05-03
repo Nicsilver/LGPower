@@ -44,6 +44,47 @@
             android:padding="12dp"
             android:textSize="16sp" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="TV MAC Address (for Wake on LAN)"
+            android:textColor="#AAAACC"
+            android:textSize="13sp"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="6dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <EditText
+                android:id="@+id/edit_tv_mac"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="e.g. AA:BB:CC:DD:EE:FF"
+                android:inputType="text"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#444466"
+                android:backgroundTint="#333355"
+                android:padding="12dp"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/btn_detect_mac"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/bg_squircle_dark"
+                android:text="Auto-detect"
+                android:textColor="#AAAAFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
