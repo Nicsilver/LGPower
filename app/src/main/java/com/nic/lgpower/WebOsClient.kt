@@ -28,12 +28,12 @@ class WebOsClient(private val context: Context) {
 
     /** Queries the TV directly via WebSocket to get its own MAC address. TV must be on. */
     fun getMacFromDevice(): String? {
+        val req = buildWsRequest() ?: return null
         val latch = CountDownLatch(1)
         var mac: String? = null
         val savedKey = prefs.getString("client_key", null)
         val client = buildClient()
-        client.newWebSocket(
-            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+        client.newWebSocket(req,
             object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, response: Response) { ws.send(buildRegistration(savedKey)) }
                 override fun onMessage(ws: WebSocket, text: String) {
@@ -167,19 +167,21 @@ class WebOsClient(private val context: Context) {
         })
     }.toString()
 
+    private fun buildWsRequest(): Request? =
+        if (tvIp.isBlank()) null else Request.Builder().url("wss://$tvIp:$TV_PORT").build()
+
     private fun execute(
         uri: String,
         payload: JSONObject = JSONObject(),
         timeoutSecs: Long = 6
     ): Result {
+        val req = buildWsRequest() ?: return Result.Error("No TV IP configured")
         val latch = CountDownLatch(1)
         var result: Result = Result.Error("Timeout — is the TV on and reachable?")
         val savedKey = prefs.getString("client_key", null)
 
         val client = buildClient()
-        client.newWebSocket(
-            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
-            object : WebSocketListener() {
+        client.newWebSocket(req, object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, response: Response) {
                     ws.send(buildRegistration(savedKey))
                 }
@@ -189,6 +191,14 @@ class WebOsClient(private val context: Context) {
                         "registered" -> {
                             val key = json.optJSONObject("payload")?.optString("client-key")
                             if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                            // Piggyback MAC fetch on this connection if not yet saved
+                            if (prefs.getString("tv_mac", "").isNullOrEmpty()) {
+                                ws.send(JSONObject().apply {
+                                    put("id", "cmd_mac")
+                                    put("type", "request")
+                                    put("uri", "ssap://com.webos.service.connectionmanager/getinfo")
+                                }.toString())
+                            }
                             ws.send(JSONObject().apply {
                                 put("id", "cmd_0")
                                 put("type", "request")
@@ -197,6 +207,12 @@ class WebOsClient(private val context: Context) {
                             }.toString())
                         }
                         "response" -> when (json.optString("id")) {
+                            "cmd_mac" -> {
+                                val p = json.optJSONObject("payload")
+                                val mac = p?.optJSONObject("wifiInfo")?.optString("macAddress")?.takeIf { it.isNotEmpty() }
+                                    ?: p?.optJSONObject("wiredInfo")?.optString("macAddress")?.takeIf { it.isNotEmpty() }
+                                if (!mac.isNullOrEmpty()) prefs.edit().putString("tv_mac", mac).apply()
+                            }
                             "reg_0" -> result = Result.NeedsPairing
                             "cmd_0" -> {
                                 result = Result.Success
@@ -204,12 +220,15 @@ class WebOsClient(private val context: Context) {
                                 latch.countDown()
                             }
                         }
-                        "error" -> {
-                            result = Result.Error(
-                                json.optJSONObject("payload")?.optString("errorText") ?: "Unknown error"
-                            )
-                            ws.close(1000, null)
-                            latch.countDown()
+                        "error" -> when (json.optString("id")) {
+                            "cmd_mac" -> { /* ignore — MAC fetch is best-effort */ }
+                            else -> {
+                                result = Result.Error(
+                                    json.optJSONObject("payload")?.optString("errorText") ?: "Unknown error"
+                                )
+                                ws.close(1000, null)
+                                latch.countDown()
+                            }
                         }
                     }
                 }
@@ -238,9 +257,10 @@ class WebOsClient(private val context: Context) {
         private val readyLatch = CountDownLatch(1)
 
         init {
+            val req = buildWsRequest()
+            if (req == null) { readyLatch.countDown() } else {
             val savedKey = prefs.getString("client_key", null)
-            httpClient.newWebSocket(
-                Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+            httpClient.newWebSocket(req,
                 object : WebSocketListener() {
                     override fun onOpen(ws: WebSocket, response: Response) {
                         ws.send(buildRegistration(savedKey))
@@ -296,6 +316,7 @@ class WebOsClient(private val context: Context) {
                     }
                 }
             )
+            } // end else
         }
 
         fun waitUntilReady(timeoutSecs: Long = 6) =
@@ -320,6 +341,7 @@ class WebOsClient(private val context: Context) {
     @Volatile private var sharedPointerSession: PointerSession? = null
 
     fun pressKey(keyCode: String): Result {
+        if (buildWsRequest() == null) return Result.Error("No TV IP configured")
         val session = synchronized(this) {
             val existing = sharedPointerSession
             if (existing?.isAlive == true) existing
@@ -356,12 +378,12 @@ class WebOsClient(private val context: Context) {
 
     /** Returns true if screen is currently off, false if on, null on failure. */
     fun getScreenOff(): Boolean? {
+        val req = buildWsRequest() ?: return null
         val latch = CountDownLatch(1)
         var result: Boolean? = null
         val savedKey = prefs.getString("client_key", null)
         val client = buildClient()
-        client.newWebSocket(
-            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+        client.newWebSocket(req,
             object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, response: Response) {
                     ws.send(buildRegistration(savedKey))
@@ -412,12 +434,12 @@ class WebOsClient(private val context: Context) {
     data class VolumeState(val volume: Int, val muted: Boolean)
 
     fun getVolume(): VolumeState? {
+        val req = buildWsRequest() ?: return null
         val latch = CountDownLatch(1)
         var level: VolumeState? = null
         val savedKey = prefs.getString("client_key", null)
         val client = buildClient()
-        client.newWebSocket(
-            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+        client.newWebSocket(req,
             object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, response: Response) {
                     ws.send(buildRegistration(savedKey))
@@ -480,12 +502,12 @@ class WebOsClient(private val context: Context) {
     )
 
     fun getBrightness(): Int? {
+        val req = buildWsRequest() ?: return null
         val latch = CountDownLatch(1)
         var level: Int? = null
         val savedKey = prefs.getString("client_key", null)
         val client = buildClient()
-        client.newWebSocket(
-            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+        client.newWebSocket(req,
             object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, response: Response) {
                     ws.send(buildRegistration(savedKey))
@@ -526,13 +548,13 @@ class WebOsClient(private val context: Context) {
     }
 
     private fun adjustBrightness(delta: Int): Result {
+        val req = buildWsRequest() ?: return Result.Error("No TV IP configured")
         val latch = CountDownLatch(1)
         var result: Result = Result.Error("Timeout — is the TV on and reachable?")
         val savedKey = prefs.getString("client_key", null)
 
         val client = buildClient()
-        client.newWebSocket(
-            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+        client.newWebSocket(req,
             object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, response: Response) {
                     ws.send(buildRegistration(savedKey))
@@ -611,13 +633,13 @@ class WebOsClient(private val context: Context) {
     data class InputSource(val id: String, val label: String)
 
     fun getExternalInputList(): Pair<List<InputSource>, String?> {
+        val req = buildWsRequest() ?: return Pair(emptyList(), "No TV IP configured")
         val latch = CountDownLatch(1)
         var inputs = emptyList<InputSource>()
         var errorMsg: String? = null
         val savedKey = prefs.getString("client_key", null)
         val client = buildClient()
-        client.newWebSocket(
-            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+        client.newWebSocket(req,
             object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, response: Response) { ws.send(buildRegistration(savedKey)) }
                 override fun onMessage(ws: WebSocket, text: String) {
@@ -675,12 +697,12 @@ class WebOsClient(private val context: Context) {
 
     /** Returns the current picture mode ID, or null on failure. */
     fun getCurrentPictureMode(): String? {
+        val req = buildWsRequest() ?: return null
         val latch = CountDownLatch(1)
         var mode: String? = null
         val savedKey = prefs.getString("client_key", null)
         val client = buildClient()
-        client.newWebSocket(
-            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+        client.newWebSocket(req,
             object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, response: Response) { ws.send(buildRegistration(savedKey)) }
                 override fun onMessage(ws: WebSocket, text: String) {
@@ -733,14 +755,14 @@ class WebOsClient(private val context: Context) {
 
     /** Returns (apps, errorMessage). errorMessage is non-null when something went wrong. */
     fun listApps(): Pair<List<TvApp>, String?> {
+        val req = buildWsRequest() ?: return Pair(emptyList(), "No TV IP configured")
         val latch = CountDownLatch(1)
         var apps = emptyList<TvApp>()
         var errorMsg: String? = null
         val savedKey = prefs.getString("client_key", null)
 
         val client = buildClient()
-        client.newWebSocket(
-            Request.Builder().url("wss://$tvIp:$TV_PORT").build(),
+        client.newWebSocket(req,
             object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, response: Response) {
                     ws.send(buildRegistration(savedKey))
