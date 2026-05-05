@@ -134,7 +134,7 @@ class MainActivity : AppCompatActivity() {
         // Home / Back / Settings
         findViewById<View>(R.id.btn_home).setOnClickListener     { sendCommand { client.pressKey("HOME") } }
         findViewById<View>(R.id.btn_back).setOnClickListener     { sendCommand { client.pressKey("BACK") } }
-        findViewById<View>(R.id.btn_back).setOnLongClickListener { sendCommand { client.pressKey("HOME") }; true }
+        findViewById<View>(R.id.btn_back).setOnLongClickListener { sendCommand { client.pressKey("EXIT") }; true }
         findViewById<View>(R.id.btn_settings).setOnClickListener     { sendCommand { client.pressKey("MENU") } }
         findViewById<View>(R.id.btn_settings).setOnLongClickListener { sendCommand { client.pressKey("HOME") }; true }
 
