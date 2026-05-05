@@ -764,7 +764,30 @@ class MainActivity : AppCompatActivity() {
                     background = pillBg
                     isClickable = true
                     isFocusable = true
-                    setOnClickListener { sendCommand { client.launchApp(app.id) } }
+                    setOnClickListener {
+                        it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        val gen = ++wakeHomeGen
+                        Thread {
+                            val tvOn = runCatching {
+                                Socket().use { s -> s.connect(InetSocketAddress(client.tvIp, 3001), 500) }
+                                true
+                            }.getOrElse { false }
+                            if (tvOn) {
+                                client.launchApp(app.id)
+                            } else {
+                                client.sendWakeOnLan()
+                                repeat(15) {
+                                    if (wakeHomeGen != gen) return@Thread
+                                    Thread {
+                                        if (wakeHomeGen == gen && client.launchApp(app.id) is WebOsClient.Result.Success)
+                                            ++wakeHomeGen
+                                    }.start()
+                                    Thread.sleep(1_000)
+                                }
+                            }
+                        }.start()
+                        statusHandler.postDelayed({ checkStatus() }, 2500)
+                    }
                 }
 
                 val label = TextView(this).apply {
