@@ -209,6 +209,17 @@ class MainActivity : AppCompatActivity() {
             showSoundPicker()
         }
 
+        // Color buttons toggle + individual keys
+        val colorRow = findViewById<View>(R.id.color_buttons_row)
+        findViewById<View>(R.id.btn_colors).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            colorRow.visibility = if (colorRow.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        }
+        findViewById<View>(R.id.btn_color_red).setOnClickListener    { sendCommand { client.pressKey("RED") } }
+        findViewById<View>(R.id.btn_color_green).setOnClickListener  { sendCommand { client.pressKey("GREEN") } }
+        findViewById<View>(R.id.btn_color_yellow).setOnClickListener { sendCommand { client.pressKey("YELLOW") } }
+        findViewById<View>(R.id.btn_color_blue).setOnClickListener   { sendCommand { client.pressKey("BLUE") } }
+
         // App settings
         findViewById<View>(R.id.btn_app_settings).setOnClickListener {
             startActivity(android.content.Intent(this, SettingsActivity::class.java))
