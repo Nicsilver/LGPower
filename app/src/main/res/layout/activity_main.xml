@@ -529,12 +529,12 @@
 
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
-        <!-- Screen Off + Picture -->
+        <!-- Screen Off + Picture + Sound -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:weightSum="2">
+            android:weightSum="3">
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -581,6 +581,31 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Picture"
+                    android:textColor="#AAAACC"
+                    android:textSize="11sp"
+                    android:layout_marginTop="5dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/btn_sound"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_circle_dark"
+                    android:src="@drawable/ic_sound"
+                    android:scaleType="center"
+                    android:contentDescription="Sound Mode" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sound"
                     android:textColor="#AAAACC"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
