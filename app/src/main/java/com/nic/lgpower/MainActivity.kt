@@ -203,6 +203,12 @@ class MainActivity : AppCompatActivity() {
             showPicturePicker()
         }
 
+        // Sound mode
+        findViewById<View>(R.id.btn_sound).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            showSoundPicker()
+        }
+
         // App settings
         findViewById<View>(R.id.btn_app_settings).setOnClickListener {
             startActivity(android.content.Intent(this, SettingsActivity::class.java))
@@ -873,6 +879,78 @@ class MainActivity : AppCompatActivity() {
             row.setOnClickListener {
                 dialog.dismiss()
                 sendCommand { client.setPictureMode(id) }
+            }
+            container.addView(row)
+        }
+
+        dialog.show()
+    }
+
+    private fun showSoundPicker() {
+        val modes = listOf(
+            "standard"    to "Standard",
+            "movie"       to "Movie",
+            "music"       to "Music",
+            "sports"      to "Sports",
+            "game"        to "Game",
+            "news"        to "News",
+            "aiSoundPlus" to "AI Sound+",
+        )
+        Thread {
+            val current = client.getSoundMode()
+            runOnUiThread { displaySoundPicker(modes, current) }
+        }.start()
+    }
+
+    private fun displaySoundPicker(modes: List<Pair<String, String>>, current: String?) {
+        val dialog = android.app.Dialog(this)
+        dialog.setContentView(R.layout.dialog_input_picker)
+        dialog.window?.apply {
+            setBackgroundDrawableResource(android.R.color.transparent)
+            setLayout(android.view.WindowManager.LayoutParams.MATCH_PARENT, android.view.WindowManager.LayoutParams.WRAP_CONTENT)
+            setGravity(android.view.Gravity.BOTTOM)
+            attributes = attributes.also { it.windowAnimations = android.R.style.Animation_InputMethod }
+        }
+
+        dialog.findViewById<TextView>(R.id.dialog_picker_title).text = "Sound Mode"
+
+        val container = dialog.findViewById<LinearLayout>(R.id.inputs_container)
+        val density = resources.displayMetrics.density
+
+        modes.forEach { (id, label) ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                background = getDrawable(R.drawable.bg_input_item)
+                isClickable = true
+                isFocusable = true
+                setPadding((16 * density).toInt(), (14 * density).toInt(), (16 * density).toInt(), (14 * density).toInt())
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.bottomMargin = (8 * density).toInt() }
+            }
+
+            val icon = android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.ic_sound)
+                imageTintList = ColorStateList.valueOf(0xFF8888AA.toInt())
+                layoutParams = LinearLayout.LayoutParams((22 * density).toInt(), (22 * density).toInt())
+                    .also { it.marginEnd = (14 * density).toInt() }
+            }
+
+            val isActive = id == current
+            val labelView = TextView(this).apply {
+                text = if (isActive) "$label  ✓" else label
+                textSize = 16f
+                setTextColor(if (isActive) 0xFFFFFFFF.toInt() else 0xFFDDDDEE.toInt())
+                if (isActive) setTypeface(null, android.graphics.Typeface.BOLD)
+            }
+
+            row.addView(icon)
+            row.addView(labelView)
+            row.setOnClickListener {
+                dialog.dismiss()
+                sendCommand { client.setSoundMode(id) }
             }
             container.addView(row)
         }

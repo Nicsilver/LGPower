@@ -215,7 +215,11 @@ class WebOsClient(private val context: Context) {
                             }
                             "reg_0" -> result = Result.NeedsPairing
                             "cmd_0" -> {
-                                result = Result.Success
+                                val payload = json.optJSONObject("payload")
+                                result = if (payload?.optBoolean("returnValue", true) == false)
+                                    Result.Error(payload.optString("errorText").ifEmpty { "Command rejected by TV" })
+                                else
+                                    Result.Success
                                 ws.close(1000, null)
                                 latch.countDown()
                             }
@@ -722,6 +726,128 @@ class WebOsClient(private val context: Context) {
                         }
                         "response" -> if (json.optString("id") == "cmd_picmode") {
                             mode = json.optJSONObject("payload")?.optJSONObject("settings")?.optString("pictureMode")
+                            ws.close(1000, null); latch.countDown()
+                        }
+                        "error" -> { ws.close(1000, null); latch.countDown() }
+                    }
+                }
+                override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) { latch.countDown() }
+                override fun onClosed(ws: WebSocket, code: Int, reason: String) { latch.countDown() }
+            }
+        )
+        latch.await(6, TimeUnit.SECONDS)
+        client.dispatcher.executorService.shutdown()
+        return mode
+    }
+
+    fun setSoundMode(mode: String) = lunaRequest(
+        "com.webos.settingsservice/setSystemSettings",
+        JSONObject()
+            .put("category", "sound")
+            .put("settings", JSONObject().put("soundMode", mode))
+    )
+
+    /**
+     * Calls an internal Luna API over SSAP using the alert/notification hack.
+     * Creates an alert whose onclose fires the Luna URI, then immediately closes it.
+     * Technique from aiopylgtv — the Luna bus isn't directly accessible over SSAP.
+     */
+    private fun lunaRequest(uri: String, params: JSONObject): Result {
+        val req = buildWsRequest() ?: return Result.Error("No TV IP configured")
+        val latch = CountDownLatch(1)
+        var result: Result = Result.Error("Timeout — is the TV on and reachable?")
+        val savedKey = prefs.getString("client_key", null)
+        val lunaUri = "luna://$uri"
+
+        val client = buildClient()
+        client.newWebSocket(req, object : WebSocketListener() {
+            override fun onOpen(ws: WebSocket, response: Response) { ws.send(buildRegistration(savedKey)) }
+            override fun onMessage(ws: WebSocket, text: String) {
+                val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                when (json.optString("type")) {
+                    "registered" -> {
+                        val key = json.optJSONObject("payload")?.optString("client-key")
+                        if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                        ws.send(JSONObject().apply {
+                            put("id", "cmd_alert")
+                            put("type", "request")
+                            put("uri", "ssap://system.notifications/createAlert")
+                            put("payload", JSONObject().apply {
+                                put("message", " ")
+                                put("buttons", JSONArray().put(JSONObject()
+                                    .put("label", "")
+                                    .put("onClick", lunaUri)
+                                    .put("params", params)))
+                                put("onclose", JSONObject().put("uri", lunaUri).put("params", params))
+                                put("onfail",  JSONObject().put("uri", lunaUri).put("params", params))
+                            })
+                        }.toString())
+                    }
+                    "response" -> when (json.optString("id")) {
+                        "cmd_alert" -> {
+                            val alertId = json.optJSONObject("payload")?.optString("alertId")
+                            if (alertId.isNullOrEmpty()) {
+                                result = Result.Error("No alertId returned")
+                                ws.close(1000, null); latch.countDown(); return
+                            }
+                            ws.send(JSONObject().apply {
+                                put("id", "cmd_close")
+                                put("type", "request")
+                                put("uri", "ssap://system.notifications/closeAlert")
+                                put("payload", JSONObject().put("alertId", alertId))
+                            }.toString())
+                        }
+                        "cmd_close" -> {
+                            result = Result.Success
+                            ws.close(1000, null); latch.countDown()
+                        }
+                    }
+                    "error" -> {
+                        result = Result.Error(
+                            json.optString("error").ifEmpty {
+                                json.optJSONObject("payload")?.optString("errorText") ?: "Unknown error"
+                            }
+                        )
+                        ws.close(1000, null); latch.countDown()
+                    }
+                }
+            }
+            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                result = Result.Error(t.message ?: "Connection failed"); latch.countDown()
+            }
+            override fun onClosed(ws: WebSocket, code: Int, reason: String) { latch.countDown() }
+        })
+        latch.await(8, TimeUnit.SECONDS)
+        client.dispatcher.executorService.shutdown()
+        return result
+    }
+
+    fun getSoundMode(): String? {
+        val req = buildWsRequest() ?: return null
+        val latch = CountDownLatch(1)
+        var mode: String? = null
+        val savedKey = prefs.getString("client_key", null)
+        val client = buildClient()
+        client.newWebSocket(req,
+            object : WebSocketListener() {
+                override fun onOpen(ws: WebSocket, response: Response) { ws.send(buildRegistration(savedKey)) }
+                override fun onMessage(ws: WebSocket, text: String) {
+                    val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                    when (json.optString("type")) {
+                        "registered" -> {
+                            val key = json.optJSONObject("payload")?.optString("client-key")
+                            if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                            ws.send(JSONObject().apply {
+                                put("id", "cmd_sndmode")
+                                put("type", "request")
+                                put("uri", "ssap://settings/getSystemSettings")
+                                put("payload", JSONObject()
+                                    .put("category", "sound")
+                                    .put("keys", JSONArray().put("soundMode")))
+                            }.toString())
+                        }
+                        "response" -> if (json.optString("id") == "cmd_sndmode") {
+                            mode = json.optJSONObject("payload")?.optJSONObject("settings")?.optString("soundMode")
                             ws.close(1000, null); latch.countDown()
                         }
                         "error" -> { ws.close(1000, null); latch.countDown() }
