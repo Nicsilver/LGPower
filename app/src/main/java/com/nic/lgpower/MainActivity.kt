@@ -130,7 +130,6 @@ class MainActivity : AppCompatActivity() {
         setRepeatListener(findViewById(R.id.btn_left))  { client.pressLeft() }
         setRepeatListener(findViewById(R.id.btn_right)) { client.pressRight() }
         findViewById<View>(R.id.btn_ok).setOnClickListener { sendCommand { client.pressEnter() } }
-        findViewById<View>(R.id.btn_ok).setOnLongClickListener { sendCommand { client.pressKey("INFO") }; true }
 
         // Home / Back / Settings
         findViewById<View>(R.id.btn_home).setOnClickListener     { sendCommand { client.pressKey("HOME") } }
