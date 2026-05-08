@@ -1,0 +1,29 @@
+{
+  "id": "light",
+  "name": "Light",
+  "colors": {
+    "window_bg":                "#F2F2F7",
+    "surface_bg":               "#FFFFFF",
+    "primary_text":             "#000000",
+    "secondary_text":           "#555555",
+    "pill_label_text":          "#CC000000",
+    "section_label":            "#6C6C70",
+    "divider":                  "#E5E5EA",
+    "pill_bg":                  "#E4E4E8",
+    "pill_divider":             "#D1D1D6",
+    "circle_btn_bg":            "#E4E4E8",
+    "circle_btn_icon_tint":     "#1C1C1E",
+    "dpad_ring_bg":             "#E4E4E8",
+    "switch_track_on":          "#555555",
+    "switch_track_off":         "#D1D1D6",
+    "switch_thumb_on":          "#FFFFFF",
+    "switch_thumb_off":         "#FFFFFF",
+    "btn_accent_bg":            "#48484C",
+    "btn_accent_text":          "#FFFFFF",
+    "btn_ghost_border":         "#CCCCCC",
+    "btn_ghost_border_pressed": "#AAAAAA",
+    "btn_ghost_bg_pressed":     "#EEEEEE",
+    "dpad_ok_bg":               "#EBEBEF"
+  },
+  "status_bar_light_icons": true
+}

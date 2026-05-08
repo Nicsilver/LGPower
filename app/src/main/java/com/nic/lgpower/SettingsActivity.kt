@@ -1,5 +1,8 @@
 package com.nic.lgpower
 
+import android.content.res.ColorStateList
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -26,6 +29,7 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+        applyTheme()
 
         val editIp          = findViewById<EditText>(R.id.edit_tv_ip)
         val editMac         = findViewById<EditText>(R.id.edit_tv_mac)
@@ -111,6 +115,24 @@ class SettingsActivity : AppCompatActivity() {
             tvShortcutsSummary.text = "No shortcuts configured — load apps from TV to pick some"
         }
 
+        // Theme picker
+        val themes = ThemeManager.listThemes(this)
+        val tvCurrentTheme = findViewById<TextView>(R.id.tv_current_theme)
+        tvCurrentTheme.text = themes.firstOrNull { it.id == ThemeManager.getActiveThemeId(this) }?.name ?: "Dark"
+        findViewById<View>(R.id.row_theme).setOnClickListener {
+            val names = themes.map { it.name }.toTypedArray()
+            val current = themes.indexOfFirst { it.id == ThemeManager.getActiveThemeId(this) }
+            AlertDialog.Builder(this)
+                .setTitle("Theme")
+                .setSingleChoiceItems(names, current) { dialog, which ->
+                    val chosen = themes[which]
+                    ThemeManager.setActiveThemeId(this, chosen.id)
+                    dialog.dismiss()
+                    recreate()
+                }
+                .show()
+        }
+
         // Discover TV IP
         findViewById<Button>(R.id.btn_discover).setOnClickListener {
             discoverSpinner.visibility = View.VISIBLE
@@ -170,6 +192,61 @@ class SettingsActivity : AppCompatActivity() {
                     pool.shutdown()
                 }
             }.start()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applyTheme() {
+        val theme = ThemeManager.getActiveTheme(this)
+        ThemeManager.applyToRoot(findViewById(R.id.settings_root), theme)
+        window.statusBarColor = theme.windowBg
+        window.navigationBarColor = theme.windowBg
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val flags = window.decorView.systemUiVisibility
+            window.decorView.systemUiVisibility = if (theme.statusBarLightIcons)
+                flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            else
+                flags and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+        }
+        val trackCsl = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+            intArrayOf(theme.switchTrackOn, theme.switchTrackOff)
+        )
+        val thumbCsl = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+            intArrayOf(theme.switchThumbOn, theme.switchThumbOff)
+        )
+        listOf(R.id.switch_vol_slider, R.id.switch_brightness_slider, R.id.switch_right_pill_channel)
+            .forEach { id ->
+                val sw = findViewById<Switch>(id) ?: return@forEach
+                sw.trackTintList = trackCsl
+                sw.thumbTintList = thumbCsl
+            }
+        val dp = resources.displayMetrics.density
+        val ghostBg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = 10f * dp
+            setColor(0)
+            setStroke((1f * dp).toInt(), theme.btnGhostBorder)
+        }
+        val accentBg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = 10f * dp
+            setColor(theme.btnAccentBg)
+        }
+        findViewById<Button>(R.id.btn_detect_mac)?.apply {
+            background = ghostBg
+            setTextColor(theme.secondaryText)
+        }
+        findViewById<Button>(R.id.btn_discover)?.apply {
+            background = accentBg
+            setTextColor(theme.btnAccentText)
+        }
+        val chevronTint = if (theme.statusBarLightIcons) 0xFFAAAAAA.toInt() else 0xFF555555.toInt()
+        findViewById<Button>(R.id.btn_load_apps)
+            ?.compoundDrawableTintList = ColorStateList.valueOf(chevronTint)
+        listOf(R.id.edit_tv_ip, R.id.edit_tv_mac).forEach { id ->
+            findViewById<EditText>(id)?.setTextColor(theme.secondaryText)
         }
     }
 
