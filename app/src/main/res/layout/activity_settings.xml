@@ -10,306 +10,327 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingHorizontal="24dp"
-        android:paddingTop="24dp"
-        android:paddingBottom="48dp">
+        android:paddingHorizontal="16dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="56dp">
 
-        <!-- TV CONNECTION -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Settings"
+            android:textColor="#FFFFFF"
+            android:textSize="30sp"
+            android:textStyle="bold"
+            android:paddingHorizontal="4dp"
+            android:layout_marginBottom="32dp" />
+
+        <!-- ─── TV CONNECTION ─── -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="TV CONNECTION"
-            android:textColor="#666688"
-            android:textSize="11sp"
-            android:letterSpacing="0.12"
-            android:layout_marginBottom="12dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="TV IP Address"
-            android:textColor="#AAAACC"
-            android:textSize="13sp"
-            android:layout_marginBottom="6dp" />
-
-        <EditText
-            android:id="@+id/edit_tv_ip"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="e.g. 192.168.1.100"
-            android:inputType="textUri"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#444466"
-            android:backgroundTint="#333355"
-            android:padding="12dp"
-            android:textSize="16sp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="TV MAC Address (for Wake on LAN)"
-            android:textColor="#AAAACC"
-            android:textSize="13sp"
-            android:layout_marginTop="14dp"
-            android:layout_marginBottom="6dp" />
+            android:textColor="#8E8E93"
+            android:textSize="12sp"
+            android:letterSpacing="0.06"
+            android:paddingHorizontal="4dp"
+            android:layout_marginBottom="8dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:orientation="vertical"
+            android:background="@drawable/bg_section_group">
 
-            <EditText
-                android:id="@+id/edit_tv_mac"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="e.g. AA:BB:CC:DD:EE:FF"
-                android:inputType="text"
-                android:textColor="#FFFFFF"
-                android:textColorHint="#444466"
-                android:backgroundTint="#333355"
-                android:padding="12dp"
-                android:textSize="16sp" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp">
 
-            <Button
-                android:id="@+id/btn_detect_mac"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:background="@drawable/bg_squircle_dark"
-                android:text="Auto-detect"
-                android:textColor="#AAAAFF"
-                android:textSize="13sp"
-                android:textStyle="bold" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="IP Address"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp" />
+
+                <EditText
+                    android:id="@+id/edit_tv_ip"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="end|center_vertical"
+                    android:hint="192.168.1.x"
+                    android:inputType="textUri"
+                    android:textColor="#8E8E93"
+                    android:textColorHint="#3A3A3A"
+                    android:background="@null"
+                    android:padding="0dp"
+                    android:layout_marginStart="12dp"
+                    android:textSize="15sp" />
+
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:layout_marginStart="16dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="MAC Address"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp" />
+
+                <EditText
+                    android:id="@+id/edit_tv_mac"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="end|center_vertical"
+                    android:hint="AA:BB:CC:DD:EE:FF"
+                    android:inputType="text"
+                    android:textColor="#8E8E93"
+                    android:textColorHint="#3A3A3A"
+                    android:background="@null"
+                    android:padding="0dp"
+                    android:layout_marginStart="12dp"
+                    android:textSize="15sp" />
+
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:layout_marginStart="16dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp">
+
+                <Button
+                    android:id="@+id/btn_detect_mac"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_ghost"
+                    android:text="Auto-detect MAC"
+                    android:textColor="#8E8E93"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <View android:layout_width="10dp" android:layout_height="1dp" />
+
+                <Button
+                    android:id="@+id/btn_discover"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_accent"
+                    android:text="Discover TV"
+                    android:textColor="#000000"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <ProgressBar
+                    android:id="@+id/discover_spinner"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginStart="8dp"
+                    android:visibility="gone"
+                    android:indeterminateTint="#888888" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <Button
-                android:id="@+id/btn_discover"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:background="@drawable/bg_squircle_dark"
-                android:text="Discover TV"
-                android:textColor="#AAAAFF"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <ProgressBar
-                android:id="@+id/discover_spinner"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_marginStart="12dp"
-                android:visibility="gone"
-                android:indeterminateTint="#AAAAFF" />
-
-        </LinearLayout>
-
-
-        <!-- Divider -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="28dp"
-            android:layout_marginBottom="28dp"
-            android:background="#222244" />
-
-        <!-- CONTROLS -->
+        <!-- ─── CONTROLS ─── -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="CONTROLS"
-            android:textColor="#666688"
-            android:textSize="11sp"
-            android:letterSpacing="0.12"
-            android:layout_marginBottom="16dp" />
+            android:textColor="#8E8E93"
+            android:textSize="12sp"
+            android:letterSpacing="0.06"
+            android:paddingHorizontal="4dp"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="8dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="14dp">
+            android:orientation="vertical"
+            android:background="@drawable/bg_section_group">
 
             <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:text="Volume slider"
-                    android:textColor="#CCCCEE"
+                    android:textColor="#FFFFFF"
                     android:textSize="15sp" />
 
-                <TextView
+                <Switch
+                    android:id="@+id/switch_vol_slider"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Drag the volume pill to set level. Off = hold to repeat."
-                    android:textColor="#666688"
-                    android:textSize="12sp"
-                    android:layout_marginTop="2dp" />
+                    android:scaleX="1.2"
+                    android:scaleY="1.2"
+                    android:thumbTint="@color/switch_thumb"
+                    android:trackTint="@color/switch_track" />
 
             </LinearLayout>
 
-            <Switch
-                android:id="@+id/switch_vol_slider"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:thumbTint="#AAAAFF"
-                android:trackTint="#333355" />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="14dp">
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:layout_marginStart="16dp" />
 
             <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:text="Brightness slider"
-                    android:textColor="#CCCCEE"
+                    android:textColor="#FFFFFF"
                     android:textSize="15sp" />
 
-                <TextView
+                <Switch
+                    android:id="@+id/switch_brightness_slider"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Drag the brightness pill to set level. Off = hold to repeat."
-                    android:textColor="#666688"
-                    android:textSize="12sp"
-                    android:layout_marginTop="2dp" />
+                    android:scaleX="1.2"
+                    android:scaleY="1.2"
+                    android:thumbTint="@color/switch_thumb"
+                    android:trackTint="@color/switch_track" />
 
             </LinearLayout>
 
-            <Switch
-                android:id="@+id/switch_brightness_slider"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:thumbTint="#AAAAFF"
-                android:trackTint="#333355" />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="16dp">
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:layout_marginStart="16dp" />
 
             <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="Swap brightness for channel"
-                    android:textColor="#CCCCEE"
+                    android:layout_weight="1"
+                    android:text="Channel buttons"
+                    android:textColor="#FFFFFF"
                     android:textSize="15sp" />
 
-                <TextView
+                <Switch
+                    android:id="@+id/switch_right_pill_channel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Replace brightness pill with channel up / down. Off = brightness."
-                    android:textColor="#666688"
-                    android:textSize="12sp"
-                    android:layout_marginTop="2dp" />
+                    android:scaleX="1.2"
+                    android:scaleY="1.2"
+                    android:thumbTint="@color/switch_thumb"
+                    android:trackTint="@color/switch_track" />
 
             </LinearLayout>
 
-            <Switch
-                android:id="@+id/switch_right_pill_channel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:thumbTint="#AAAAFF"
-                android:trackTint="#333355" />
-
         </LinearLayout>
 
-        <!-- Divider -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginBottom="28dp"
-            android:background="#222244" />
-
-        <!-- APP SHORTCUTS -->
+        <!-- ─── APP SHORTCUTS ─── -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="APP SHORTCUTS"
-            android:textColor="#666688"
-            android:textSize="11sp"
-            android:letterSpacing="0.12"
-            android:layout_marginBottom="8dp" />
-
-        <TextView
-            android:id="@+id/tv_shortcuts_summary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#666688"
+            android:textColor="#8E8E93"
             android:textSize="12sp"
-            android:layout_marginBottom="12dp" />
+            android:letterSpacing="0.06"
+            android:paddingHorizontal="4dp"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="8dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:orientation="vertical"
+            android:background="@drawable/bg_section_group">
 
-            <Button
-                android:id="@+id/btn_load_apps"
-                android:layout_width="0dp"
+            <!-- Summary sits at top -->
+            <TextView
+                android:id="@+id/tv_shortcuts_summary"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:background="@drawable/bg_squircle_dark"
-                android:text="Load Apps from TV"
-                android:textColor="#AAAAFF"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:textColor="#8E8E93"
+                android:textSize="13sp"
+                android:paddingHorizontal="16dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp" />
 
-            <ProgressBar
-                android:id="@+id/load_apps_spinner"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_marginStart="12dp"
-                android:visibility="gone"
-                android:indeterminateTint="#AAAAFF" />
+            <!-- App grid expands inside the card when loaded -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/apps_grid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="8dp"
+                android:paddingBottom="8dp"
+                android:nestedScrollingEnabled="false"
+                android:visibility="gone" />
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:layout_marginStart="16dp" />
+
+            <!-- Load Apps — plain row action at the bottom -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingEnd="16dp">
+
+                <Button
+                    android:id="@+id/btn_load_apps"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="?attr/selectableItemBackground"
+                    android:text="Load Apps from TV"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="normal"
+                    android:gravity="start|center_vertical"
+                    android:paddingHorizontal="16dp"
+                    android:drawableEnd="@drawable/ic_chevron_right"
+                    android:drawableTint="#555555"
+                    android:drawablePadding="4dp" />
+
+                <ProgressBar
+                    android:id="@+id/load_apps_spinner"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:visibility="gone"
+                    android:indeterminateTint="#888888" />
+
+            </LinearLayout>
 
         </LinearLayout>
-
-        <!-- Icon grid (shown after loading) -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/apps_grid"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:nestedScrollingEnabled="false"
-            android:visibility="gone" />
-
 
     </LinearLayout>
 
