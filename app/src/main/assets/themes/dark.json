@@ -1,0 +1,29 @@
+{
+  "id": "dark",
+  "name": "Dark",
+  "colors": {
+    "window_bg":                "#000000",
+    "surface_bg":               "#161616",
+    "primary_text":             "#FFFFFF",
+    "secondary_text":           "#888888",
+    "pill_label_text":          "#CCFFFFFF",
+    "section_label":            "#8E8E93",
+    "divider":                  "#242424",
+    "pill_bg":                  "#1C1C1C",
+    "pill_divider":             "#000000",
+    "circle_btn_bg":            "#1C1C1C",
+    "circle_btn_icon_tint":     "#FFFFFF",
+    "dpad_ring_bg":             "#1C1C1C",
+    "switch_track_on":          "#909090",
+    "switch_track_off":         "#3E3E3E",
+    "switch_thumb_on":          "#FFFFFF",
+    "switch_thumb_off":         "#4A4A4A",
+    "btn_accent_bg":            "#FFFFFF",
+    "btn_accent_text":          "#000000",
+    "btn_ghost_border":         "#383838",
+    "btn_ghost_border_pressed": "#505050",
+    "btn_ghost_bg_pressed":     "#2A2A2A",
+    "dpad_ok_bg":               "#111111"
+  },
+  "status_bar_light_icons": false
+}

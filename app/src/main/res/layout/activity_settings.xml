@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.core.widget.NestedScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/settings_root"
+    android:tag="window_bg"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000"
@@ -15,6 +17,8 @@
         android:paddingBottom="56dp">
 
         <TextView
+            android:id="@+id/tv_settings_title"
+            android:tag="title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Settings"
@@ -26,6 +30,8 @@
 
         <!-- ─── TV CONNECTION ─── -->
         <TextView
+            android:id="@+id/tv_section_connection"
+            android:tag="section_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="TV CONNECTION"
@@ -36,6 +42,8 @@
             android:layout_marginBottom="8dp" />
 
         <LinearLayout
+            android:id="@+id/group_connection"
+            android:tag="surface_bg"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -49,6 +57,7 @@
                 android:paddingHorizontal="16dp">
 
                 <TextView
+                    android:tag="row_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="IP Address"
@@ -72,7 +81,7 @@
 
             </LinearLayout>
 
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:layout_marginStart="16dp" />
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -82,6 +91,7 @@
                 android:paddingHorizontal="16dp">
 
                 <TextView
+                    android:tag="row_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="MAC Address"
@@ -105,7 +115,7 @@
 
             </LinearLayout>
 
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:layout_marginStart="16dp" />
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -152,6 +162,8 @@
 
         <!-- ─── CONTROLS ─── -->
         <TextView
+            android:id="@+id/tv_section_controls"
+            android:tag="section_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="CONTROLS"
@@ -163,6 +175,8 @@
             android:layout_marginBottom="8dp" />
 
         <LinearLayout
+            android:id="@+id/group_controls"
+            android:tag="surface_bg"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -177,6 +191,7 @@
                 android:paddingEnd="12dp">
 
                 <TextView
+                    android:tag="row_label"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -195,7 +210,7 @@
 
             </LinearLayout>
 
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:layout_marginStart="16dp" />
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -206,6 +221,7 @@
                 android:paddingEnd="12dp">
 
                 <TextView
+                    android:tag="row_label"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -224,7 +240,7 @@
 
             </LinearLayout>
 
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:layout_marginStart="16dp" />
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -235,6 +251,7 @@
                 android:paddingEnd="12dp">
 
                 <TextView
+                    android:tag="row_label"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -257,6 +274,8 @@
 
         <!-- ─── APP SHORTCUTS ─── -->
         <TextView
+            android:id="@+id/tv_section_shortcuts"
+            android:tag="section_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="APP SHORTCUTS"
@@ -268,6 +287,8 @@
             android:layout_marginBottom="8dp" />
 
         <LinearLayout
+            android:id="@+id/group_shortcuts"
+            android:tag="surface_bg"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -276,6 +297,7 @@
             <!-- Summary sits at top -->
             <TextView
                 android:id="@+id/tv_shortcuts_summary"
+                android:tag="section_label"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="#8E8E93"
@@ -294,7 +316,7 @@
                 android:nestedScrollingEnabled="false"
                 android:visibility="gone" />
 
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:layout_marginStart="16dp" />
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
 
             <!-- Load Apps — plain row action at the bottom -->
             <LinearLayout
@@ -306,6 +328,7 @@
 
                 <Button
                     android:id="@+id/btn_load_apps"
+                    android:tag="row_label"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
                     android:layout_weight="1"
@@ -327,6 +350,70 @@
                     android:layout_height="20dp"
                     android:visibility="gone"
                     android:indeterminateTint="#888888" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- ─── APPEARANCE ─── -->
+        <TextView
+            android:id="@+id/tv_section_appearance"
+            android:tag="section_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="APPEARANCE"
+            android:textColor="#8E8E93"
+            android:textSize="12sp"
+            android:letterSpacing="0.06"
+            android:paddingHorizontal="4dp"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/group_appearance"
+            android:tag="surface_bg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_section_group">
+
+            <LinearLayout
+                android:id="@+id/row_theme"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground">
+
+                <TextView
+                    android:tag="row_label"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Theme"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/tv_current_theme"
+                    android:tag="row_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Dark"
+                    android:textColor="#8E8E93"
+                    android:textSize="15sp"
+                    android:layout_marginEnd="4dp" />
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_chevron_right"
+                    android:scaleType="fitCenter"
+                    android:tint="#555555" />
 
             </LinearLayout>
 

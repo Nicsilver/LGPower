@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private val client by lazy { WebOsClient(this) }
     private var pointerSession: WebOsClient.PointerSession? = null
     private var discovering = false
+    private var lastAppliedThemeId = ""
     private val statusHandler = Handler(Looper.getMainLooper())
     private val statusInterval = 15_000L
     private lateinit var statusRunnable: Runnable
@@ -70,6 +71,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        lastAppliedThemeId = ThemeManager.getActiveThemeId(this)
+        applyTheme()
 
         statusRunnable = Runnable {
             checkStatus()
@@ -432,6 +435,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        val currentThemeId = ThemeManager.getActiveThemeId(this)
+        if (lastAppliedThemeId.isNotEmpty() && lastAppliedThemeId != currentThemeId) {
+            recreate()
+            return
+        }
         client.resetConnection()
         configureRightPill()
         refreshShortcuts()
@@ -452,6 +460,42 @@ class MainActivity : AppCompatActivity() {
         statusHandler.removeCallbacks(statusRunnable)
     }
 
+
+    @Suppress("DEPRECATION")
+    private fun applyTheme() {
+        val theme = ThemeManager.getActiveTheme(this)
+        ThemeManager.applyToRoot(findViewById(R.id.main_root), theme)
+        val iconTint = ColorStateList.valueOf(theme.circleBtnIconTint)
+        listOf(R.id.btn_keyboard, R.id.btn_home, R.id.btn_input,
+               R.id.btn_back, R.id.btn_settings, R.id.btn_picture,
+               R.id.btn_sound,
+               R.id.btn_up, R.id.btn_down, R.id.btn_left, R.id.btn_right,
+               R.id.btn_mute, R.id.btn_screen_off,
+               R.id.btn_volume_up, R.id.btn_volume_down,
+               R.id.btn_brightness_up, R.id.btn_brightness_down)
+            .forEach { id -> findViewById<android.widget.ImageButton>(id)?.imageTintList = iconTint }
+        // Touchpad icon is an ImageView (no button wrapper has the icon directly)
+        findViewById<android.widget.ImageView>(R.id.iv_touchpad_icon)?.imageTintList = iconTint
+        // App settings gear: tint with primaryText so it's visible in both modes
+        findViewById<android.widget.ImageButton>(R.id.btn_app_settings)?.imageTintList =
+            ColorStateList.valueOf(theme.primaryText)
+        // OK button: slightly lighter than the d-pad ring, same text color as theme
+        val okBtn = findViewById<Button>(R.id.btn_ok)
+        okBtn?.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(theme.dpadOkBg)
+        }
+        okBtn?.setTextColor(theme.primaryText)
+        window.statusBarColor = theme.windowBg
+        window.navigationBarColor = theme.windowBg
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val flags = window.decorView.systemUiVisibility
+            window.decorView.systemUiVisibility = if (theme.statusBarLightIcons)
+                flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            else
+                flags and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+        }
+    }
 
     private fun setStatus(status: TvStatus) {
         tvConnected = (status == TvStatus.CONNECTED)
@@ -678,12 +722,17 @@ class MainActivity : AppCompatActivity() {
         bar.backgroundTintList = ColorStateList.valueOf(
             if (muted) 0x66888888.toInt() else 0x664FC3F7.toInt()
         )
-        // Inverted mute button: white bg + black icon when muted, dark bg + white icon when not
         val muteBtn = findViewById<android.widget.ImageButton>(R.id.btn_mute)
-        muteBtn?.setBackgroundResource(if (muted) R.drawable.bg_circle_white else R.drawable.bg_circle_dark)
-        muteBtn?.imageTintList = ColorStateList.valueOf(
-            if (muted) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
-        )
+        val theme = ThemeManager.getActiveTheme(this)
+        if (muted) {
+            muteBtn?.setBackgroundResource(R.drawable.bg_circle_white)
+            muteBtn?.imageTintList = ColorStateList.valueOf(0xFF000000.toInt())
+        } else {
+            muteBtn?.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL; setColor(theme.circleBtnBg)
+            }
+            muteBtn?.imageTintList = ColorStateList.valueOf(theme.circleBtnIconTint)
+        }
     }
 
     private val brightnessRefreshRunnable = Runnable {
@@ -720,10 +769,16 @@ class MainActivity : AppCompatActivity() {
     private fun setScreenOffButton(isOff: Boolean) {
         currentScreenOff = isOff
         val btn = findViewById<android.widget.ImageButton>(R.id.btn_screen_off) ?: return
-        btn.setBackgroundResource(if (isOff) R.drawable.bg_circle_white else R.drawable.bg_circle_dark)
-        btn.imageTintList = ColorStateList.valueOf(
-            if (isOff) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
-        )
+        val theme = ThemeManager.getActiveTheme(this)
+        if (isOff) {
+            btn.setBackgroundResource(R.drawable.bg_circle_white)
+            btn.imageTintList = ColorStateList.valueOf(0xFF000000.toInt())
+        } else {
+            btn.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL; setColor(theme.circleBtnBg)
+            }
+            btn.imageTintList = ColorStateList.valueOf(theme.circleBtnIconTint)
+        }
     }
 
     private fun autoDiscover() {
