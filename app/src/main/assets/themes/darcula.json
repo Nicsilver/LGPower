@@ -1,0 +1,29 @@
+{
+  "id": "darcula",
+  "name": "Darcula",
+  "colors": {
+    "window_bg":                "#2B2B2B",
+    "surface_bg":               "#3C3F41",
+    "primary_text":             "#A9B7C6",
+    "secondary_text":           "#888888",
+    "pill_label_text":          "#CCA9B7C6",
+    "section_label":            "#888888",
+    "divider":                  "#323437",
+    "pill_bg":                  "#3C3F41",
+    "pill_divider":             "#2B2B2B",
+    "circle_btn_bg":            "#4C5052",
+    "circle_btn_icon_tint":     "#A9B7C6",
+    "dpad_ring_bg":             "#4C5052",
+    "switch_track_on":          "#808080",
+    "switch_track_off":         "#4A4A4A",
+    "switch_thumb_on":          "#A9B7C6",
+    "switch_thumb_off":         "#616161",
+    "btn_accent_bg":            "#214283",
+    "btn_accent_text":          "#A9B7C6",
+    "btn_ghost_border":         "#545556",
+    "btn_ghost_border_pressed": "#6B6B6B",
+    "btn_ghost_bg_pressed":     "#3C3F41",
+    "dpad_ok_bg":               "#313335"
+  },
+  "status_bar_light_icons": false
+}
