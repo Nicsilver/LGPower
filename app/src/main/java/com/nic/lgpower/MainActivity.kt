@@ -53,6 +53,8 @@ class MainActivity : AppCompatActivity() {
     private var lastTouchY = 0f
     private var hasMoved = false
     private var isLocked = false
+    private var colorRowOpen = false
+    private var colorRowJustDismissed = false
     private val lockHandler = Handler(Looper.getMainLooper())
     private val moveThresholdPx = 12f
     private var lockAnimator: ValueAnimator? = null
@@ -214,11 +216,14 @@ class MainActivity : AppCompatActivity() {
             showSoundPicker()
         }
 
-        // Color buttons toggle + individual keys
-        val colorRow = findViewById<View>(R.id.color_buttons_row)
+        // Color buttons — tap Colors to show, any next tap (color or elsewhere) restores normal row
         findViewById<View>(R.id.btn_colors).setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            colorRow.visibility = if (colorRow.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            if (!colorRowJustDismissed) {
+                colorRowOpen = true
+                findViewById<View>(R.id.color_buttons_row).visibility = View.VISIBLE
+                findViewById<View>(R.id.normal_bottom_row).visibility = View.GONE
+            }
         }
         findViewById<View>(R.id.btn_color_red).setOnClickListener    { sendCommand { client.pressKey("RED") } }
         findViewById<View>(R.id.btn_color_green).setOnClickListener  { sendCommand { client.pressKey("GREEN") } }
@@ -895,6 +900,19 @@ class MainActivity : AppCompatActivity() {
             }
             else -> super.onKeyDown(keyCode, event)
         }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.action == MotionEvent.ACTION_DOWN) {
+            colorRowJustDismissed = false
+            if (colorRowOpen) {
+                colorRowJustDismissed = true
+                colorRowOpen = false
+                findViewById<View>(R.id.color_buttons_row).visibility = View.GONE
+                findViewById<View>(R.id.normal_bottom_row).visibility = View.VISIBLE
+            }
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     @Suppress("OVERRIDE_DEPRECATION")
