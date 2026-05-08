@@ -66,7 +66,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Power"
-                    android:textColor="#AAAACC"
+                    android:textColor="#888888"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
@@ -104,7 +104,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Touchpad"
-                    android:textColor="#AAAACC"
+                    android:textColor="#888888"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
@@ -130,7 +130,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Keyboard"
-                    android:textColor="#AAAACC"
+                    android:textColor="#888888"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
@@ -173,7 +173,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Home"
-                        android:textColor="#AAAACC"
+                        android:textColor="#888888"
                         android:textSize="11sp"
                         android:layout_marginTop="4dp" />
                 </LinearLayout>
@@ -198,7 +198,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Mute"
-                        android:textColor="#AAAACC"
+                        android:textColor="#888888"
                         android:textSize="11sp"
                         android:layout_marginTop="4dp" />
                 </LinearLayout>
@@ -222,7 +222,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Input"
-                        android:textColor="#AAAACC"
+                        android:textColor="#888888"
                         android:textSize="11sp"
                         android:layout_marginTop="4dp" />
                 </LinearLayout>
@@ -490,7 +490,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Back"
-                        android:textColor="#AAAACC"
+                        android:textColor="#888888"
                         android:textSize="11sp"
                         android:layout_marginTop="4dp" />
                 </LinearLayout>
@@ -515,7 +515,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Menu"
-                        android:textColor="#AAAACC"
+                        android:textColor="#888888"
                         android:textSize="11sp"
                         android:layout_marginTop="4dp" />
                 </LinearLayout>
@@ -555,7 +555,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Red"
-                    android:textColor="#AAAACC"
+                    android:textColor="#888888"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
@@ -576,7 +576,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Green"
-                    android:textColor="#AAAACC"
+                    android:textColor="#888888"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
@@ -597,7 +597,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Yellow"
-                    android:textColor="#AAAACC"
+                    android:textColor="#888888"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
@@ -618,7 +618,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Blue"
-                    android:textColor="#AAAACC"
+                    android:textColor="#888888"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
@@ -652,7 +652,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Screen Off"
-                    android:textColor="#AAAACC"
+                    android:textColor="#888888"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
@@ -677,7 +677,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Picture"
-                    android:textColor="#AAAACC"
+                    android:textColor="#888888"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
@@ -702,7 +702,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Sound"
-                    android:textColor="#AAAACC"
+                    android:textColor="#888888"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
@@ -727,7 +727,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Colors"
-                    android:textColor="#AAAACC"
+                    android:textColor="#888888"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
             </LinearLayout>
