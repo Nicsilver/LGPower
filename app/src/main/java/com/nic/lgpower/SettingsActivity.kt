@@ -1,6 +1,7 @@
 package com.nic.lgpower
 
 import android.content.res.ColorStateList
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
@@ -246,7 +247,9 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btn_load_apps)
             ?.compoundDrawableTintList = ColorStateList.valueOf(chevronTint)
         listOf(R.id.edit_tv_ip, R.id.edit_tv_mac).forEach { id ->
-            findViewById<EditText>(id)?.setTextColor(theme.secondaryText)
+            val et = findViewById<EditText>(id) ?: return@forEach
+            et.setTextColor(theme.secondaryText)
+            et.setHintTextColor(Color.argb(120, Color.red(theme.secondaryText), Color.green(theme.secondaryText), Color.blue(theme.secondaryText)))
         }
     }
 

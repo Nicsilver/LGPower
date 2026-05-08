@@ -805,6 +805,7 @@ class MainActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         val gap = (8 * density).toInt()
         val rowHeight = (52 * density).toInt()
+        val theme = ThemeManager.getActiveTheme(this)
 
         // Split into chunks: 2 per row when 4 selected, otherwise one row
         val chunks = if (shortcuts.size == 4) listOf(shortcuts.take(2), shortcuts.drop(2))
@@ -819,7 +820,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             chunk.forEachIndexed { colIndex, app ->
-                val pillColor = client.loadCachedColor(app.id) ?: 0xFF1C1C1C.toInt()
+                val pillColor = client.loadCachedColor(app.id) ?: theme.circleBtnBg
                 val pillBg = GradientDrawable().apply {
                     shape = GradientDrawable.RECTANGLE
                     cornerRadius = 16 * density
