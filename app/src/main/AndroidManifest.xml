@@ -32,7 +32,7 @@
         <!-- Settings -->
         <activity
             android:name=".SettingsActivity"
-            android:exported="false"
+            android:exported="true"
             android:label="Settings" />
 
         <!-- IR power widget trampoline -->
