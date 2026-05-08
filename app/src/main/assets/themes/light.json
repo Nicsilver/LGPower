@@ -23,7 +23,7 @@
     "btn_ghost_border":         "#CCCCCC",
     "btn_ghost_border_pressed": "#AAAAAA",
     "btn_ghost_bg_pressed":     "#EEEEEE",
-    "dpad_ok_bg":               "#E4E4E8"
+    "dpad_ok_bg":               "#FAFAFA"
   },
   "status_bar_light_icons": true
 }
