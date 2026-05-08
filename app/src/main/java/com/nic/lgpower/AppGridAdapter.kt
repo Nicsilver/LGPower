@@ -135,10 +135,10 @@ class AppGridAdapter(
     private fun makeLetterBitmap(title: String, size: Int): Bitmap {
         val bmp    = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        val paint  = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF2A2A44.toInt() }
+        val paint  = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF222222.toInt() }
         canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
         paint.apply {
-            color     = 0xFF8888BB.toInt()
+            color     = 0xFF666666.toInt()
             textSize  = size * 0.42f
             textAlign = Paint.Align.CENTER
             typeface  = Typeface.DEFAULT_BOLD
