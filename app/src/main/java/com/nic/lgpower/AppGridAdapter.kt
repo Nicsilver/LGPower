@@ -136,7 +136,7 @@ class AppGridAdapter(
         val theme  = ThemeManager.getActiveTheme(context)
         val bmp    = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        val paint  = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = theme.circleBtnBg }
+        val paint  = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = theme.windowBg }
         canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
         paint.apply {
             color     = theme.secondaryText
