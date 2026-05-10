@@ -225,10 +225,15 @@ class MainActivity : AppCompatActivity() {
                 findViewById<View>(R.id.normal_bottom_row).visibility = View.GONE
             }
         }
-        findViewById<View>(R.id.btn_color_red).setOnClickListener    { sendCommand { client.pressKey("RED") } }
-        findViewById<View>(R.id.btn_color_green).setOnClickListener  { sendCommand { client.pressKey("GREEN") } }
-        findViewById<View>(R.id.btn_color_yellow).setOnClickListener { sendCommand { client.pressKey("YELLOW") } }
-        findViewById<View>(R.id.btn_color_blue).setOnClickListener   { sendCommand { client.pressKey("BLUE") } }
+        val dismissColorRow = {
+            colorRowOpen = false
+            findViewById<View>(R.id.color_buttons_row).visibility = View.GONE
+            findViewById<View>(R.id.normal_bottom_row).visibility = View.VISIBLE
+        }
+        findViewById<View>(R.id.btn_color_red).setOnClickListener    { dismissColorRow(); sendCommand { client.pressKey("RED") } }
+        findViewById<View>(R.id.btn_color_green).setOnClickListener  { dismissColorRow(); sendCommand { client.pressKey("GREEN") } }
+        findViewById<View>(R.id.btn_color_yellow).setOnClickListener { dismissColorRow(); sendCommand { client.pressKey("YELLOW") } }
+        findViewById<View>(R.id.btn_color_blue).setOnClickListener   { dismissColorRow(); sendCommand { client.pressKey("BLUE") } }
 
         // App settings
         findViewById<View>(R.id.btn_app_settings).setOnClickListener {
@@ -910,10 +915,15 @@ class MainActivity : AppCompatActivity() {
         if (ev.action == MotionEvent.ACTION_DOWN) {
             colorRowJustDismissed = false
             if (colorRowOpen) {
-                colorRowJustDismissed = true
-                colorRowOpen = false
-                findViewById<View>(R.id.color_buttons_row).visibility = View.GONE
-                findViewById<View>(R.id.normal_bottom_row).visibility = View.VISIBLE
+                val colorRow = findViewById<View>(R.id.color_buttons_row)
+                val rect = android.graphics.Rect()
+                colorRow.getGlobalVisibleRect(rect)
+                if (!rect.contains(ev.rawX.toInt(), ev.rawY.toInt())) {
+                    colorRowJustDismissed = true
+                    colorRowOpen = false
+                    colorRow.visibility = View.GONE
+                    findViewById<View>(R.id.normal_bottom_row).visibility = View.VISIBLE
+                }
             }
         }
         return super.dispatchTouchEvent(ev)
