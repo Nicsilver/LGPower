@@ -730,8 +730,10 @@ class MainActivity : AppCompatActivity() {
         val muteBtn = findViewById<android.widget.ImageButton>(R.id.btn_mute)
         val theme = ThemeManager.getActiveTheme(this)
         if (muted) {
-            muteBtn?.setBackgroundResource(R.drawable.bg_circle_white)
-            muteBtn?.imageTintList = ColorStateList.valueOf(0xFF000000.toInt())
+            muteBtn?.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL; setColor(theme.btnAccentBg)
+            }
+            muteBtn?.imageTintList = ColorStateList.valueOf(theme.btnAccentText)
         } else {
             muteBtn?.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL; setColor(theme.circleBtnBg)
@@ -776,8 +778,10 @@ class MainActivity : AppCompatActivity() {
         val btn = findViewById<android.widget.ImageButton>(R.id.btn_screen_off) ?: return
         val theme = ThemeManager.getActiveTheme(this)
         if (isOff) {
-            btn.setBackgroundResource(R.drawable.bg_circle_white)
-            btn.imageTintList = ColorStateList.valueOf(0xFF000000.toInt())
+            btn.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL; setColor(theme.btnAccentBg)
+            }
+            btn.imageTintList = ColorStateList.valueOf(theme.btnAccentText)
         } else {
             btn.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL; setColor(theme.circleBtnBg)
