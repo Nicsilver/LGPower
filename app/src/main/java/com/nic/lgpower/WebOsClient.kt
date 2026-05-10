@@ -674,6 +674,65 @@ class WebOsClient(private val context: Context) {
         }
     }
 
+    /**
+     * Watches for pairing completion in a background thread loop.
+     * - Calls [onPromptShown] the first time the TV displays its pairing prompt.
+     * - Calls [onPaired] once the user accepts and the client key is saved.
+     * - Retries silently on connection failure.
+     * Returns a stop function; call it from onDestroy to cancel.
+     */
+    fun watchForPairing(
+        onPromptShown: () -> Unit,
+        onPaired: () -> Unit
+    ): () -> Unit {
+        val flags = intArrayOf(1, 0) // [0] = running (1=true), [1] = promptShown (1=true)
+
+        Thread {
+            fun running() = flags[0] == 1
+            fun promptShown() = flags[1] == 1
+            while (running()) {
+                val req = buildWsRequest() ?: break
+                val savedKey = prefs.getString("client_key", null)
+                val http = buildClient()
+                val latch = CountDownLatch(1)
+
+                http.newWebSocket(req, object : WebSocketListener() {
+                    override fun onOpen(ws: WebSocket, response: Response) {
+                        if (!running()) { ws.close(1000, null); latch.countDown(); return }
+                        ws.send(buildRegistration(savedKey))
+                    }
+                    override fun onMessage(ws: WebSocket, text: String) {
+                        if (!running()) { ws.close(1000, null); latch.countDown(); return }
+                        val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                        when {
+                            json.optString("type") == "registered" -> {
+                                val key = json.optJSONObject("payload")?.optString("client-key")
+                                if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                                flags[0] = 0
+                                ws.close(1000, null)
+                                latch.countDown()
+                                onPaired()
+                            }
+                            json.optString("type") == "response" && json.optString("id") == "reg_0" -> {
+                                if (!promptShown()) { flags[1] = 1; onPromptShown() }
+                                // Keep connection alive — WebOS sends "registered" on the same
+                                // socket once the user taps Accept on the TV
+                            }
+                        }
+                    }
+                    override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) { latch.countDown() }
+                    override fun onClosed(ws: WebSocket, code: Int, reason: String) { latch.countDown() }
+                })
+
+                latch.await(30, TimeUnit.SECONDS)
+                http.dispatcher.executorService.shutdown()
+                if (running()) Thread.sleep(2000)
+            }
+        }.start()
+
+        return { flags[0] = 0 }
+    }
+
     fun saveShortcuts(apps: List<TvApp>) {
         val arr = JSONArray()
         apps.forEach { app ->

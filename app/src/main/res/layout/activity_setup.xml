@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/setup_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="72dp"
+        android:paddingBottom="40dp">
+
+        <TextView
+            android:id="@+id/setup_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="LG Power"
+            android:textSize="30sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.02"
+            android:layout_marginBottom="6dp" />
+
+        <TextView
+            android:id="@+id/setup_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Connect to your TV"
+            android:textSize="15sp"
+            android:layout_marginBottom="48dp" />
+
+        <!-- ── Searching screen ── -->
+        <LinearLayout
+            android:id="@+id/screen_searching"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <ProgressBar
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginBottom="18dp" />
+
+            <TextView
+                android:id="@+id/search_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Searching for TVs on your network…"
+                android:textSize="15sp"
+                android:textAlignment="center" />
+
+        </LinearLayout>
+
+        <!-- ── TV list screen ── -->
+        <LinearLayout
+            android:id="@+id/screen_tv_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_list_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:letterSpacing="0.06"
+                android:paddingHorizontal="4dp"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:id="@+id/tv_items_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <LinearLayout
+                android:id="@+id/no_tvs_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/no_tvs_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="No TVs found on this network"
+                    android:textSize="15sp"
+                    android:textAlignment="center"
+                    android:layout_marginBottom="24dp" />
+
+                <Button
+                    android:id="@+id/btn_search_again"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="Search again" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- ── Pairing screen ── -->
+        <LinearLayout
+            android:id="@+id/screen_pairing"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/pairing_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:padding="28dp">
+
+                <TextView
+                    android:id="@+id/pairing_ip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView
+                    android:id="@+id/pairing_message"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Connecting…"
+                    android:textSize="15sp"
+                    android:textAlignment="center"
+                    android:lineSpacingExtra="4dp"
+                    android:layout_marginBottom="28dp" />
+
+                <ProgressBar
+                    android:id="@+id/pairing_spinner"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ScrollView>
