@@ -27,6 +27,7 @@ import android.content.Context
 import android.graphics.drawable.GradientDrawable
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -1291,12 +1292,29 @@ class MainActivity : AppCompatActivity() {
             setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT)
             setGravity(android.view.Gravity.BOTTOM)
             setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            setDimAmount(0.88f)
             attributes = attributes.also { it.windowAnimations = android.R.style.Animation_InputMethod }
         }
 
+        val theme = ThemeManager.getActiveTheme(this)
+        val d = resources.displayMetrics.density
+
+        dialog.findViewById<LinearLayout>(R.id.keyboard_card).background = GradientDrawable().apply {
+            setColor(theme.circleBtnBg)
+            cornerRadius = 23 * d
+        }
+
         val editText = dialog.findViewById<EditText>(R.id.keyboard_input)
-        val sendBtn  = dialog.findViewById<Button>(R.id.keyboard_send)
-        val cancelBtn = dialog.findViewById<Button>(R.id.keyboard_cancel)
+        editText.setTextColor(theme.primaryText)
+        editText.setHintTextColor(theme.secondaryText)
+
+        val sendBtn = dialog.findViewById<ImageButton>(R.id.keyboard_send)
+        sendBtn.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(Color.parseColor("#555555"))
+        }
+        sendBtn.imageTintList = ColorStateList.valueOf(Color.WHITE)
 
         fun send() {
             val text = editText.text.toString()
@@ -1305,7 +1323,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         sendBtn.setOnClickListener { send() }
-        cancelBtn.setOnClickListener { dialog.dismiss() }
         editText.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) { send(); true } else false
         }
