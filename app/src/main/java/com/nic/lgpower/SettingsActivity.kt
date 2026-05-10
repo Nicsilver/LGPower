@@ -121,17 +121,14 @@ class SettingsActivity : AppCompatActivity() {
         val tvCurrentTheme = findViewById<TextView>(R.id.tv_current_theme)
         tvCurrentTheme.text = themes.firstOrNull { it.id == ThemeManager.getActiveThemeId(this) }?.name ?: "Dark"
         findViewById<View>(R.id.row_theme).setOnClickListener {
-            val names = themes.map { it.name }.toTypedArray()
-            val current = themes.indexOfFirst { it.id == ThemeManager.getActiveThemeId(this) }
-            AlertDialog.Builder(this)
-                .setTitle("Theme")
-                .setSingleChoiceItems(names, current) { dialog, which ->
-                    val chosen = themes[which]
-                    ThemeManager.setActiveThemeId(this, chosen.id)
-                    dialog.dismiss()
-                    recreate()
-                }
-                .show()
+            val activeId = ThemeManager.getActiveThemeId(this)
+            showPickerSheet(
+                "Theme",
+                themes.map { Triple(it.id, it.name, it.id == activeId) }
+            ) { id ->
+                ThemeManager.setActiveThemeId(this, id)
+                recreate()
+            }
         }
 
         // Discover TV IP
