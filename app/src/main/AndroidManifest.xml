@@ -35,6 +35,12 @@
             android:exported="true"
             android:label="Settings" />
 
+        <!-- First-time setup / pairing -->
+        <activity
+            android:name=".SetupActivity"
+            android:exported="false"
+            android:label="Setup" />
+
         <!-- IR power widget trampoline -->
         <activity
             android:name=".IrActivity"

@@ -74,6 +74,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // First launch: no TV configured — go through setup before showing the remote
+        if (client.tvIp.isBlank()) {
+            startActivity(android.content.Intent(this, SetupActivity::class.java))
+            finish()
+            return
+        }
         setContentView(R.layout.activity_main)
         lastAppliedThemeId = ThemeManager.getActiveThemeId(this)
         applyTheme()
