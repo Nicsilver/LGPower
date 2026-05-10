@@ -1291,7 +1291,7 @@ class MainActivity : AppCompatActivity() {
             setBackgroundDrawableResource(android.R.color.transparent)
             setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT)
             setGravity(android.view.Gravity.BOTTOM)
-            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
             addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             setDimAmount(0.88f)
             attributes = attributes.also { it.windowAnimations = android.R.style.Animation_InputMethod }
@@ -1325,6 +1325,11 @@ class MainActivity : AppCompatActivity() {
         sendBtn.setOnClickListener { send() }
         editText.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) { send(); true } else false
+        }
+
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        dialog.setOnDismissListener {
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_UNSPECIFIED)
         }
 
         dialog.show()
