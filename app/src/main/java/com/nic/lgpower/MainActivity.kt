@@ -1104,60 +1104,11 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+
     private fun displayPicturePicker(modes: List<Pair<String, String>>, current: String?) {
-        val dialog = android.app.Dialog(this)
-        dialog.setContentView(R.layout.dialog_input_picker)
-        dialog.window?.apply {
-            setBackgroundDrawableResource(android.R.color.transparent)
-            setLayout(android.view.WindowManager.LayoutParams.MATCH_PARENT, android.view.WindowManager.LayoutParams.WRAP_CONTENT)
-            setGravity(android.view.Gravity.BOTTOM)
-            attributes = attributes.also { it.windowAnimations = android.R.style.Animation_InputMethod }
+        showPickerSheet("Picture Mode", modes.map { (id, label) -> Triple(id, label, id == current) }) { id ->
+            sendCommand { client.setPictureMode(id) }
         }
-
-        dialog.findViewById<TextView>(R.id.dialog_picker_title).text = "Picture Mode"
-
-        val container = dialog.findViewById<LinearLayout>(R.id.inputs_container)
-        val density = resources.displayMetrics.density
-
-        modes.forEach { (id, label) ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                background = getDrawable(R.drawable.bg_input_item)
-                isClickable = true
-                isFocusable = true
-                setPadding((16 * density).toInt(), (14 * density).toInt(), (16 * density).toInt(), (14 * density).toInt())
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).also { it.bottomMargin = (8 * density).toInt() }
-            }
-
-            val icon = android.widget.ImageView(this).apply {
-                setImageResource(R.drawable.ic_picture)
-                imageTintList = ColorStateList.valueOf(0xFF8888AA.toInt())
-                layoutParams = LinearLayout.LayoutParams((22 * density).toInt(), (22 * density).toInt())
-                    .also { it.marginEnd = (14 * density).toInt() }
-            }
-
-            val isActive = id == current
-            val labelView = TextView(this).apply {
-                text = if (isActive) "$label  ✓" else label
-                textSize = 16f
-                setTextColor(if (isActive) 0xFFFFFFFF.toInt() else 0xFFDDDDEE.toInt())
-                if (isActive) setTypeface(null, android.graphics.Typeface.BOLD)
-            }
-
-            row.addView(icon)
-            row.addView(labelView)
-            row.setOnClickListener {
-                dialog.dismiss()
-                sendCommand { client.setPictureMode(id) }
-            }
-            container.addView(row)
-        }
-
-        dialog.show()
     }
 
     private fun showSoundPicker() {
@@ -1177,111 +1128,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun displaySoundPicker(modes: List<Pair<String, String>>, current: String?) {
-        val dialog = android.app.Dialog(this)
-        dialog.setContentView(R.layout.dialog_input_picker)
-        dialog.window?.apply {
-            setBackgroundDrawableResource(android.R.color.transparent)
-            setLayout(android.view.WindowManager.LayoutParams.MATCH_PARENT, android.view.WindowManager.LayoutParams.WRAP_CONTENT)
-            setGravity(android.view.Gravity.BOTTOM)
-            attributes = attributes.also { it.windowAnimations = android.R.style.Animation_InputMethod }
+        showPickerSheet("Sound Mode", modes.map { (id, label) -> Triple(id, label, id == current) }) { id ->
+            sendCommand { client.setSoundMode(id) }
         }
-
-        dialog.findViewById<TextView>(R.id.dialog_picker_title).text = "Sound Mode"
-
-        val container = dialog.findViewById<LinearLayout>(R.id.inputs_container)
-        val density = resources.displayMetrics.density
-
-        modes.forEach { (id, label) ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                background = getDrawable(R.drawable.bg_input_item)
-                isClickable = true
-                isFocusable = true
-                setPadding((16 * density).toInt(), (14 * density).toInt(), (16 * density).toInt(), (14 * density).toInt())
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).also { it.bottomMargin = (8 * density).toInt() }
-            }
-
-            val icon = android.widget.ImageView(this).apply {
-                setImageResource(R.drawable.ic_sound)
-                imageTintList = ColorStateList.valueOf(0xFF8888AA.toInt())
-                layoutParams = LinearLayout.LayoutParams((22 * density).toInt(), (22 * density).toInt())
-                    .also { it.marginEnd = (14 * density).toInt() }
-            }
-
-            val isActive = id == current
-            val labelView = TextView(this).apply {
-                text = if (isActive) "$label  ✓" else label
-                textSize = 16f
-                setTextColor(if (isActive) 0xFFFFFFFF.toInt() else 0xFFDDDDEE.toInt())
-                if (isActive) setTypeface(null, android.graphics.Typeface.BOLD)
-            }
-
-            row.addView(icon)
-            row.addView(labelView)
-            row.setOnClickListener {
-                dialog.dismiss()
-                sendCommand { client.setSoundMode(id) }
-            }
-            container.addView(row)
-        }
-
-        dialog.show()
     }
 
     private fun showInputPicker(inputs: List<WebOsClient.InputSource>) {
-        val dialog = android.app.Dialog(this)
-        dialog.setContentView(R.layout.dialog_input_picker)
-        dialog.window?.apply {
-            setBackgroundDrawableResource(android.R.color.transparent)
-            setLayout(android.view.WindowManager.LayoutParams.MATCH_PARENT, android.view.WindowManager.LayoutParams.WRAP_CONTENT)
-            setGravity(android.view.Gravity.BOTTOM)
-            attributes = attributes.also { it.windowAnimations = android.R.style.Animation_InputMethod }
+        showPickerSheet("Input Source", inputs.map { Triple(it.id, it.label, false) }) { id ->
+            sendCommand { client.switchInput(id) }
         }
-
-        val container = dialog.findViewById<LinearLayout>(R.id.inputs_container)
-        val density = resources.displayMetrics.density
-
-        inputs.forEach { input ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                background = getDrawable(R.drawable.bg_input_item)
-                isClickable = true
-                isFocusable = true
-                setPadding((16 * density).toInt(), (14 * density).toInt(), (16 * density).toInt(), (14 * density).toInt())
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).also { it.bottomMargin = (8 * density).toInt() }
-            }
-
-            val icon = android.widget.ImageView(this).apply {
-                setImageResource(R.drawable.ic_input)
-                imageTintList = ColorStateList.valueOf(0xFF8888AA.toInt())
-                layoutParams = LinearLayout.LayoutParams((22 * density).toInt(), (22 * density).toInt())
-                    .also { it.marginEnd = (14 * density).toInt() }
-            }
-
-            val label = TextView(this).apply {
-                text = input.label
-                textSize = 16f
-                setTextColor(0xFFDDDDEE.toInt())
-            }
-
-            row.addView(icon)
-            row.addView(label)
-            row.setOnClickListener {
-                dialog.dismiss()
-                sendCommand { client.switchInput(input.id) }
-            }
-            container.addView(row)
-        }
-
-        dialog.show()
     }
 
     private fun showTextInputDialog() {
