@@ -862,6 +862,87 @@ class WebOsClient(private val context: Context) {
         return mode
     }
 
+    data class TvState(
+        val brightness: Int,
+        val volume: Int?,
+        val muted: Boolean,
+        val screenOff: Boolean
+    )
+
+    /** Fetch brightness, volume, and screen state in one WebSocket connection.
+     *  Returns null if TV is off or not responding (e.g. Quick Start standby). */
+    fun getTvState(): TvState? {
+        val req = buildWsRequest() ?: return null
+        val latch = CountDownLatch(1)
+        var brightness: Int? = null
+        var volume: Int? = null
+        var muted = false
+        var screenOff = false
+        val pending = java.util.concurrent.atomic.AtomicInteger(3)
+        val savedKey = prefs.getString("client_key", null)
+        val client = buildClient()
+
+        client.newWebSocket(req, object : WebSocketListener() {
+            override fun onOpen(ws: WebSocket, response: Response) {
+                ws.send(buildRegistration(savedKey))
+            }
+            override fun onMessage(ws: WebSocket, text: String) {
+                val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                when (json.optString("type")) {
+                    "registered" -> {
+                        val key = json.optJSONObject("payload")?.optString("client-key")
+                        if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                        ws.send(JSONObject().apply {
+                            put("id", "s_bright")
+                            put("type", "request")
+                            put("uri", "ssap://settings/getSystemSettings")
+                            put("payload", JSONObject()
+                                .put("category", "picture")
+                                .put("keys", JSONArray().put("backlight")))
+                        }.toString())
+                        ws.send(JSONObject().apply {
+                            put("id", "s_vol")
+                            put("type", "request")
+                            put("uri", "ssap://audio/getVolume")
+                            put("payload", JSONObject())
+                        }.toString())
+                        ws.send(JSONObject().apply {
+                            put("id", "s_power")
+                            put("type", "request")
+                            put("uri", "ssap://com.webos.service.tvpower/power/getPowerState")
+                            put("payload", JSONObject())
+                        }.toString())
+                    }
+                    "response" -> {
+                        when (json.optString("id")) {
+                            "s_bright" -> brightness = json.optJSONObject("payload")
+                                ?.optJSONObject("settings")?.optString("backlight")?.toIntOrNull()
+                            "s_vol" -> {
+                                val payload = json.optJSONObject("payload")
+                                val nested = payload?.optJSONObject("volumeStatus")
+                                val src = nested ?: payload
+                                volume = src?.optInt("volume", -1)?.takeIf { it >= 0 }
+                                muted = if (nested != null) nested.optBoolean("muteStatus", false)
+                                        else payload?.optBoolean("muted", false) ?: false
+                            }
+                            "s_power" -> screenOff = json.optJSONObject("payload")?.optString("state") == "Screen Off"
+                            else -> return
+                        }
+                        if (pending.decrementAndGet() == 0) { ws.close(1000, null); latch.countDown() }
+                    }
+                    "error" -> if (json.optString("id") in listOf("s_bright", "s_vol", "s_power")) {
+                        if (pending.decrementAndGet() == 0) { ws.close(1000, null); latch.countDown() }
+                    }
+                }
+            }
+            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) { latch.countDown() }
+            override fun onClosed(ws: WebSocket, code: Int, reason: String) { latch.countDown() }
+        })
+        latch.await(4, TimeUnit.SECONDS)
+        client.dispatcher.executorService.shutdown()
+        return brightness?.let { TvState(it, volume, muted, screenOff) }
+    }
+
     fun launchApp(appId: String) = execute(
         "ssap://system.launcher/launch",
         JSONObject().put("id", appId)

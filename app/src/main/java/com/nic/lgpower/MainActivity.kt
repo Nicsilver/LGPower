@@ -41,7 +41,7 @@ class MainActivity : AppCompatActivity() {
     private var discovering = false
     private var lastAppliedThemeId = ""
     private val statusHandler = Handler(Looper.getMainLooper())
-    private val statusInterval = 15_000L
+    private val statusInterval = 5_000L
     private lateinit var statusRunnable: Runnable
 
     private enum class TvStatus { CHECKING, CONNECTED, SEARCHING, DISCONNECTED }
@@ -627,26 +627,26 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread { setStatus(TvStatus.CHECKING) }
         Thread {
             val portOpen = runCatching {
-                Socket().use { it.connect(InetSocketAddress(ip, 3001), 2000) }
+                Socket().use { it.connect(InetSocketAddress(ip, 3001), 500) }
                 true
             }.getOrElse { false }
             if (!portOpen) {
                 runOnUiThread { setStatus(TvStatus.DISCONNECTED) }
                 return@Thread
             }
-            // Port open — show connected immediately, then confirm via WebOS
+            // Port open — optimistically show connected, confirm via batched WebOS query
             runOnUiThread { setStatus(TvStatus.CONNECTED) }
-            val brightness = client.getBrightness()
-            if (brightness == null) {
+            val state = client.getTvState()
+            if (state == null) {
                 // Port open but WebOS not responding — TV is in standby (Quick Start)
                 runOnUiThread { setStatus(TvStatus.DISCONNECTED) }
                 return@Thread
             }
-            runOnUiThread { setBrightnessBar(brightness) }
-            val volumeState = client.getVolume()
-            if (volumeState != null) runOnUiThread { setVolumeState(volumeState.volume, volumeState.muted) }
-            val screenOff = client.getScreenOff()
-            if (screenOff != null) runOnUiThread { setScreenOffButton(screenOff) }
+            runOnUiThread {
+                setBrightnessBar(state.brightness)
+                if (state.volume != null) setVolumeState(state.volume, state.muted)
+                setScreenOffButton(state.screenOff)
+            }
         }.start()
     }
 
