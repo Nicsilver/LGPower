@@ -23,6 +23,7 @@ import android.view.inputmethod.EditorInfo
 import androidx.appcompat.content.res.AppCompatResources
 import java.net.InetSocketAddress
 import java.net.Socket
+import android.content.Context
 import android.graphics.drawable.GradientDrawable
 import android.widget.Button
 import android.widget.EditText
@@ -75,6 +76,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         lastAppliedThemeId = ThemeManager.getActiveThemeId(this)
         applyTheme()
+        applyPressAnimations(findViewById(android.R.id.content))
 
         statusRunnable = Runnable {
             checkStatus()
@@ -132,10 +134,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         // D-pad
-        setRepeatListener(findViewById(R.id.btn_up))    { client.pressUp() }
-        setRepeatListener(findViewById(R.id.btn_down))  { client.pressDown() }
-        setRepeatListener(findViewById(R.id.btn_left))  { client.pressLeft() }
-        setRepeatListener(findViewById(R.id.btn_right)) { client.pressRight() }
+        val dpadHl = setupDpadHighlight()
+        setDpadRepeatListener(findViewById(R.id.btn_up),    0, dpadHl) { client.pressUp() }
+        setDpadRepeatListener(findViewById(R.id.btn_right), 1, dpadHl) { client.pressRight() }
+        setDpadRepeatListener(findViewById(R.id.btn_down),  2, dpadHl) { client.pressDown() }
+        setDpadRepeatListener(findViewById(R.id.btn_left),  3, dpadHl) { client.pressLeft() }
         findViewById<View>(R.id.btn_ok).setOnClickListener { sendCommand { client.pressEnter() } }
 
         // Home / Back / Settings
@@ -472,6 +475,90 @@ class MainActivity : AppCompatActivity() {
 
 
     @Suppress("DEPRECATION")
+    private fun animPress(v: View) =
+        v.animate().scaleX(0.82f).scaleY(0.82f).setDuration(70).start()
+
+    private fun animRelease(v: View) =
+        v.animate().scaleX(1f).scaleY(1f).setDuration(150).start()
+
+    private fun highlightColor() =
+        if (ThemeManager.getActiveThemeId(this) != "light") 0x33FFFFFF.toInt() else 0x20000000.toInt()
+
+    private inner class DpadHighlightView(ctx: Context) : View(ctx) {
+        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        private val oval = android.graphics.RectF()
+        private val sectorPath = android.graphics.Path()
+        private val clipPath = android.graphics.Path()
+        private val startAngles = floatArrayOf(225f, 315f, 45f, 135f) // up, right, down, left
+        var sector = -1
+
+        init {
+            isClickable = false; isFocusable = false
+            paint.color = highlightColor()
+        }
+
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            if (sector < 0) return
+            val cx = width / 2f; val cy = height / 2f; val r = minOf(cx, cy)
+            oval.set(cx - r, cy - r, cx + r, cy + r)
+            clipPath.reset(); clipPath.addOval(oval, android.graphics.Path.Direction.CW)
+            canvas.clipPath(clipPath)
+            sectorPath.reset(); sectorPath.moveTo(cx, cy)
+            sectorPath.arcTo(oval, startAngles[sector], 90f); sectorPath.close()
+            canvas.drawPath(sectorPath, paint)
+        }
+    }
+
+    private fun setupDpadHighlight(): DpadHighlightView {
+        val container = findViewById<View>(R.id.btn_up).parent as android.widget.FrameLayout
+        val hl = DpadHighlightView(this)
+        container.addView(hl, 1, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        return hl
+    }
+
+    private fun setDpadRepeatListener(view: View, sector: Int, hl: DpadHighlightView, block: () -> WebOsClient.Result) {
+        val repeatHandler = Handler(Looper.getMainLooper())
+        val vibrator = getSystemService(Vibrator::class.java)
+        val repeatRunnable = object : Runnable {
+            override fun run() {
+                vibrator?.vibrate(VibrationEffect.createOneShot(24, 48))
+                Thread { block() }.start()
+                repeatHandler.postDelayed(this, 120L)
+            }
+        }
+        view.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    hl.sector = sector; hl.invalidate()
+                    v.isPressed = true; sendCommand(block)
+                    repeatHandler.postDelayed(repeatRunnable, 400L); true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    hl.sector = -1; hl.invalidate()
+                    v.isPressed = false
+                    repeatHandler.removeCallbacks(repeatRunnable); true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun applyPressAnimations(root: View) {
+        if (root is android.widget.ImageButton || root is android.widget.Button) {
+            root.setOnTouchListener { v, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> animPress(v)
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> animRelease(v)
+                }
+                false
+            }
+        }
+        if (root is android.view.ViewGroup) repeat(root.childCount) { applyPressAnimations(root.getChildAt(it)) }
+    }
+
     private fun applyTheme() {
         val theme = ThemeManager.getActiveTheme(this)
         ThemeManager.applyToRoot(findViewById(R.id.main_root), theme)
@@ -609,11 +696,38 @@ class MainActivity : AppCompatActivity() {
         label.text = ""
         findViewById<android.widget.ImageButton>(R.id.btn_brightness_up).setImageResource(R.drawable.ic_channel_up)
         findViewById<android.widget.ImageButton>(R.id.btn_brightness_down).setImageResource(R.drawable.ic_channel_down)
+        val pillFrame = pill as? android.widget.FrameLayout
+        val hlColor = highlightColor()
+        val halfH = pill.layoutParams?.height?.div(2) ?: (115 * resources.displayMetrics.density).toInt()
+        pill.findViewWithTag<View?>("pill_hl_top")?.let { pillFrame?.removeView(it) }
+        pill.findViewWithTag<View?>("pill_hl_bot")?.let { pillFrame?.removeView(it) }
+        val topHl = View(this).apply {
+            tag = "pill_hl_top"; isClickable = false; isFocusable = false
+            visibility = View.INVISIBLE; setBackgroundColor(hlColor)
+        }
+        val botHl = View(this).apply {
+            tag = "pill_hl_bot"; isClickable = false; isFocusable = false
+            visibility = View.INVISIBLE; setBackgroundColor(hlColor)
+        }
+        pillFrame?.addView(topHl, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT, halfH
+        ).apply { gravity = android.view.Gravity.TOP })
+        pillFrame?.addView(botHl, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT, halfH
+        ).apply { gravity = android.view.Gravity.BOTTOM })
         pill.setOnTouchListener { v, event ->
-            if (event.action == MotionEvent.ACTION_UP) {
-                v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                if (event.y < v.height / 2f) sendCommand { client.channelUp() }
-                else sendCommand { client.channelDown() }
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    if (event.y < v.height / 2f) { topHl.visibility = View.VISIBLE; botHl.visibility = View.INVISIBLE }
+                    else { topHl.visibility = View.INVISIBLE; botHl.visibility = View.VISIBLE }
+                }
+                MotionEvent.ACTION_UP -> {
+                    topHl.visibility = View.INVISIBLE; botHl.visibility = View.INVISIBLE
+                    v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    if (event.y < v.height / 2f) sendCommand { client.channelUp() }
+                    else sendCommand { client.channelDown() }
+                }
+                MotionEvent.ACTION_CANCEL -> { topHl.visibility = View.INVISIBLE; botHl.visibility = View.INVISIBLE }
             }
             true
         }
@@ -648,6 +762,27 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Half-height highlight overlays — clipped to pill shape via clipToOutline on the FrameLayout
+        val hlColor = highlightColor()
+        val halfH = pillHeightPx / 2
+        val pillFrame = pill as? android.widget.FrameLayout
+        pill.findViewWithTag<View?>("pill_hl_top")?.let { pillFrame?.removeView(it) }
+        pill.findViewWithTag<View?>("pill_hl_bot")?.let { pillFrame?.removeView(it) }
+        val topHl = View(this).apply {
+            tag = "pill_hl_top"; isClickable = false; isFocusable = false
+            visibility = View.INVISIBLE; setBackgroundColor(hlColor)
+        }
+        val botHl = View(this).apply {
+            tag = "pill_hl_bot"; isClickable = false; isFocusable = false
+            visibility = View.INVISIBLE; setBackgroundColor(hlColor)
+        }
+        pillFrame?.addView(topHl, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT, halfH
+        ).apply { gravity = android.view.Gravity.TOP })
+        pillFrame?.addView(botHl, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT, halfH
+        ).apply { gravity = android.view.Gravity.BOTTOM })
+
         pill.setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -655,6 +790,8 @@ class MainActivity : AppCompatActivity() {
                     isDragging = false
                     lastHapticLevel = -1
                     v.parent?.requestDisallowInterceptTouchEvent(true)
+                    if (event.y < pillHeightPx / 2f) { topHl.visibility = View.VISIBLE; botHl.visibility = View.INVISIBLE }
+                    else { topHl.visibility = View.INVISIBLE; botHl.visibility = View.VISIBLE }
                     if (!sliderEnabled()) {
                         repeatIsUp = event.y < pillHeightPx / 2f
                         if (repeatIsUp) onTapUp() else onTapDown()
@@ -664,7 +801,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_MOVE -> {
                     if (sliderEnabled()) {
-                        if (!isDragging && abs(event.y - startY) > dragThreshold) isDragging = true
+                        if (!isDragging && abs(event.y - startY) > dragThreshold) {
+                            isDragging = true
+                            topHl.visibility = View.INVISIBLE; botHl.visibility = View.INVISIBLE
+                        }
                         if (isDragging) {
                             val level = ((1f - event.y / pillHeightPx) * 100).toInt().coerceIn(0, 100)
                             val targetHeight = (pillHeightPx * level / 100f).toInt()
@@ -682,6 +822,7 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
+                    topHl.visibility = View.INVISIBLE; botHl.visibility = View.INVISIBLE
                     v.parent?.requestDisallowInterceptTouchEvent(false)
                     repeatHandler.removeCallbacks(repeatRunnable)
                     v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
@@ -697,6 +838,7 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 MotionEvent.ACTION_CANCEL -> {
+                    topHl.visibility = View.INVISIBLE; botHl.visibility = View.INVISIBLE
                     v.parent?.requestDisallowInterceptTouchEvent(false)
                     repeatHandler.removeCallbacks(repeatRunnable)
                     true
@@ -847,6 +989,13 @@ class MainActivity : AppCompatActivity() {
                     background = pillBg
                     isClickable = true
                     isFocusable = true
+                    setOnTouchListener { v, event ->
+                        when (event.action) {
+                            MotionEvent.ACTION_DOWN -> v.animate().scaleX(0.95f).scaleY(0.95f).setDuration(70).start()
+                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> v.animate().scaleX(1f).scaleY(1f).setDuration(150).start()
+                        }
+                        false
+                    }
                     setOnClickListener {
                         it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                         val gen = ++wakeHomeGen
@@ -1178,12 +1327,14 @@ class MainActivity : AppCompatActivity() {
         view.setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    animPress(v)
                     v.isPressed = true
                     sendCommand(block)
                     repeatHandler.postDelayed(repeatRunnable, 400L)
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    animRelease(v)
                     v.isPressed = false
                     repeatHandler.removeCallbacks(repeatRunnable)
                     true
