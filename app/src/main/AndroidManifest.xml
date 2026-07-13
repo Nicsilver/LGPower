@@ -41,6 +41,13 @@
             android:exported="false"
             android:label="Setup" />
 
+        <!-- Custom theme editor -->
+        <activity
+            android:name=".ThemeEditorActivity"
+            android:exported="false"
+            android:label="Theme Editor"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- IR power widget trampoline -->
         <activity
             android:name=".IrActivity"

@@ -11,6 +11,7 @@ import android.widget.TextView
 fun Activity.showPickerSheet(
     title: String,
     items: List<Triple<String, String, Boolean>>,
+    onLongPress: ((String) -> Unit)? = null,
     onSelect: (String) -> Unit
 ) {
     val dialog = Dialog(this)
@@ -79,6 +80,10 @@ fun Activity.showPickerSheet(
             })
         }
         row.setOnClickListener { dialog.dismiss(); onSelect(id) }
+        if (onLongPress != null) row.setOnLongClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            dialog.dismiss(); onLongPress(id); true
+        }
         card.addView(row)
     }
 

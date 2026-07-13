@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/editor_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="56dp">
+
+        <TextView
+            android:id="@+id/editor_title"
+            android:tag="title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="New Theme"
+            android:textColor="#FFFFFF"
+            android:textSize="30sp"
+            android:textStyle="bold"
+            android:paddingHorizontal="4dp"
+            android:layout_marginBottom="24dp" />
+
+        <!-- ─── PREVIEW ─── -->
+        <TextView
+            android:tag="section_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="PREVIEW"
+            android:textColor="#8E8E93"
+            android:textSize="12sp"
+            android:letterSpacing="0.06"
+            android:paddingHorizontal="4dp"
+            android:layout_marginBottom="8dp" />
+
+        <FrameLayout
+            android:id="@+id/preview_frame"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:tag="title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Living Room TV"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:tag="row_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Connected · webOS"
+                    android:textSize="13sp"
+                    android:layout_marginTop="2dp" />
+
+                <LinearLayout
+                    android:tag="surface_bg"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:layout_marginTop="16dp">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <FrameLayout
+                            android:tag="circle_btn"
+                            android:layout_width="46dp"
+                            android:layout_height="46dp">
+                            <ImageView
+                                android:id="@+id/preview_icon_power"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:src="@drawable/ic_power"
+                                android:scaleType="center" />
+                        </FrameLayout>
+
+                        <Space android:layout_width="14dp" android:layout_height="1dp" />
+
+                        <FrameLayout
+                            android:tag="circle_btn"
+                            android:layout_width="46dp"
+                            android:layout_height="46dp">
+                            <ImageView
+                                android:id="@+id/preview_icon_home"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:src="@drawable/ic_home"
+                                android:scaleType="center" />
+                        </FrameLayout>
+
+                        <Space android:layout_width="14dp" android:layout_height="1dp" />
+
+                        <Button
+                            android:id="@+id/preview_accent"
+                            android:layout_width="wrap_content"
+                            android:layout_height="44dp"
+                            android:text="Connect"
+                            android:textAllCaps="false"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:paddingHorizontal="20dp"
+                            android:minWidth="0dp" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/preview_pill"
+                        android:tag="pill"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="20dp"
+                        android:layout_marginTop="14dp">
+
+                        <TextView
+                            android:tag="pill_label"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Volume"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:tag="pill_label"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="24"
+                            android:textSize="15sp" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="14dp">
+
+                        <TextView
+                            android:tag="row_label"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Auto-connect"
+                            android:textSize="15sp" />
+
+                        <Switch
+                            android:id="@+id/preview_switch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:scaleX="1.2"
+                            android:scaleY="1.2"
+                            android:checked="true"
+                            android:clickable="false" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+        <!-- ─── NAME ─── -->
+        <TextView
+            android:tag="section_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="NAME"
+            android:textColor="#8E8E93"
+            android:textSize="12sp"
+            android:letterSpacing="0.06"
+            android:paddingHorizontal="4dp"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:tag="surface_bg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_section_group">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp">
+
+                <EditText
+                    android:id="@+id/edit_theme_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:hint="My Theme"
+                    android:inputType="textCapWords"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#3A3A3A"
+                    android:background="@null"
+                    android:padding="0dp"
+                    android:textSize="15sp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- ─── APPEARANCE ─── -->
+        <TextView
+            android:tag="section_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="APPEARANCE"
+            android:textColor="#8E8E93"
+            android:textSize="12sp"
+            android:letterSpacing="0.06"
+            android:paddingHorizontal="4dp"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/appearance_segment"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:orientation="horizontal" />
+
+        <!-- ─── COLORS ─── -->
+        <TextView
+            android:tag="section_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="COLORS"
+            android:textColor="#8E8E93"
+            android:textSize="12sp"
+            android:letterSpacing="0.06"
+            android:paddingHorizontal="4dp"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/colors_group"
+            android:tag="surface_bg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_section_group" />
+
+        <!-- ─── ACTIONS ─── -->
+        <Button
+            android:id="@+id/btn_save_theme"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/bg_btn_accent"
+            android:text="Save Theme"
+            android:textAllCaps="false"
+            android:textColor="#000000"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:layout_marginTop="32dp" />
+
+        <Button
+            android:id="@+id/btn_delete_theme"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@null"
+            android:text="Delete Theme"
+            android:textAllCaps="false"
+            android:textColor="#FF453A"
+            android:textSize="15sp"
+            android:visibility="gone"
+            android:layout_marginTop="4dp" />
+
+        <Button
+            android:id="@+id/btn_cancel_theme"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@null"
+            android:text="Cancel"
+            android:textAllCaps="false"
+            android:textColor="#8E8E93"
+            android:textSize="15sp"
+            android:layout_marginTop="4dp" />
+
+    </LinearLayout>
+
+</androidx.core.widget.NestedScrollView>

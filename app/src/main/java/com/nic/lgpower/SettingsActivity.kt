@@ -117,18 +117,10 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         // Theme picker
-        val themes = ThemeManager.listThemes(this)
-        val tvCurrentTheme = findViewById<TextView>(R.id.tv_current_theme)
-        tvCurrentTheme.text = themes.firstOrNull { it.id == ThemeManager.getActiveThemeId(this) }?.name ?: "Dark"
-        findViewById<View>(R.id.row_theme).setOnClickListener {
-            val activeId = ThemeManager.getActiveThemeId(this)
-            showPickerSheet(
-                "Theme",
-                themes.map { Triple(it.id, it.name, it.id == activeId) }
-            ) { id ->
-                ThemeManager.setActiveThemeId(this, id)
-                recreate()
-            }
+        refreshThemeLabel()
+        findViewById<View>(R.id.row_theme).setOnClickListener { openThemePicker() }
+        findViewById<View>(R.id.row_create_theme).setOnClickListener {
+            openThemeEditor(baseId = ThemeManager.getActiveThemeId(this), editId = null)
         }
 
         // Discover TV IP
@@ -190,6 +182,68 @@ class SettingsActivity : AppCompatActivity() {
                     pool.shutdown()
                 }
             }.start()
+        }
+    }
+
+    private var pendingThemeRefresh = false
+
+    private fun refreshThemeLabel() {
+        val themes = ThemeManager.listThemes(this)
+        val activeId = ThemeManager.getActiveThemeId(this)
+        findViewById<TextView>(R.id.tv_current_theme).text =
+            themes.firstOrNull { it.id == activeId }?.name ?: "Dark"
+    }
+
+    private fun openThemePicker() {
+        val themes = ThemeManager.listThemes(this)
+        val activeId = ThemeManager.getActiveThemeId(this)
+        showPickerSheet(
+            "Theme",
+            themes.map { Triple(it.id, it.name, it.id == activeId) },
+            onLongPress = { id -> showThemeActions(id) }
+        ) { id ->
+            ThemeManager.setActiveThemeId(this, id)
+            recreate()
+        }
+    }
+
+    /** Long-press a theme to duplicate it, or edit/delete it if it's custom. */
+    private fun showThemeActions(id: String) {
+        val theme = ThemeManager.listThemes(this).firstOrNull { it.id == id } ?: return
+        val actions = buildList {
+            add(Triple("duplicate", "Duplicate", false))
+            if (theme.editable) {
+                add(Triple("edit", "Edit", false))
+                add(Triple("delete", "Delete", false))
+            }
+        }
+        showPickerSheet(theme.name, actions) { action ->
+            when (action) {
+                "duplicate" -> openThemeEditor(baseId = id, editId = null)
+                "edit"      -> openThemeEditor(baseId = id, editId = id)
+                "delete"    -> {
+                    ThemeManager.deleteCustom(this, id)
+                    recreate()
+                }
+            }
+        }
+    }
+
+    private fun openThemeEditor(baseId: String, editId: String?) {
+        pendingThemeRefresh = true
+        startActivity(android.content.Intent(this, ThemeEditorActivity::class.java).apply {
+            putExtra(ThemeEditorActivity.EXTRA_BASE_ID, baseId)
+            if (editId != null) putExtra(ThemeEditorActivity.EXTRA_EDIT_ID, editId)
+        })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Coming back from the editor: a theme may have been created, edited,
+        // or made active — rebuild this screen so it reflects the change.
+        if (pendingThemeRefresh) {
+            pendingThemeRefresh = false
+            recreate()
         }
     }
 

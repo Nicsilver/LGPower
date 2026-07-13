@@ -1,0 +1,29 @@
+{
+  "id": "onelight",
+  "name": "One Light",
+  "colors": {
+    "window_bg":                "#EAEAEB",
+    "surface_bg":               "#FAFAFA",
+    "primary_text":             "#383A42",
+    "secondary_text":           "#696C77",
+    "pill_label_text":          "#CC383A42",
+    "section_label":            "#A0A1A7",
+    "divider":                  "#E5E5E6",
+    "pill_bg":                  "#FAFAFA",
+    "pill_divider":             "#E5E5E6",
+    "circle_btn_bg":            "#FFFFFF",
+    "circle_btn_icon_tint":     "#383A42",
+    "dpad_ring_bg":             "#FFFFFF",
+    "switch_track_on":          "#4078F2",
+    "switch_track_off":         "#D3D3D6",
+    "switch_thumb_on":          "#FFFFFF",
+    "switch_thumb_off":         "#FFFFFF",
+    "btn_accent_bg":            "#4078F2",
+    "btn_accent_text":          "#FFFFFF",
+    "btn_ghost_border":         "#D3D3D6",
+    "btn_ghost_border_pressed": "#B9B9BD",
+    "btn_ghost_bg_pressed":     "#F0F0F0",
+    "dpad_ok_bg":               "#FCFCFC"
+  },
+  "status_bar_light_icons": true
+}

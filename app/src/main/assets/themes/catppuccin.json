@@ -1,0 +1,29 @@
+{
+  "id": "catppuccin",
+  "name": "Catppuccin",
+  "colors": {
+    "window_bg":                "#1E1E2E",
+    "surface_bg":               "#313244",
+    "primary_text":             "#CDD6F4",
+    "secondary_text":           "#A6ADC8",
+    "pill_label_text":          "#CCCDD6F4",
+    "section_label":            "#6C7086",
+    "divider":                  "#313244",
+    "pill_bg":                  "#313244",
+    "pill_divider":             "#1E1E2E",
+    "circle_btn_bg":            "#45475A",
+    "circle_btn_icon_tint":     "#CDD6F4",
+    "dpad_ring_bg":             "#45475A",
+    "switch_track_on":          "#CBA6F7",
+    "switch_track_off":         "#45475A",
+    "switch_thumb_on":          "#CDD6F4",
+    "switch_thumb_off":         "#6C7086",
+    "btn_accent_bg":            "#CBA6F7",
+    "btn_accent_text":          "#1E1E2E",
+    "btn_ghost_border":         "#45475A",
+    "btn_ghost_border_pressed": "#585B70",
+    "btn_ghost_bg_pressed":     "#313244",
+    "dpad_ok_bg":               "#26263A"
+  },
+  "status_bar_light_icons": false
+}
