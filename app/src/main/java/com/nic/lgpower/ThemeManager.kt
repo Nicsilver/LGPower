@@ -6,11 +6,16 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import org.json.JSONObject
+import java.io.File
 
 object ThemeManager {
 
     private const val PREF_KEY = "theme_id"
     private val cache = mutableMapOf<String, ThemeConfig>()
+
+    // Dark and Light are pinned to the top of the picker, in that order; the rest
+    // (built-in then custom) follow alphabetically by name.
+    private val pinnedOrder = listOf("dark", "light")
 
     fun getActiveThemeId(context: Context): String =
         prefs(context).getString(PREF_KEY, "dark") ?: "dark"
@@ -19,18 +24,61 @@ object ThemeManager {
         prefs(context).edit().putString(PREF_KEY, id).apply()
 
     fun getActiveTheme(context: Context): ThemeConfig =
-        loadTheme(context, getActiveThemeId(context))
+        runCatching { loadTheme(context, getActiveThemeId(context)) }
+            .getOrElse { loadTheme(context, "dark") }
 
-    fun listThemes(context: Context): List<ThemeConfig> =
-        (context.assets.list("themes") ?: emptyArray())
+    fun listThemes(context: Context): List<ThemeConfig> {
+        val builtIn = (context.assets.list("themes") ?: emptyArray())
             .filter { it.endsWith(".json") }
-            .mapNotNull { runCatching { loadTheme(context, it.removeSuffix(".json")) }.getOrNull() }
-            .sortedBy { it.name }
+            .map { it.removeSuffix(".json") }
+        val custom = customDir(context).listFiles { f -> f.extension == "json" }
+            ?.map { it.nameWithoutExtension } ?: emptyList()
+        return (builtIn + custom).distinct()
+            .mapNotNull { runCatching { loadTheme(context, it) }.getOrNull() }
+            .sortedWith(compareBy(
+                { pinnedOrder.indexOf(it.id).let { i -> if (i == -1) Int.MAX_VALUE else i } },
+                { it.name.lowercase() }
+            ))
+    }
+
+    // ── Custom theme persistence ───────────────────────────────────────────────
+
+    private fun customDir(context: Context): File =
+        File(context.filesDir, "themes").apply { if (!exists()) mkdirs() }
+
+    private fun customFile(context: Context, id: String) = File(customDir(context), "$id.json")
+
+    fun isCustom(context: Context, id: String): Boolean = customFile(context, id).exists()
+
+    /** Persist a user theme (by its seed colors) and refresh the cache. */
+    fun saveCustom(context: Context, theme: ThemeConfig) {
+        customFile(context, theme.id).writeText(theme.toSeedJson().toString(2))
+        cache[theme.id] = theme
+    }
+
+    fun deleteCustom(context: Context, id: String) {
+        customFile(context, id).delete()
+        cache.remove(id)
+        if (getActiveThemeId(context) == id) setActiveThemeId(context, "dark")
+    }
+
+    /** A fresh, unused id for a new custom theme. */
+    fun newCustomId(context: Context): String {
+        var n = 1
+        while (customFile(context, "custom_$n").exists()) n++
+        return "custom_$n"
+    }
 
     private fun loadTheme(context: Context, id: String): ThemeConfig {
         cache[id]?.let { return it }
-        val text = context.assets.open("themes/$id.json").bufferedReader().readText()
-        return ThemeConfig.fromJson(JSONObject(text)).also { cache[id] = it }
+        val custom = customFile(context, id)
+        val cfg = if (custom.exists()) {
+            ThemeConfig.fromSeedJson(JSONObject(custom.readText()))
+        } else {
+            val text = context.assets.open("themes/$id.json").bufferedReader().readText()
+            ThemeConfig.fromJson(JSONObject(text))
+        }
+        return cfg.also { cache[id] = it }
     }
 
     private fun prefs(context: Context) =

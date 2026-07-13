@@ -1,0 +1,29 @@
+{
+  "id": "dracula",
+  "name": "Dracula",
+  "colors": {
+    "window_bg":                "#282A36",
+    "surface_bg":               "#343746",
+    "primary_text":             "#F8F8F2",
+    "secondary_text":           "#6272A4",
+    "pill_label_text":          "#CCF8F8F2",
+    "section_label":            "#6272A4",
+    "divider":                  "#343746",
+    "pill_bg":                  "#343746",
+    "pill_divider":             "#282A36",
+    "circle_btn_bg":            "#44475A",
+    "circle_btn_icon_tint":     "#F8F8F2",
+    "dpad_ring_bg":             "#44475A",
+    "switch_track_on":          "#BD93F9",
+    "switch_track_off":         "#44475A",
+    "switch_thumb_on":          "#F8F8F2",
+    "switch_thumb_off":         "#6272A4",
+    "btn_accent_bg":            "#BD93F9",
+    "btn_accent_text":          "#282A36",
+    "btn_ghost_border":         "#44475A",
+    "btn_ghost_border_pressed": "#6272A4",
+    "btn_ghost_bg_pressed":     "#343746",
+    "dpad_ok_bg":               "#2F313F"
+  },
+  "status_bar_light_icons": false
+}

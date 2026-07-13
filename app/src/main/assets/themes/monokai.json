@@ -1,0 +1,29 @@
+{
+  "id": "monokai",
+  "name": "Monokai",
+  "colors": {
+    "window_bg":                "#272822",
+    "surface_bg":               "#33342B",
+    "primary_text":             "#F8F8F2",
+    "secondary_text":           "#A59F85",
+    "pill_label_text":          "#CCF8F8F2",
+    "section_label":            "#75715E",
+    "divider":                  "#33342B",
+    "pill_bg":                  "#33342B",
+    "pill_divider":             "#272822",
+    "circle_btn_bg":            "#3E3D32",
+    "circle_btn_icon_tint":     "#F8F8F2",
+    "dpad_ring_bg":             "#3E3D32",
+    "switch_track_on":          "#A6E22E",
+    "switch_track_off":         "#3E3D32",
+    "switch_thumb_on":          "#F8F8F2",
+    "switch_thumb_off":         "#75715E",
+    "btn_accent_bg":            "#F92672",
+    "btn_accent_text":          "#FFFFFF",
+    "btn_ghost_border":         "#3E3D32",
+    "btn_ghost_border_pressed": "#75715E",
+    "btn_ghost_bg_pressed":     "#33342B",
+    "dpad_ok_bg":               "#2D2E27"
+  },
+  "status_bar_light_icons": false
+}

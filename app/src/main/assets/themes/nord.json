@@ -1,0 +1,29 @@
+{
+  "id": "nord",
+  "name": "Nord",
+  "colors": {
+    "window_bg":                "#2E3440",
+    "surface_bg":               "#3B4252",
+    "primary_text":             "#ECEFF4",
+    "secondary_text":           "#81A1C1",
+    "pill_label_text":          "#CCECEFF4",
+    "section_label":            "#81A1C1",
+    "divider":                  "#3B4252",
+    "pill_bg":                  "#3B4252",
+    "pill_divider":             "#2E3440",
+    "circle_btn_bg":            "#434C5E",
+    "circle_btn_icon_tint":     "#ECEFF4",
+    "dpad_ring_bg":             "#434C5E",
+    "switch_track_on":          "#88C0D0",
+    "switch_track_off":         "#434C5E",
+    "switch_thumb_on":          "#ECEFF4",
+    "switch_thumb_off":         "#4C566A",
+    "btn_accent_bg":            "#88C0D0",
+    "btn_accent_text":          "#2E3440",
+    "btn_ghost_border":         "#4C566A",
+    "btn_ghost_border_pressed": "#5E81AC",
+    "btn_ghost_bg_pressed":     "#3B4252",
+    "dpad_ok_bg":               "#353C4A"
+  },
+  "status_bar_light_icons": false
+}

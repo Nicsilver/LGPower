@@ -1,0 +1,29 @@
+{
+  "id": "solarized_light",
+  "name": "Solarized Light",
+  "colors": {
+    "window_bg":                "#EEE8D5",
+    "surface_bg":               "#FDF6E3",
+    "primary_text":             "#586E75",
+    "secondary_text":           "#657B83",
+    "pill_label_text":          "#CC586E75",
+    "section_label":            "#657B83",
+    "divider":                  "#E0D9C4",
+    "pill_bg":                  "#FDF6E3",
+    "pill_divider":             "#DDD6C0",
+    "circle_btn_bg":            "#FDF6E3",
+    "circle_btn_icon_tint":     "#586E75",
+    "dpad_ring_bg":             "#FDF6E3",
+    "switch_track_on":          "#2AA198",
+    "switch_track_off":         "#D6CFB8",
+    "switch_thumb_on":          "#FDF6E3",
+    "switch_thumb_off":         "#FDF6E3",
+    "btn_accent_bg":            "#268BD2",
+    "btn_accent_text":          "#FDF6E3",
+    "btn_ghost_border":         "#D6CFB8",
+    "btn_ghost_border_pressed": "#B8B095",
+    "btn_ghost_bg_pressed":     "#EEE8D5",
+    "dpad_ok_bg":               "#FBF5E1"
+  },
+  "status_bar_light_icons": true
+}
