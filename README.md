@@ -6,18 +6,19 @@
   <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/Nicsilver/LGPower?label=release&color=e63946" alt="Latest release"></a>
 </p>
 
-LG Power is an Android remote for LG webOS TVs. It talks to the TV over Wi-Fi for everything except power-on, which uses the phone's IR blaster, so the power button works even when the TV is off and unreachable over the network.
+LG Power is an Android remote for LG webOS TVs. It talks to the TV over Wi-Fi, wakes it with Wake-on-LAN, and can fall back to the phone's IR blaster when the network path is down.
 
 <p align="center">
-  <img src="screenshots/app.png" width="260" alt="The remote">
-  &nbsp;
-  <img src="screenshots/settings_apps.png" width="260" alt="Choosing app shortcuts">
+  <img src="screenshots/remote-dark.jpg" width="24%" alt="The remote, dark theme">
+  <img src="screenshots/settings-dark.jpg" width="24%" alt="Settings, dark theme">
+  <img src="screenshots/remote-light.jpg" width="24%" alt="The remote, light theme">
+  <img src="screenshots/settings-light.jpg" width="24%" alt="Settings, light theme">
 </p>
 
 ## Features
 
-- **Power** over IR. Works when the TV is off; no wake-on-LAN flakiness.
-- **D-pad, OK, volume and mute**, all with hold-to-repeat.
+- **Power**: tap toggles the TV over the network (Wake-on-LAN to turn it on), long-press sends the IR power code for when Wi-Fi can't reach it.
+- **D-pad, OK, volume and mute**, all with hold-to-repeat, plus optional volume and brightness sliders and channel buttons.
 - **Screen Off** turns off the panel without putting the TV in full standby.
 - **Touchpad**: full-screen cursor mode with drag-to-move and tap-to-click.
 - **Keyboard**: type directly to the TV, handy for search fields.
@@ -40,7 +41,7 @@ Pairing is remembered, so later commands connect instantly. You can also set the
 ## Requirements
 
 - An LG webOS TV (developed against a C4) and an Android phone on the same network.
-- A phone with an IR blaster for the power button. Everything else works without one.
+- An IR blaster on the phone is optional; it only backs the long-press power fallback.
 
 ## Build from source
 
