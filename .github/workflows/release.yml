@@ -11,6 +11,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Empty until the Play service-account secret is added; the publish step is skipped while empty.
+      PLAY_SA_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
 
     steps:
       - uses: actions/checkout@v4
@@ -42,3 +45,15 @@ jobs:
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/bundle/release/app-release.aab
           generate_release_notes: true
+
+      # Skipped until PLAY_SERVICE_ACCOUNT_JSON exists, so tags keep working before Play is wired up.
+      - name: Publish AAB to Google Play (production)
+        if: env.PLAY_SA_JSON != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ env.PLAY_SA_JSON }}
+          packageName: com.nic.lgpower
+          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          mappingFile: app/build/outputs/mapping/release/mapping.txt
+          track: production
+          status: completed
