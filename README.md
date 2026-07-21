@@ -28,7 +28,9 @@ LG Power is an Android remote for LG webOS TVs. It talks to the TV over Wi-Fi, w
 
 ## Download
 
-Grab the latest signed APK from the [Releases](../../releases/latest) page and install it. You may need to allow installing from unknown sources.
+<a href="https://play.google.com/store/apps/details?id=com.nic.lgpower"><img src="https://img.shields.io/badge/Google%20Play-Download-e63946?logo=googleplay&logoColor=white" alt="Get it on Google Play"></a>
+
+Install from [Google Play](https://play.google.com/store/apps/details?id=com.nic.lgpower), or grab the latest signed APK from the [Releases](../../releases/latest) page (you may need to allow installing from unknown sources).
 
 ## Setup
 
