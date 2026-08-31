@@ -49,6 +49,7 @@ class WebOsClient(private val context: Context) {
             for (i in 0..5) packet[i] = 0xFF.toByte()
             for (i in 0..15) for (j in 0..5) packet[6 + i * 6 + j] = macBytes[j]
             java.net.DatagramSocket().use { socket ->
+                LanNetwork.get(context)?.bindSocket(socket)
                 socket.broadcast = true
                 val addr = java.net.InetAddress.getByName("255.255.255.255")
                 socket.send(java.net.DatagramPacket(packet, packet.size, addr, 9))
@@ -72,6 +73,7 @@ class WebOsClient(private val context: Context) {
             init(null, arrayOf<TrustManager>(trustAll), SecureRandom())
         }
         return OkHttpClient.Builder()
+            .apply { LanNetwork.get(context)?.let { socketFactory(it.socketFactory) } }
             .sslSocketFactory(ssl.socketFactory, trustAll)
             .hostnameVerifier { _, _ -> true }
             .connectTimeout(8, TimeUnit.SECONDS)
@@ -161,6 +163,7 @@ class WebOsClient(private val context: Context) {
         private val http = buildClient()
         @Volatile private var ws: WebSocket? = null
         @Volatile private var state = CmdState.CONNECTING
+        @Volatile private var deadReason: String? = null
         private val readyLatch = CountDownLatch(1)
         private val pending = ConcurrentHashMap<String, Pair<AtomicReference<CmdReply>, CountDownLatch>>()
         private val seq = AtomicInteger(0)
@@ -222,6 +225,7 @@ class WebOsClient(private val context: Context) {
                         }
                     }
                     override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                        deadReason = t.message
                         state = CmdState.DEAD; this@CommandSession.ws = null
                         readyLatch.countDown()
                         failAll(CmdReply.Err(t.message ?: "Connection failed"))
@@ -243,6 +247,7 @@ class WebOsClient(private val context: Context) {
             readyLatch.await(8, TimeUnit.SECONDS)
             if (state != CmdState.READY) return when (state) {
                 CmdState.NEEDS_PAIRING -> CmdReply.NeedsPairing
+                CmdState.DEAD -> CmdReply.Err("Can't connect to TV" + (deadReason?.let { " — $it" } ?: ""))
                 else -> CmdReply.Err("Timeout — is the TV on and reachable?")
             }
             val id = "c${seq.incrementAndGet()}"

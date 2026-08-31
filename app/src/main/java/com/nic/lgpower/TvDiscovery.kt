@@ -1,6 +1,8 @@
 package com.nic.lgpower
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import android.net.wifi.WifiManager
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -18,21 +20,22 @@ import java.util.concurrent.TimeUnit
 
 object TvDiscovery {
 
-    private const val SSDP_ADDR = "239.255.255.255"
+    private const val SSDP_ADDR = "239.255.255.250"
     private const val SSDP_PORT = 1900
     private const val WEBOS_PORT = 3001
     private const val SCAN_MS   = 3000L
 
     private fun ssdpSearch(st: String) =
-        "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.255:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: $st\r\n\r\n"
+        "M-SEARCH * HTTP/1.1\r\nHOST: $SSDP_ADDR:$SSDP_PORT\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: $st\r\n\r\n"
 
     /** Blocking — call from a background thread. Returns deduplicated IPs. */
     fun discover(context: Context): List<String> {
         val results = Collections.synchronizedSet(LinkedHashSet<String>())
         val latch   = CountDownLatch(2)
+        val network = LanNetwork.get(context)
 
-        Thread { ssdpScan(context, results); latch.countDown() }.start()
-        Thread { portScan(results);          latch.countDown() }.start()
+        Thread { ssdpScan(context, network, results); latch.countDown() }.start()
+        Thread { portScan(context, network, results); latch.countDown() }.start()
 
         latch.await(SCAN_MS + 1000, TimeUnit.MILLISECONDS)
         return results.toList()
@@ -40,11 +43,12 @@ object TvDiscovery {
 
     // ── SSDP ──────────────────────────────────────────────────────────────────
 
-    private fun ssdpScan(context: Context, out: MutableSet<String>) {
+    private fun ssdpScan(context: Context, network: Network?, out: MutableSet<String>) {
         val wm   = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val lock = wm.createMulticastLock("lg_power_ssdp").also { it.acquire() }
         try {
             val socket = DatagramSocket().apply { soTimeout = 500 }
+            network?.bindSocket(socket)
             val addr   = InetAddress.getByName(SSDP_ADDR)
             listOf(
                 ssdpSearch("ssdp:all"),
@@ -82,8 +86,8 @@ object TvDiscovery {
     // Scan every host on the local /24 for port 3001 (WebOS WSS port).
     // With 50 threads and 300ms timeout this takes ~2s for 254 hosts.
 
-    private fun portScan(out: MutableSet<String>) {
-        val local = getLocalIp() ?: return
+    private fun portScan(context: Context, network: Network?, out: MutableSet<String>) {
+        val local = getLocalIp(context, network) ?: return
         val base  = local.address  // 4 bytes, e.g. [192, 168, 1, x]
 
         val executor = Executors.newFixedThreadPool(50)
@@ -93,7 +97,8 @@ object TvDiscovery {
             val hostBytes = byteArrayOf(base[0], base[1], base[2], i.toByte())
             executor.submit {
                 try {
-                    Socket().use { it.connect(InetSocketAddress(InetAddress.getByAddress(hostBytes), WEBOS_PORT), 300) }
+                    val socket = network?.socketFactory?.createSocket() ?: Socket()
+                    socket.use { it.connect(InetSocketAddress(InetAddress.getByAddress(hostBytes), WEBOS_PORT), 300) }
                     out.add(hostBytes.joinToString(".") { b -> (b.toInt() and 0xFF).toString() })
                 } catch (_: Exception) {
                 } finally {
@@ -106,10 +111,21 @@ object TvDiscovery {
         executor.shutdownNow()
     }
 
-    private fun getLocalIp(): Inet4Address? =
-        NetworkInterface.getNetworkInterfaces()?.asSequence()
+    private fun getLocalIp(context: Context, network: Network?): Inet4Address? {
+        if (network != null) {
+            val cm = context.applicationContext
+                .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            cm.getLinkProperties(network)?.linkAddresses
+                ?.map { it.address }
+                ?.filterIsInstance<Inet4Address>()
+                ?.firstOrNull()
+                ?.let { return it }
+        }
+        // Fallback: first non-loopback interface (can be cellular — LAN network preferred above)
+        return NetworkInterface.getNetworkInterfaces()?.asSequence()
             ?.filter { it.isUp && !it.isLoopback }
             ?.flatMap { it.inetAddresses.asSequence() }
             ?.filterIsInstance<Inet4Address>()
             ?.firstOrNull()
+    }
 }
