@@ -145,6 +145,24 @@
                     android:layout_width="36dp"
                     android:layout_height="36dp" />
 
+                <Button
+                    android:id="@+id/btn_pairing_retry"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="18dp"
+                    android:text="Try again"
+                    android:textAllCaps="false"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/btn_pairing_search"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="10dp"
+                    android:text="Search again"
+                    android:textAllCaps="false"
+                    android:visibility="gone" />
+
             </LinearLayout>
 
         </LinearLayout>
