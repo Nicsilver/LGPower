@@ -42,6 +42,12 @@
             android:exported="false"
             android:label="Setup" />
 
+        <!-- IR service remote (factory menus) -->
+        <activity
+            android:name=".ServiceRemoteActivity"
+            android:exported="false"
+            android:label="Service Remote" />
+
         <!-- Custom theme editor -->
         <activity
             android:name=".ThemeEditorActivity"
