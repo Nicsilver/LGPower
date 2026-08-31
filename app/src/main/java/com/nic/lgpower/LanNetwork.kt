@@ -15,14 +15,17 @@ import android.net.NetworkCapabilities
 object LanNetwork {
 
     @Suppress("DEPRECATION") // allNetworks: fine for a one-shot lookup, no callback lifecycle needed
-    fun get(context: Context): Network? {
+    fun get(context: Context): Network? = try {
         val cm = context.applicationContext
             .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        return cm.allNetworks.firstOrNull { n ->
+        cm.allNetworks.firstOrNull { n ->
             cm.getNetworkCapabilities(n)?.let {
                 it.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
                     it.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
             } == true
         }
+    } catch (_: Exception) {
+        // Null falls back to unbound sockets (pre-bind behavior) — degraded, never fatal
+        null
     }
 }

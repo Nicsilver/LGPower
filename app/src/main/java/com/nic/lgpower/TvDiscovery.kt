@@ -49,22 +49,23 @@ object TvDiscovery {
         try {
             val socket = DatagramSocket().apply { soTimeout = 500 }
             network?.bindSocket(socket)
-            val addr   = InetAddress.getByName(SSDP_ADDR)
-            listOf(
-                ssdpSearch("ssdp:all"),
-                ssdpSearch("urn:lge-com:service:webos-second-screen:1"),
-                ssdpSearch("urn:dial-multiscreen-org:service:dial:1"),
-            ).forEach { msg ->
-                val data = msg.toByteArray()
+            val addr = InetAddress.getByName(SSDP_ADDR)
+            // Ask only for the webOS service — ssdp:all/DIAL make every UPnP device
+            // on the network respond (PCs, routers, phones). Sent twice: UDP.
+            repeat(2) {
+                val data = ssdpSearch("urn:lge-com:service:webos-second-screen:1").toByteArray()
                 socket.send(DatagramPacket(data, data.size, addr, SSDP_PORT))
             }
             val buf      = ByteArray(2048)
             val deadline = System.currentTimeMillis() + SCAN_MS
+            val checked  = HashSet<String>()
             while (System.currentTimeMillis() < deadline) {
                 try {
                     val pkt = DatagramPacket(buf, buf.size)
                     socket.receive(pkt)
-                    extractIp(String(pkt.data, 0, pkt.length))?.let { out.add(it) }
+                    extractIp(String(pkt.data, 0, pkt.length))
+                        ?.takeIf { checked.add(it) && isWebOsTv(it, network) }
+                        ?.let { out.add(it) }
                 } catch (_: SocketTimeoutException) { }
             }
             socket.close()
@@ -72,6 +73,15 @@ object TvDiscovery {
         } finally {
             lock.release()
         }
+    }
+
+    // A live SSAP port is what separates a webOS TV from any other UPnP responder
+    private fun isWebOsTv(ip: String, network: Network?): Boolean = try {
+        val socket = network?.socketFactory?.createSocket() ?: Socket()
+        socket.use { it.connect(InetSocketAddress(ip, WEBOS_PORT), 300) }
+        true
+    } catch (_: Exception) {
+        false
     }
 
     private fun extractIp(response: String): String? {
