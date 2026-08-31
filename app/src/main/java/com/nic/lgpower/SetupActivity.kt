@@ -15,6 +15,8 @@ class SetupActivity : AppCompatActivity() {
 
     private val client by lazy { WebOsClient(this) }
     private var stopPairing: (() -> Unit)? = null
+    private val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var pairingTimeout: Runnable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,6 +28,7 @@ class SetupActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         stopPairing?.invoke()
+        pairingTimeout?.let { timeoutHandler.removeCallbacks(it) }
     }
 
     // ── Discovery ─────────────────────────────────────────────────────────────
@@ -120,12 +123,24 @@ class SetupActivity : AppCompatActivity() {
 
     private fun selectTv(ip: String) {
         showPairingScreen(ip, connecting = true)
+        // If the TV never answers the registration (off, unreachable, or webOS
+        // rejecting the handshake), fail visibly instead of spinning forever
+        pairingTimeout?.let { timeoutHandler.removeCallbacks(it) }
+        pairingTimeout = Runnable {
+            stopPairing?.invoke()
+            stopPairing = null
+            showPairingFailed(ip)
+        }.also { timeoutHandler.postDelayed(it, 30_000) }
+
         stopPairing = client.watchForPairing(
             ip = ip,
             onPromptShown = {
+                // Prompt is on the TV screen — the user may take a while, stop the clock
+                pairingTimeout?.let { timeoutHandler.removeCallbacks(it) }
                 runOnUiThread { showPairingScreen(ip, connecting = false) }
             },
             onPaired = {
+                pairingTimeout?.let { timeoutHandler.removeCallbacks(it) }
                 client.saveTvIp(ip)
                 // Grab MAC in background while success screen shows
                 Thread {
@@ -135,6 +150,23 @@ class SetupActivity : AppCompatActivity() {
                 runOnUiThread { showSuccess(ip) }
             }
         )
+    }
+
+    private fun showPairingFailed(ip: String) {
+        val theme = ThemeManager.getActiveTheme(this)
+        findViewById<TextView>(R.id.pairing_message).apply {
+            text = "Can't reach the TV.\nMake sure it's on, restart it,\nthen try again."
+            setTextColor(theme.secondaryText)
+        }
+        findViewById<ProgressBar>(R.id.pairing_spinner).visibility = View.GONE
+        val retry  = findViewById<android.widget.Button>(R.id.btn_pairing_retry)
+        val search = findViewById<android.widget.Button>(R.id.btn_pairing_search)
+        applyButton(retry, theme, accent = true)
+        applyButton(search, theme, accent = false)
+        retry.visibility = View.VISIBLE
+        search.visibility = View.VISIBLE
+        retry.setOnClickListener { selectTv(ip) }
+        search.setOnClickListener { startDiscovery() }
     }
 
     private fun showPairingScreen(ip: String, connecting: Boolean) {
@@ -157,6 +189,9 @@ class SetupActivity : AppCompatActivity() {
                    else "Accept the pairing prompt\non your TV to continue"
             setTextColor(theme.secondaryText)
         }
+        findViewById<ProgressBar>(R.id.pairing_spinner).visibility = View.VISIBLE
+        findViewById<View>(R.id.btn_pairing_retry).visibility = View.GONE
+        findViewById<View>(R.id.btn_pairing_search).visibility = View.GONE
     }
 
     private fun showSuccess(ip: String) {
