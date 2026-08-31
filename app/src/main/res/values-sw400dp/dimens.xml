@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="main_pad_h">24dp</dimen>
+    <dimen name="pill_width">54dp</dimen>
+    <dimen name="dpad_size">230dp</dimen>
+    <dimen name="ok_size">96dp</dimen>
+    <dimen name="pill_gap">10dp</dimen>
+    <dimen name="pill_mirror">64dp</dimen>
+</resources>

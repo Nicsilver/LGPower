@@ -749,7 +749,7 @@ class MainActivity : AppCompatActivity() {
     ) {
         val pill = findViewById<View>(pillId)
         val bar  = findViewById<View>(barId)
-        val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
+        val pillHeightPx = resources.getDimensionPixelSize(R.dimen.dpad_size)
         val dragThreshold = 10 * resources.displayMetrics.density
         var startY = 0f
         var isDragging = false
@@ -869,7 +869,7 @@ class MainActivity : AppCompatActivity() {
         appPrefs.edit().putInt("last_volume", level).putBoolean("last_muted", muted).apply()
         findViewById<TextView>(R.id.volume_label)?.text = level.toString()
         val bar = findViewById<View>(R.id.volume_bar) ?: return
-        val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
+        val pillHeightPx = resources.getDimensionPixelSize(R.dimen.dpad_size)
         val targetHeight = (pillHeightPx * level / 100f).toInt()
         bar.layoutParams = bar.layoutParams.also { it.height = targetHeight }
         bar.requestLayout()
@@ -910,7 +910,7 @@ class MainActivity : AppCompatActivity() {
         if (appPrefs.getBoolean("right_pill_channel", false)) return
         findViewById<TextView>(R.id.brightness_label)?.text = level.toString()
         val bar = findViewById<View>(R.id.brightness_bar) ?: return
-        val pillHeightPx = (230 * resources.displayMetrics.density).toInt()
+        val pillHeightPx = resources.getDimensionPixelSize(R.dimen.dpad_size)
         val targetHeight = (pillHeightPx * level / 100f).toInt()
         bar.layoutParams = bar.layoutParams.also { it.height = targetHeight }
         bar.requestLayout()

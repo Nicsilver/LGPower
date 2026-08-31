@@ -11,8 +11,8 @@ android {
         applicationId "com.nic.lgpower"
         minSdk 26
         targetSdk 36
-        versionCode 28
-        versionName "1.28.0"
+        versionCode 29
+        versionName "1.28.1"
     }
 
     signingConfigs {
