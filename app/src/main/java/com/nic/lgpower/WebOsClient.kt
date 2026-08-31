@@ -845,6 +845,6 @@ class WebOsClient(private val context: Context) {
 
     private fun defaultShortcuts() = listOf(
         TvApp("youtube.leanback.v4", "YouTube"),
-        TvApp("io.strem.tv", "Stremio")
+        TvApp("netflix", "Netflix")
     )
 }
