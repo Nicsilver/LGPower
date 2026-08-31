@@ -19,7 +19,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center_horizontal"
-        android:paddingHorizontal="24dp"
+        android:paddingHorizontal="@dimen/main_pad_h"
         android:paddingTop="16dp"
         android:paddingBottom="48dp">
 
@@ -161,7 +161,7 @@
                 android:layout_marginBottom="-8dp">
 
                 <!-- Offset to align with left edge of d-pad: vol pill (54) + space (10) -->
-                <View android:layout_width="64dp" android:layout_height="1dp" />
+                <View android:layout_width="@dimen/pill_mirror" android:layout_height="1dp" />
 
                 <LinearLayout
                     android:layout_width="wrap_content"
@@ -234,8 +234,8 @@
                         android:layout_marginTop="4dp" />
                 </LinearLayout>
 
-                <!-- Mirror the left offset: space (10) + brightness pill (54) = 64dp -->
-                <View android:layout_width="64dp" android:layout_height="1dp" />
+                <!-- Mirror the left offset: pill_gap + pill_width = pill_mirror -->
+                <View android:layout_width="@dimen/pill_mirror" android:layout_height="1dp" />
 
             </LinearLayout>
 
@@ -248,7 +248,7 @@
 
                 <!-- Volume pill + label -->
                 <LinearLayout
-                    android:layout_width="54dp"
+                    android:layout_width="@dimen/pill_width"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:gravity="center_horizontal">
@@ -267,8 +267,8 @@
                     <FrameLayout
                         android:id="@+id/volume_pill"
                         android:tag="pill"
-                        android:layout_width="54dp"
-                        android:layout_height="230dp"
+                        android:layout_width="@dimen/pill_width"
+                        android:layout_height="@dimen/dpad_size"
                         android:background="@drawable/bg_pill_dark"
                         android:clipToOutline="true"
                         android:clickable="true"
@@ -324,11 +324,11 @@
 
                 </LinearLayout>
 
-                <Space android:layout_width="10dp" android:layout_height="1dp" />
+                <Space android:layout_width="@dimen/pill_gap" android:layout_height="1dp" />
 
                 <FrameLayout
-                    android:layout_width="230dp"
-                    android:layout_height="230dp">
+                    android:layout_width="@dimen/dpad_size"
+                    android:layout_height="@dimen/dpad_size">
 
                     <View
                         android:layout_width="match_parent"
@@ -381,8 +381,8 @@
 
                     <Button
                         android:id="@+id/btn_ok"
-                        android:layout_width="96dp"
-                        android:layout_height="96dp"
+                        android:layout_width="@dimen/ok_size"
+                        android:layout_height="@dimen/ok_size"
                         android:layout_gravity="center"
                         android:background="@drawable/bg_circle_ok"
                         android:text="OK"
@@ -392,11 +392,11 @@
 
                 </FrameLayout>
 
-                <Space android:layout_width="10dp" android:layout_height="1dp" />
+                <Space android:layout_width="@dimen/pill_gap" android:layout_height="1dp" />
 
                 <!-- Brightness pill + label -->
                 <LinearLayout
-                    android:layout_width="54dp"
+                    android:layout_width="@dimen/pill_width"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:gravity="center_horizontal">
@@ -415,8 +415,8 @@
                     <FrameLayout
                         android:id="@+id/brightness_pill"
                         android:tag="pill"
-                        android:layout_width="54dp"
-                        android:layout_height="230dp"
+                        android:layout_width="@dimen/pill_width"
+                        android:layout_height="@dimen/dpad_size"
                         android:background="@drawable/bg_pill_dark"
                         android:clipToOutline="true"
                         android:clickable="true"
@@ -482,7 +482,7 @@
                 android:layout_marginTop="-8dp">
 
                 <!-- Offset to align with left edge of d-pad: vol pill (54) + space (10) -->
-                <View android:layout_width="64dp" android:layout_height="1dp" />
+                <View android:layout_width="@dimen/pill_mirror" android:layout_height="1dp" />
 
                 <LinearLayout
                     android:layout_width="wrap_content"
@@ -531,8 +531,8 @@
                         android:layout_marginTop="4dp" />
                 </LinearLayout>
 
-                <!-- Mirror the left offset: space (10) + brightness pill (54) = 64dp -->
-                <View android:layout_width="64dp" android:layout_height="1dp" />
+                <!-- Mirror the left offset: pill_gap + pill_width = pill_mirror -->
+                <View android:layout_width="@dimen/pill_mirror" android:layout_height="1dp" />
 
             </LinearLayout>
 

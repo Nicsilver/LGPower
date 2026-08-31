@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Compact defaults so the pills + d-pad row fits 360dp screens
+     (common Samsungs); values-sw400dp restores the full sizes. -->
+<resources>
+    <dimen name="main_pad_h">20dp</dimen>
+    <dimen name="pill_width">48dp</dimen>
+    <dimen name="dpad_size">200dp</dimen>
+    <dimen name="ok_size">84dp</dimen>
+    <dimen name="pill_gap">8dp</dimen>
+    <!-- pill_gap + pill_width -->
+    <dimen name="pill_mirror">56dp</dimen>
+</resources>
