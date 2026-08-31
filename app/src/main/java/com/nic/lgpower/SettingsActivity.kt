@@ -116,6 +116,10 @@ class SettingsActivity : AppCompatActivity() {
             tvShortcutsSummary.text = "No shortcuts configured — load apps from TV to pick some"
         }
 
+        findViewById<View>(R.id.row_service_remote).setOnClickListener {
+            startActivity(android.content.Intent(this, ServiceRemoteActivity::class.java))
+        }
+
         // Theme picker
         refreshThemeLabel()
         findViewById<View>(R.id.row_theme).setOnClickListener { openThemePicker() }

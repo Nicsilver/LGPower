@@ -247,11 +247,11 @@ class WebOsClient(private val context: Context) {
             readyLatch.await(8, TimeUnit.SECONDS)
             if (state != CmdState.READY) return when (state) {
                 CmdState.NEEDS_PAIRING -> CmdReply.NeedsPairing
-                CmdState.DEAD -> CmdReply.Err("Can't connect to TV" + (deadReason?.let { " — $it" } ?: ""))
-                else -> CmdReply.Err("Timeout — is the TV on and reachable?")
+                CmdState.DEAD -> CmdReply.Err("Can't connect to TV" + (deadReason?.let { " ($it)" } ?: ""))
+                else -> CmdReply.Err("Timeout. Is the TV on and reachable?")
             }
             val id = "c${seq.incrementAndGet()}"
-            val resultRef = AtomicReference<CmdReply>(CmdReply.Err("Timeout — is the TV on and reachable?"))
+            val resultRef = AtomicReference<CmdReply>(CmdReply.Err("Timeout. Is the TV on and reachable?"))
             val latch = CountDownLatch(1)
             pending[id] = Pair(resultRef, latch)
             val currentWs = ws
@@ -397,7 +397,7 @@ class WebOsClient(private val context: Context) {
             Result.Success
         } else {
             synchronized(this) { if (sharedPointerSession === session) sharedPointerSession = null }
-            Result.Error("Timeout — is the TV on and reachable?")
+            Result.Error("Timeout. Is the TV on and reachable?")
         }
     }
 
