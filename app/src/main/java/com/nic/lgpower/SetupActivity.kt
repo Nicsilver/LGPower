@@ -119,13 +119,14 @@ class SetupActivity : AppCompatActivity() {
     // ── Pairing ───────────────────────────────────────────────────────────────
 
     private fun selectTv(ip: String) {
-        client.saveTvIp(ip)
         showPairingScreen(ip, connecting = true)
         stopPairing = client.watchForPairing(
+            ip = ip,
             onPromptShown = {
                 runOnUiThread { showPairingScreen(ip, connecting = false) }
             },
             onPaired = {
+                client.saveTvIp(ip)
                 // Grab MAC in background while success screen shows
                 Thread {
                     val mac = client.getMacFromDevice()

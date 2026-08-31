@@ -687,6 +687,7 @@ class WebOsClient(private val context: Context) {
      * Returns a stop function; call it from onDestroy to cancel.
      */
     fun watchForPairing(
+        ip: String,
         onPromptShown: () -> Unit,
         onPaired: () -> Unit
     ): () -> Unit {
@@ -696,7 +697,9 @@ class WebOsClient(private val context: Context) {
             fun running() = flags[0] == 1
             fun promptShown() = flags[1] == 1
             while (running()) {
-                val req = buildWsRequest() ?: break
+                // Pairs against the candidate IP directly — it's only persisted once
+                // pairing succeeds, so abandoning setup doesn't lock in a TV
+                val req = Request.Builder().url("wss://$ip:$TV_PORT").build()
                 val savedKey = prefs.getString("client_key", null)
                 val http = buildClient()
                 val latch = CountDownLatch(1)
