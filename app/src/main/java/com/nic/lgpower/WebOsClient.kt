@@ -80,6 +80,10 @@ class WebOsClient(private val context: Context) {
             .build()
     }
 
+    // webOS 25/26 firmware silently drops registrations carrying the legacy
+    // com.lge.test signed manifest (no prompt, no reply). A flat merged
+    // permissions list without signatures pairs on both old and new firmware —
+    // mirrors aiowebostv's webOS 26 handshake fix (home-assistant-libs #719).
     private fun buildRegistration(clientKey: String?) = JSONObject().apply {
         put("id", "reg_0")
         put("type", "register")
@@ -91,53 +95,25 @@ class WebOsClient(private val context: Context) {
                 put("manifestVersion", 1)
                 put("appVersion", "1.1")
                 put("permissions", JSONArray().apply {
-                    put("LAUNCH"); put("LAUNCH_WEBAPP"); put("APP_TO_APP"); put("CLOSE")
-                    put("TEST_OPEN"); put("TEST_PROTECTED")
+                    put("APP_TO_APP"); put("CLOSE")
                     put("CONTROL_AUDIO"); put("CONTROL_DISPLAY")
-                    put("CONTROL_INPUT_JOYSTICK"); put("CONTROL_INPUT_MEDIA_RECORDING")
-                    put("CONTROL_INPUT_MEDIA_PLAYBACK"); put("CONTROL_INPUT_TV")
+                    put("CONTROL_INPUT_JOYSTICK"); put("CONTROL_INPUT_MEDIA_PLAYBACK")
+                    put("CONTROL_INPUT_MEDIA_RECORDING"); put("CONTROL_INPUT_TEXT")
+                    put("CONTROL_INPUT_TV"); put("CONTROL_MOUSE_AND_KEYBOARD")
                     put("CONTROL_POWER"); put("CONTROL_TV_SCREEN")
-                    put("READ_APP_STATUS"); put("READ_CURRENT_CHANNEL")
-                    put("READ_INPUT_DEVICE_LIST"); put("READ_NETWORK_STATE")
-                    put("READ_RUNNING_APPS"); put("READ_TV_CHANNEL_LIST")
-                    put("WRITE_NOTIFICATION_TOAST"); put("READ_POWER_STATE")
-                    put("READ_COUNTRY_INFO"); put("CONTROL_INPUT_TEXT")
-                    put("CONTROL_MOUSE_AND_KEYBOARD"); put("READ_INSTALLED_APPS")
-                    put("READ_SETTINGS")
-                })
-                put("signatures", JSONArray().put(JSONObject().apply {
-                    put("signatureVersion", 1)
-                    put("signature",
-                        "eyJhbGdvcml0aG0iOiJSU0EtU0hBMjU2Iiwia2V5SWQiOiJ0ZXN0LXNpZ25pbmct" +
-                        "Y2VydCIsInNpZ25hdHVyZVZlcnNpb24iOjF9.hrVRgjCwXVvE2OOSpDZ58hR+59aF" +
-                        "NwYDyjQgKk3auukd7pcegmE2CzPCa0bJ0ZsRAcKkCTJrWo5iDzNhMBWRyaMOv5zWS" +
-                        "rthlf7G128qvIlpMT0YNY+n/FaOHE73uLrS/g7swl3/qH/BGFG2Hu4RlL48eb3lLK" +
-                        "qTt2xKHdCs6Cd4RMfJPYnzgvI4BNrFUKsjkcu+WD4OO2A27Pq1n50cMchmcaXadJh" +
-                        "GrOqH5YmHdOCj5NSHzJYrsW0HPlpuAx/ECMeIZYDh6RMqaFM2DXzdKX9NmmyqzJ3o" +
-                        "/0lkk/N97gfVRLW5hA29yeAwaCViZNCP8iC9aO0q9fQojoa7NQnAtw=="
-                    )
-                }))
-                put("signed", JSONObject().apply {
-                    put("appId", "com.lge.test")
-                    put("created", "20140509")
-                    put("vendorId", "com.lge")
-                    put("serial", "2f930e2d2cfe083771f68e4fe7bb07")
-                    put("localizedAppNames", JSONObject().apply {
-                        put("", "LG Remote App")
-                        put("ko-KR", "리모컨 앱")
-                        put("zxx-XX", "ЛГ Rэмotэ AПП")
-                    })
-                    put("localizedVendorNames", JSONObject().put("", "LG Electronics"))
-                    put("permissions", JSONArray().apply {
-                        put("TEST_SECURE"); put("CONTROL_INPUT_TEXT")
-                        put("CONTROL_MOUSE_AND_KEYBOARD"); put("READ_INSTALLED_APPS")
-                        put("READ_LGE_SDX"); put("READ_NOTIFICATIONS"); put("SEARCH")
-                        put("WRITE_SETTINGS"); put("WRITE_NOTIFICATION_ALERT")
-                        put("CONTROL_POWER"); put("READ_CURRENT_CHANNEL")
-                        put("READ_RUNNING_APPS"); put("READ_UPDATE_INFO")
-                        put("UPDATE_FROM_REMOTE_APP"); put("READ_LGE_TV_INPUT_EVENTS")
-                        put("READ_TV_CURRENT_TIME")
-                    })
+                    put("LAUNCH"); put("LAUNCH_WEBAPP")
+                    put("READ_APP_STATUS"); put("READ_COUNTRY_INFO")
+                    put("READ_CURRENT_CHANNEL"); put("READ_INPUT_DEVICE_LIST")
+                    put("READ_INSTALLED_APPS"); put("READ_LGE_SDX")
+                    put("READ_LGE_TV_INPUT_EVENTS"); put("READ_NETWORK_STATE")
+                    put("READ_NOTIFICATIONS"); put("READ_POWER_STATE")
+                    put("READ_RUNNING_APPS"); put("READ_SETTINGS")
+                    put("READ_TV_CHANNEL_LIST"); put("READ_TV_CURRENT_TIME")
+                    put("READ_UPDATE_INFO"); put("SEARCH")
+                    put("TEST_OPEN"); put("TEST_PROTECTED"); put("TEST_SECURE")
+                    put("UPDATE_FROM_REMOTE_APP")
+                    put("WRITE_NOTIFICATION_ALERT"); put("WRITE_NOTIFICATION_TOAST")
+                    put("WRITE_SETTINGS")
                 })
             })
         })
