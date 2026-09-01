@@ -57,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private var isLocked = false
     private var colorRowOpen = false
     private var colorRowJustDismissed = false
+    private var numpadOpen = false
     private val lockHandler = Handler(Looper.getMainLooper())
     private val moveThresholdPx = 12f
     private var lockAnimator: ValueAnimator? = null
@@ -240,6 +241,36 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_color_green).setOnClickListener  { sendCommand { client.pressKey("GREEN") } }
         findViewById<View>(R.id.btn_color_yellow).setOnClickListener { sendCommand { client.pressKey("YELLOW") } }
         findViewById<View>(R.id.btn_color_blue).setOnClickListener   { sendCommand { client.pressKey("BLUE") } }
+
+        // Numpad mode — full-screen swap with the normal remote
+        findViewById<View>(R.id.btn_numpad).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            setNumpadMode(true)
+        }
+        findViewById<View>(R.id.btn_numpad_close).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            setNumpadMode(false)
+        }
+        listOf(R.id.btn_num_0, R.id.btn_num_1, R.id.btn_num_2, R.id.btn_num_3,
+               R.id.btn_num_4, R.id.btn_num_5, R.id.btn_num_6, R.id.btn_num_7,
+               R.id.btn_num_8, R.id.btn_num_9)
+            .forEachIndexed { digit, id ->
+                findViewById<View>(id).setOnClickListener {
+                    echoReadout("$digit")
+                    sendCommand { client.pressKey("$digit") }
+                }
+            }
+        findViewById<View>(R.id.btn_num_list).setOnClickListener { sendCommand { client.pressKey("LIST") } }
+        findViewById<View>(R.id.btn_num_dash).setOnClickListener {
+            echoReadout("–")
+            sendCommand { client.pressKey("DASH") }
+        }
+        findViewById<View>(R.id.btn_np_ch_up).setOnClickListener   { sendCommand { client.channelUp() } }
+        findViewById<View>(R.id.btn_np_ch_down).setOnClickListener { sendCommand { client.channelDown() } }
+        findViewById<View>(R.id.btn_np_guide).setOnClickListener { sendCommand { client.pressKey("GUIDE") } }
+        findViewById<View>(R.id.btn_np_info).setOnClickListener  { sendCommand { client.pressKey("INFO") } }
+        findViewById<View>(R.id.btn_np_cc).setOnClickListener    { sendCommand { client.pressKey("CC") } }
+        findViewById<View>(R.id.btn_np_exit).setOnClickListener  { sendCommand { client.pressKey("EXIT") } }
 
         // App settings
         findViewById<View>(R.id.btn_app_settings).setOnClickListener {
@@ -586,6 +617,31 @@ class MainActivity : AppCompatActivity() {
             setColor(theme.dpadOkBg)
         }
         okBtn?.setTextColor(theme.primaryText)
+        // Numpad dialer: type colors and ghost-key fills derived from the theme so the
+        // chrome-less look holds on light themes too
+        val density = resources.displayMetrics.density
+        fun ghostKey() = GradientDrawable().apply {
+            cornerRadius = 18f * density
+            setColor((theme.primaryText and 0x00FFFFFF) or (0x0C shl 24))
+        }
+        findViewById<Button>(R.id.btn_numpad)?.setTextColor(theme.primaryText)
+        listOf(R.id.btn_num_0, R.id.btn_num_1, R.id.btn_num_2, R.id.btn_num_3,
+               R.id.btn_num_4, R.id.btn_num_5, R.id.btn_num_6, R.id.btn_num_7,
+               R.id.btn_num_8, R.id.btn_num_9, R.id.btn_num_dash,
+               R.id.btn_np_ch_up, R.id.btn_np_ch_down)
+            .forEach { id -> findViewById<Button>(id)?.apply {
+                setTextColor(theme.primaryText)
+                background = ghostKey()
+            } }
+        findViewById<Button>(R.id.btn_num_list)?.apply {
+            setTextColor(theme.secondaryText)
+            background = ghostKey()
+        }
+        listOf(R.id.btn_np_guide, R.id.btn_np_info, R.id.btn_np_cc, R.id.btn_np_exit)
+            .forEach { id -> findViewById<Button>(id)?.setTextColor(theme.secondaryText) }
+        findViewById<TextView>(R.id.tv_np_readout)?.setTextColor(
+            (theme.primaryText and 0x00FFFFFF) or (0x40 shl 24))
+        findViewById<android.widget.ImageButton>(R.id.btn_numpad_close)?.imageTintList = iconTint
         window.statusBarColor = theme.windowBg
         window.navigationBarColor = theme.windowBg
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -1083,8 +1139,35 @@ class MainActivity : AppCompatActivity() {
 
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
-        if (isLocked) exitTouchpadFn?.invoke()
-        else super.onBackPressed()
+        when {
+            isLocked   -> exitTouchpadFn?.invoke()
+            numpadOpen -> setNumpadMode(false)
+            else       -> super.onBackPressed()
+        }
+    }
+
+    private fun setNumpadMode(open: Boolean) {
+        numpadOpen = open
+        findViewById<View>(R.id.numpad_scroll).visibility = if (open) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.main_scroll).visibility   = if (open) View.GONE else View.VISIBLE
+    }
+
+    // Ghost readout: echo typed digits like the TV's own channel display, then fade out
+    private val readoutHandler = Handler(Looper.getMainLooper())
+
+    private fun echoReadout(s: String) {
+        val tv = findViewById<TextView>(R.id.tv_np_readout) ?: return
+        readoutHandler.removeCallbacksAndMessages(null)
+        tv.animate().cancel()
+        tv.alpha = 1f
+        val current = if (tv.text.length >= 4) "" else tv.text.toString()
+        tv.text = current + s
+        readoutHandler.postDelayed({
+            tv.animate().alpha(0f).setDuration(600).withEndAction {
+                tv.text = ""
+                tv.alpha = 1f
+            }.start()
+        }, 2000)
     }
 
     private fun showPicturePicker() {
