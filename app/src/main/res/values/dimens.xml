@@ -9,4 +9,8 @@
     <dimen name="pill_gap">8dp</dimen>
     <!-- pill_gap + pill_width -->
     <dimen name="pill_mirror">56dp</dimen>
+    <!-- (dpad_size - 3×52) / 2 -->
+    <dimen name="dpad_top_gap">22dp</dimen>
+    <!-- dpad_size - 2×52 -->
+    <dimen name="dpad_bottom_gap">96dp</dimen>
 </resources>

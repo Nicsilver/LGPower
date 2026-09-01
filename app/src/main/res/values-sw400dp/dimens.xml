@@ -6,4 +6,6 @@
     <dimen name="ok_size">96dp</dimen>
     <dimen name="pill_gap">10dp</dimen>
     <dimen name="pill_mirror">64dp</dimen>
+    <dimen name="dpad_top_gap">37dp</dimen>
+    <dimen name="dpad_bottom_gap">126dp</dimen>
 </resources>
