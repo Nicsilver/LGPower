@@ -13,11 +13,15 @@ import android.widget.TextView
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-/** Centered dialog listing [releases]; serves both the after-update popup and the full history. */
+/**
+ * Centered dialog listing [releases]; serves both the after-update popup and the full
+ * history. [markLatest] tags the first entry, which only makes sense in the full list.
+ */
 fun Activity.showReleaseNotesDialog(
     title: String,
     releases: List<ReleaseNotes.Release>,
     buttonLabel: String,
+    markLatest: Boolean = false,
     onDismiss: (() -> Unit)? = null
 ) {
     val theme = ThemeManager.getActiveTheme(this)
@@ -55,6 +59,10 @@ fun Activity.showReleaseNotesDialog(
     releases.forEachIndexed { i, release ->
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            // Centre the chip and date on the version number rather than its baseline;
+            // three text sizes on one baseline looked misaligned
+            isBaselineAligned = false
+            gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(2), if (i == 0) 0 else dp(18), dp(2), dp(8))
         }
         header.addView(TextView(this).apply {
@@ -64,17 +72,17 @@ fun Activity.showReleaseNotesDialog(
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(theme.primaryText)
         })
-        if (i == 0) header.addView(TextView(this).apply {
-            text = "LATEST"
-            textSize = 10f
-            letterSpacing = 0.08f
-            typeface = Typeface.DEFAULT_BOLD
+        if (markLatest && i == 0) header.addView(TextView(this).apply {
+            text = "Latest"
+            textSize = 12f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            includeFontPadding = false
             setTextColor(theme.btnAccentText)
             background = GradientDrawable().apply {
                 setColor(theme.btnAccentBg)
-                cornerRadius = 6 * d
+                cornerRadius = 999 * d
             }
-            setPadding(dp(7), dp(3), dp(7), dp(3))
+            setPadding(dp(9), dp(4), dp(9), dp(4))
             layoutParams = LinearLayout.LayoutParams(wrap, wrap).also { it.marginStart = dp(10) }
         })
         header.addView(TextView(this).apply {
