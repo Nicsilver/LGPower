@@ -28,13 +28,14 @@ fun Activity.showReleaseNotesDialog(
     val wrap = LinearLayout.LayoutParams.WRAP_CONTENT
     val dateFormat = DateTimeFormatter.ofPattern("d MMM yyyy")
 
-    // Nesting is inverted against the settings screen (surface card holding window-coloured
-    // groups) so the dialog reads as one raised panel on the dimmed remote in both themes
+    // Same nesting as the settings screen (window ground, surface groups). The panel is
+    // window-coloured like the dimmed remote behind it, so a hairline edge marks it out
     val root = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         background = GradientDrawable().apply {
-            setColor(theme.surfaceBg)
+            setColor(theme.windowBg)
             cornerRadius = 24 * d
+            setStroke(dp(1), theme.btnGhostBorder)
         }
         setPadding(dp(22), dp(24), dp(22), dp(20))
     }
@@ -88,7 +89,7 @@ fun Activity.showReleaseNotesDialog(
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
-                setColor(theme.windowBg)
+                setColor(theme.surfaceBg)
                 cornerRadius = 14 * d
             }
             clipToOutline = true
@@ -158,7 +159,7 @@ fun Activity.showReleaseNotesDialog(
         setLayout(metrics.widthPixels - dp(48), WindowManager.LayoutParams.WRAP_CONTENT)
         setGravity(Gravity.CENTER)
         addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-        setDimAmount(0.6f)
+        setDimAmount(0.7f)
     }
     if (onDismiss != null) dialog.setOnDismissListener { onDismiss() }
     dialog.show()
