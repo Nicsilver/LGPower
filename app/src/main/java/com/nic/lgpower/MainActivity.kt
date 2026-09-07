@@ -84,6 +84,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         // First launch: no TV configured — go through setup before showing the remote
         if (client.tvIp.isBlank()) {
+            // Fresh install: nothing is "new" to this user, so no what's-new on first open
+            appPrefs.edit().putInt("last_seen_version", BuildConfig.VERSION_CODE).apply()
             startActivity(android.content.Intent(this, SetupActivity::class.java))
             finish()
             return
@@ -92,6 +94,7 @@ class MainActivity : AppCompatActivity() {
         lastAppliedThemeId = ThemeManager.getActiveThemeId(this)
         applyTheme()
         applyPressAnimations(findViewById(android.R.id.content))
+        maybeShowWhatsNew()
 
         setStatus(TvStatus.CHECKING)
 
@@ -728,6 +731,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val appPrefs by lazy { getSharedPreferences("webos", MODE_PRIVATE) }
+
+    // Once per update, covering every release since the app was last opened. No marker
+    // means the user updated from before release notes existed, so only the current
+    // release is shown. The marker is written on dismiss so a killed app shows it again.
+    private fun maybeShowWhatsNew() {
+        val lastSeen = appPrefs.getInt("last_seen_version", -1)
+        if (lastSeen >= BuildConfig.VERSION_CODE) return
+        val releases = if (lastSeen < 0) ReleaseNotes.all.take(1) else ReleaseNotes.since(lastSeen)
+        if (releases.isEmpty()) return
+        showReleaseNotesSheet("What's new", releases, "Got it") {
+            appPrefs.edit().putInt("last_seen_version", BuildConfig.VERSION_CODE).apply()
+        }
+    }
 
     private fun configureRightPill() {
         if (appPrefs.getBoolean("right_pill_channel", false)) setupChannelPill()

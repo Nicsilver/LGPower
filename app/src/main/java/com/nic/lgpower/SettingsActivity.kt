@@ -120,6 +120,11 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(android.content.Intent(this, ServiceRemoteActivity::class.java))
         }
 
+        findViewById<TextView>(R.id.tv_app_version).text = BuildConfig.VERSION_NAME
+        findViewById<View>(R.id.row_release_notes).setOnClickListener {
+            showReleaseNotesSheet("Release notes", ReleaseNotes.all, "Close")
+        }
+
         // Theme picker
         refreshThemeLabel()
         findViewById<View>(R.id.row_theme).setOnClickListener { openThemePicker() }
