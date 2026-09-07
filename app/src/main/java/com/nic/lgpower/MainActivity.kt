@@ -21,8 +21,6 @@ import android.view.animation.LinearInterpolator
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.content.res.AppCompatResources
-import java.net.InetSocketAddress
-import java.net.Socket
 import android.content.Context
 import android.graphics.drawable.GradientDrawable
 import android.widget.Button
@@ -32,6 +30,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
@@ -41,10 +40,10 @@ class MainActivity : AppCompatActivity() {
     private var discovering = false
     private var lastAppliedThemeId = ""
     private val statusHandler = Handler(Looper.getMainLooper())
-    private val statusInterval = 5_000L
-    private lateinit var statusRunnable: Runnable
+    private var stopWatching: (() -> Unit)? = null
+    private val levelsInterval = 5_000L
 
-    private enum class TvStatus { CHECKING, CONNECTED, SEARCHING, DISCONNECTED }
+    private enum class TvStatus { CHECKING, CONNECTED, SEARCHING, PAIRING, DISCONNECTED }
     @Volatile private var tvConnected = false
     @Volatile private var wakeHomeGen = 0
     @Volatile private var currentBrightness: Int? = null
@@ -65,10 +64,18 @@ class MainActivity : AppCompatActivity() {
     private var moveAccumulator = 0f
     private val hapticMovePx = 32f
     private var brightnessDragLevel = 0
+    private var brightnessSentLevel = -1
+    private val brightnessSending = AtomicBoolean(false)
     private var brightnessSendRunnable: Runnable? = null
+    // One write in flight at a time, latest level wins: a backlight write is two round
+    // trips (createAlert + closeAlert) and a drag produces dozens of levels per second
     private val brightnessSendLoop: Runnable = object : Runnable {
         override fun run() {
-            Thread { client.setBrightness(brightnessDragLevel) }.start()
+            if (brightnessDragLevel != brightnessSentLevel && brightnessSending.compareAndSet(false, true)) {
+                val level = brightnessDragLevel
+                brightnessSentLevel = level
+                Thread { try { client.setBrightness(level) } finally { brightnessSending.set(false) } }.start()
+            }
             statusHandler.postDelayed(this, 50)
         }
     }
@@ -86,10 +93,7 @@ class MainActivity : AppCompatActivity() {
         applyTheme()
         applyPressAnimations(findViewById(android.R.id.content))
 
-        statusRunnable = Runnable {
-            checkStatus()
-            statusHandler.postDelayed(statusRunnable, statusInterval)
-        }
+        setStatus(TvStatus.CHECKING)
 
         // Override recents/task switcher icon with transparent-background bitmap
         val iconDrawable = AppCompatResources.getDrawable(this, R.drawable.ic_launcher_foreground)
@@ -101,7 +105,7 @@ class MainActivity : AppCompatActivity() {
         @Suppress("DEPRECATION")
         setTaskDescription(ActivityManager.TaskDescription(getString(R.string.app_name), iconBmp, Color.TRANSPARENT))
 
-        // Power — tap = WiFi (probe then turn off or WoL+retry); long-press = IR blaster
+        // Power — tap = WiFi (turn off, or WoL + retry until webOS answers); long-press = IR blaster
         findViewById<View>(R.id.btn_power).setOnLongClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             val irManager = getSystemService(CONSUMER_IR_SERVICE) as? ConsumerIrManager
@@ -113,25 +117,8 @@ class MainActivity : AppCompatActivity() {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             val gen = ++wakeHomeGen
             Thread {
-                val tvOn = runCatching {
-                    Socket().use { it.connect(InetSocketAddress(client.tvIp, 3001), 500) }
-                    true
-                }.getOrElse { false }
-                if (tvOn) {
-                    client.turnOff()
-                } else {
-                    client.sendWakeOnLan()
-                    repeat(15) {
-                        if (wakeHomeGen != gen) return@Thread
-                        Thread {
-                            if (wakeHomeGen == gen && client.goHome() is WebOsClient.Result.Success)
-                                ++wakeHomeGen
-                        }.start()
-                        Thread.sleep(1_000)
-                    }
-                }
+                if (tvIsOn()) client.turnOff() else wakeTv(gen) { client.goHome() }
             }.start()
-            statusHandler.postDelayed({ checkStatus() }, 2500)
         }
 
         // Screen Off — WiFi
@@ -158,10 +145,16 @@ class MainActivity : AppCompatActivity() {
 
         // Volume + Mute
         var volumeDragLevel = 0
+        var volumeSentLevel = -1
+        val volumeSending = AtomicBoolean(false)
         var volumeSendRunnable: Runnable? = null
         val volumeSendLoop: Runnable = object : Runnable {
             override fun run() {
-                Thread { client.setVolume(volumeDragLevel) }.start()
+                if (volumeDragLevel != volumeSentLevel && volumeSending.compareAndSet(false, true)) {
+                    val level = volumeDragLevel
+                    volumeSentLevel = level
+                    Thread { try { client.setVolume(level) } finally { volumeSending.set(false) } }.start()
+                }
                 statusHandler.postDelayed(this, 50)
             }
         }
@@ -496,15 +489,14 @@ class MainActivity : AppCompatActivity() {
         if (cachedVolume >= 0) setVolumeState(cachedVolume, cachedMuted)
         val cachedBrightness = appPrefs.getInt("last_brightness", -1)
         if (cachedBrightness >= 0) setBrightnessBar(cachedBrightness)
-        checkAndAutoDiscover()
-        statusHandler.postDelayed(statusRunnable, statusInterval)
-        scheduleBrightnessRefresh()
-        scheduleVolumeRefresh()
+        startWatching()
     }
 
     override fun onPause() {
         super.onPause()
-        statusHandler.removeCallbacks(statusRunnable)
+        stopWatching?.invoke()
+        stopWatching = null
+        statusHandler.removeCallbacks(levelsRefresh)
     }
 
 
@@ -659,7 +651,8 @@ class MainActivity : AppCompatActivity() {
         val color = when (status) {
             TvStatus.CHECKING     -> 0xFF888888.toInt()
             TvStatus.CONNECTED    -> 0xFF4CAF50.toInt()
-            TvStatus.SEARCHING    -> 0xFFFF9800.toInt()
+            TvStatus.SEARCHING,
+            TvStatus.PAIRING      -> 0xFFFF9800.toInt()
             TvStatus.DISCONNECTED -> 0xFFF44336.toInt()
         }
         dot.background = GradientDrawable().apply {
@@ -668,44 +661,70 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun checkAndAutoDiscover() {
-        val ip = client.tvIp
-        if (ip.isBlank()) {
-            // No IP saved yet — run discovery once
+    private fun startWatching() {
+        stopWatching?.invoke()
+        stopWatching = null
+        if (client.tvIp.isBlank()) {
             setStatus(TvStatus.SEARCHING)
             autoDiscover()
-        } else {
-            checkStatus()
+            return
+        }
+        stopWatching = client.watchPower { p -> runOnUiThread { applyPresence(p) } }
+    }
+
+    private fun applyPresence(p: WebOsClient.Presence) {
+        if (stopWatching == null) return
+        val wasOn = tvConnected
+        when (p) {
+            WebOsClient.Presence.Unknown      -> setStatus(TvStatus.CHECKING)
+            WebOsClient.Presence.Unreachable  -> setStatus(TvStatus.DISCONNECTED)
+            WebOsClient.Presence.NeedsPairing -> setStatus(TvStatus.PAIRING)
+            is WebOsClient.Presence.Reported -> {
+                setStatus(if (p.isOn) TvStatus.CONNECTED else TvStatus.DISCONNECTED)
+                setScreenOffButton(p.isOn && p.screenOff)
+            }
+        }
+        if (tvConnected && !wasOn) {
+            statusHandler.removeCallbacks(levelsRefresh)
+            statusHandler.post(levelsRefresh)
+        } else if (!tvConnected) {
+            statusHandler.removeCallbacks(levelsRefresh)
         }
     }
 
-    private fun checkStatus() {
-        val ip = client.tvIp
-        if (ip.isBlank()) return
-        runOnUiThread { setStatus(TvStatus.CHECKING) }
-        Thread {
-            val portOpen = runCatching {
-                Socket().use { it.connect(InetSocketAddress(ip, 3001), 500) }
-                true
-            }.getOrElse { false }
-            if (!portOpen) {
-                runOnUiThread { setStatus(TvStatus.DISCONNECTED) }
-                return@Thread
-            }
-            // Port open — optimistically show connected, confirm via batched WebOS query
-            runOnUiThread { setStatus(TvStatus.CONNECTED) }
-            val state = client.getTvState()
-            if (state == null) {
-                // Port open but WebOS not responding — TV is in standby (Quick Start)
-                runOnUiThread { setStatus(TvStatus.DISCONNECTED) }
-                return@Thread
-            }
-            runOnUiThread {
-                setBrightnessBar(state.brightness)
-                if (state.volume != null) setVolumeState(state.volume, state.muted)
-                setScreenOffButton(state.screenOff)
-            }
-        }.start()
+    // Backlight has no push channel, so the levels are polled while the TV is on
+    private val levelsRefresh = object : Runnable {
+        override fun run() {
+            if (!tvConnected || stopWatching == null) return
+            Thread {
+                val s = client.getTvState() ?: return@Thread
+                runOnUiThread {
+                    s.brightness?.let { setBrightnessBar(it) }
+                    s.volume?.let { setVolumeState(it, s.muted) }
+                }
+            }.start()
+            statusHandler.postDelayed(this, levelsInterval)
+        }
+    }
+
+    private fun tvIsOn() =
+        (client.awaitPresence(3_000) as? WebOsClient.Presence.Reported)?.isOn == true
+
+    // WoL, then retry the action until webOS answers: ~3 s from Quick Start standby,
+    // 15-20 s from a cold boot. A TV woken over the network can come up with its panel
+    // dark, so the screen is forced on afterwards.
+    private fun wakeTv(gen: Int, action: () -> WebOsClient.Result) {
+        client.sendWakeOnLan()
+        repeat(25) {
+            if (wakeHomeGen != gen) return
+            Thread {
+                if (wakeHomeGen == gen && action() is WebOsClient.Result.Success) {
+                    ++wakeHomeGen
+                    client.turnOnScreen()
+                }
+            }.start()
+            Thread.sleep(1_000)
+        }
     }
 
     private val appPrefs by lazy { getSharedPreferences("webos", MODE_PRIVATE) }
@@ -972,13 +991,6 @@ class MainActivity : AppCompatActivity() {
         bar.requestLayout()
     }
 
-    private val screenOffRefreshRunnable = Runnable {
-        Thread {
-            val isOff = client.getScreenOff()
-            if (isOff != null) runOnUiThread { setScreenOffButton(isOff) }
-        }.start()
-    }
-
     private fun setScreenOffButton(isOff: Boolean) {
         currentScreenOff = isOff
         val btn = findViewById<android.widget.ImageButton>(R.id.btn_screen_off) ?: return
@@ -1005,7 +1017,7 @@ class MainActivity : AppCompatActivity() {
                 discovering = false
                 if (found.isNotEmpty()) {
                     client.saveTvIp(found[0])
-                    setStatus(TvStatus.CONNECTED)
+                    startWatching()
                 } else {
                     setStatus(TvStatus.DISCONNECTED)
                 }
@@ -1059,25 +1071,8 @@ class MainActivity : AppCompatActivity() {
                         it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                         val gen = ++wakeHomeGen
                         Thread {
-                            val tvOn = runCatching {
-                                Socket().use { s -> s.connect(InetSocketAddress(client.tvIp, 3001), 500) }
-                                true
-                            }.getOrElse { false }
-                            if (tvOn) {
-                                client.launchApp(app.id)
-                            } else {
-                                client.sendWakeOnLan()
-                                repeat(15) {
-                                    if (wakeHomeGen != gen) return@Thread
-                                    Thread {
-                                        if (wakeHomeGen == gen && client.launchApp(app.id) is WebOsClient.Result.Success)
-                                            ++wakeHomeGen
-                                    }.start()
-                                    Thread.sleep(1_000)
-                                }
-                            }
+                            if (tvIsOn()) client.launchApp(app.id) else wakeTv(gen) { client.launchApp(app.id) }
                         }.start()
-                        statusHandler.postDelayed({ checkStatus() }, 2500)
                     }
                 }
 
@@ -1308,8 +1303,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendCommand(block: () -> WebOsClient.Result) {
         window.decorView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-        statusHandler.removeCallbacks(screenOffRefreshRunnable)
-        statusHandler.postDelayed(screenOffRefreshRunnable, 1200)
         Thread {
             val result = block()
             runOnUiThread {

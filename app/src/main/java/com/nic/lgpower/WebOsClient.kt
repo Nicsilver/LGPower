@@ -15,6 +15,8 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
@@ -63,7 +65,7 @@ class WebOsClient(private val context: Context) {
         data class Error(val message: String) : Result()
     }
 
-    private fun buildClient(): OkHttpClient {
+    private fun buildClient(pingIntervalSecs: Long = 0): OkHttpClient {
         val trustAll = object : X509TrustManager {
             override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
             override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
@@ -76,7 +78,11 @@ class WebOsClient(private val context: Context) {
             .apply { LanNetwork.get(context)?.let { socketFactory(it.socketFactory) } }
             .sslSocketFactory(ssl.socketFactory, trustAll)
             .hostnameVerifier { _, _ -> true }
-            .connectTimeout(8, TimeUnit.SECONDS)
+            // Read timeout bounds the TLS/upgrade handshake only; OkHttp lifts it once a
+            // WebSocket is established. A booting TV can hang the handshake for 10 s+.
+            .connectTimeout(3, TimeUnit.SECONDS)
+            .readTimeout(3, TimeUnit.SECONDS)
+            .pingInterval(pingIntervalSecs, TimeUnit.SECONDS)
             .build()
     }
 
@@ -136,12 +142,18 @@ class WebOsClient(private val context: Context) {
 
     private inner class CommandSession {
 
-        private val http = buildClient()
+        // Pings surface a dead TV (unplugged, Wi-Fi dropped) within a couple of intervals
+        // instead of leaving a silent socket that only fails once a command times out
+        private val http = buildClient(pingIntervalSecs = 15)
         @Volatile private var ws: WebSocket? = null
-        @Volatile private var state = CmdState.CONNECTING
+        @Volatile var state = CmdState.CONNECTING
+            private set
         @Volatile private var deadReason: String? = null
+        private val createdAt = System.currentTimeMillis()
         private val readyLatch = CountDownLatch(1)
+        private val deathLatch = CountDownLatch(1)
         private val pending = ConcurrentHashMap<String, Pair<AtomicReference<CmdReply>, CountDownLatch>>()
+        private val subscriptions = ConcurrentHashMap<String, (JSONObject?) -> Unit>()
         private val seq = AtomicInteger(0)
 
         init {
@@ -184,6 +196,10 @@ class WebOsClient(private val context: Context) {
                                     ?: p?.optJSONObject("wiredInfo")?.optString("macAddress")?.takeIf { it.isNotEmpty() }
                                 if (!mac.isNullOrEmpty()) prefs.edit().putString("tv_mac", mac).apply()
                             }
+                            type == "response" && subscriptions.containsKey(id) ->
+                                subscriptions[id]?.invoke(json.optJSONObject("payload"))
+                            type == "error" && subscriptions.containsKey(id) ->
+                                subscriptions[id]?.invoke(null)
                             type == "response" -> {
                                 val (ref, latch) = pending.remove(id) ?: return
                                 val payload = json.optJSONObject("payload")
@@ -202,16 +218,25 @@ class WebOsClient(private val context: Context) {
                     }
                     override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                         deadReason = t.message
-                        state = CmdState.DEAD; this@CommandSession.ws = null
-                        readyLatch.countDown()
-                        failAll(CmdReply.Err(t.message ?: "Connection failed"))
+                        die(CmdReply.Err(t.message ?: "Connection failed"))
+                    }
+                    override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+                        // A TV in standby accepts the upgrade and then closes with
+                        // "Try Again Later (EWS)"; finish the handshake so onClosed fires promptly
+                        deadReason = reason.ifEmpty { null }
+                        ws.close(1000, null)
                     }
                     override fun onClosed(ws: WebSocket, code: Int, reason: String) {
-                        state = CmdState.DEAD; this@CommandSession.ws = null
-                        failAll(CmdReply.Err("Connection closed"))
+                        die(CmdReply.Err("Connection closed"))
                     }
                 })
             }
+        }
+
+        private fun die(reply: CmdReply) {
+            state = CmdState.DEAD; ws = null
+            readyLatch.countDown(); deathLatch.countDown()
+            failAll(reply)
         }
 
         private fun failAll(reply: CmdReply) {
@@ -242,11 +267,37 @@ class WebOsClient(private val context: Context) {
             return resultRef.get()
         }
 
-        val isAlive get() = state == CmdState.READY && ws != null
+        fun awaitReady(timeoutSecs: Long = 5) { readyLatch.await(timeoutSecs, TimeUnit.SECONDS) }
+        fun awaitDeath() { deathLatch.await() }
+
+        fun subscribe(uri: String, listener: (JSONObject?) -> Unit): String? {
+            val id = "s${seq.incrementAndGet()}"
+            subscriptions[id] = listener
+            val msg = JSONObject().apply {
+                put("id", id); put("type", "subscribe"); put("uri", uri); put("payload", JSONObject())
+            }.toString()
+            if (state != CmdState.READY || ws?.send(msg) != true) { subscriptions.remove(id); return null }
+            return id
+        }
+
+        fun unsubscribe(id: String) {
+            if (subscriptions.remove(id) == null) return
+            ws?.send(JSONObject().put("id", id).put("type", "unsubscribe").toString())
+        }
+
+        // A session mid-handshake is shared rather than replaced: concurrent callers
+        // (slider send loops, the power watcher, value refreshes) used to each open a new
+        // socket and kill the previous one, so under load nothing ever finished connecting
+        val isUsable get() = when (state) {
+            CmdState.READY, CmdState.NEEDS_PAIRING -> ws != null
+            CmdState.CONNECTING -> System.currentTimeMillis() - createdAt < CONNECT_GRACE_MS
+            CmdState.DEAD -> false
+        }
 
         fun close() {
-            state = CmdState.DEAD; ws?.close(1000, null)
-            failAll(CmdReply.Err("Session closed"))
+            val open = ws
+            die(CmdReply.Err("Session closed"))
+            open?.close(1000, null)
             http.dispatcher.executorService.shutdown()
         }
     }
@@ -255,7 +306,7 @@ class WebOsClient(private val context: Context) {
 
     private fun commandSession(): CommandSession = synchronized(this) {
         val ex = sharedCommandSession
-        if (ex?.isAlive == true) ex
+        if (ex?.isUsable == true) ex
         else { ex?.close(); CommandSession().also { sharedCommandSession = it } }
     }
 
@@ -388,18 +439,96 @@ class WebOsClient(private val context: Context) {
         }
     }
 
+    // ── Power state ───────────────────────────────────────────────────────────
+
+    /** What the TV last told us, fed by [watchPower]. */
+    sealed class Presence {
+        object Unknown : Presence() { override fun toString() = "Unknown" }
+        object Unreachable : Presence() { override fun toString() = "Unreachable" }
+        object NeedsPairing : Presence() { override fun toString() = "NeedsPairing" }
+        data class Reported(val state: String, val processing: String?) : Presence() {
+            // "Screen Off" still counts as on: webOS runs and takes commands, only the panel is dark
+            val isOn get() = state !in OFF_STATES && OFF_TRANSITIONS.none { processing?.contains(it) == true }
+            val screenOff get() = state == "Screen Off"
+        }
+    }
+
+    @Volatile var presence: Presence = Presence.Unknown
+        private set
+    private val presenceLock = ReentrantLock()
+    private val presenceChanged = presenceLock.newCondition()
+
+    private fun publish(p: Presence, listener: (Presence) -> Unit) {
+        presenceLock.withLock { presence = p; presenceChanged.signalAll() }
+        android.util.Log.d(TAG, "presence: $p")
+        listener(p)
+    }
+
+    /** Blocks until the watcher has reported something, or [timeoutMs] elapses. */
+    fun awaitPresence(timeoutMs: Long): Presence {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        presenceLock.withLock {
+            while (presence is Presence.Unknown) {
+                val left = deadline - System.currentTimeMillis()
+                if (left <= 0) break
+                presenceChanged.await(left, TimeUnit.MILLISECONDS)
+            }
+        }
+        return presence
+    }
+
+    /**
+     * Keeps the shared command session open and subscribed to the TV's power state,
+     * reporting every change to [listener]. Reachability is judged by whether a session
+     * registers, never by a TCP probe: a TV in standby keeps port 3001 open but closes
+     * every new session with "Try Again Later (EWS)". A socket that drops after a while is
+     * retried at once so a Wi-Fi blip doesn't blink the indicator; a refused or short-lived
+     * one every [WATCH_RETRY_MS]. Returns a stop function.
+     */
+    fun watchPower(listener: (Presence) -> Unit): () -> Unit {
+        presenceLock.withLock { presence = Presence.Unknown }
+        val thread = Thread {
+            var delayMs = 0L
+            try {
+                while (true) {
+                    if (delayMs > 0) Thread.sleep(delayMs)
+                    val session = commandSession()
+                    session.awaitReady()
+                    when (session.state) {
+                        CmdState.READY -> {
+                            val sub = session.subscribe(POWER_STATE_URI) { p ->
+                                publish(Presence.Reported(
+                                    p?.optString("state").orEmpty(),
+                                    p?.optString("processing")?.ifEmpty { null }
+                                ), listener)
+                            }
+                            val since = System.currentTimeMillis()
+                            try { session.awaitDeath() } finally { sub?.let(session::unsubscribe) }
+                            delayMs = if (System.currentTimeMillis() - since < 2_000) WATCH_RETRY_MS else 0
+                        }
+                        CmdState.NEEDS_PAIRING -> {
+                            publish(Presence.NeedsPairing, listener)
+                            // The TV answers on this same socket once the prompt is accepted
+                            while (session.state == CmdState.NEEDS_PAIRING) Thread.sleep(250)
+                            delayMs = if (session.state == CmdState.READY) 0 else WATCH_RETRY_MS
+                        }
+                        else -> {
+                            publish(Presence.Unreachable, listener)
+                            delayMs = WATCH_RETRY_MS
+                        }
+                    }
+                }
+            } catch (_: InterruptedException) { }
+        }
+        thread.start()
+        return { thread.interrupt() }
+    }
+
     // ── SSAP commands ─────────────────────────────────────────────────────────
 
     fun turnOffScreen() = execute("ssap://com.webos.service.tvpower/power/turnOffScreen")
+    fun turnOnScreen()  = execute("ssap://com.webos.service.tvpower/power/turnOnScreen")
     fun turnOff()       = execute("ssap://system/turnOff")
-
-    fun getScreenOff(): Boolean? {
-        if (buildWsRequest() == null) return null
-        val reply = commandSession().send(
-            "ssap://com.webos.service.tvpower/power/getPowerState", JSONObject()
-        )
-        return (reply as? CmdReply.Ok)?.payload?.optString("state")?.let { it == "Screen Off" }
-    }
 
     fun pressEnter() = pressKey("ENTER")
     fun pressUp()    = pressKey("UP")
@@ -471,22 +600,16 @@ class WebOsClient(private val context: Context) {
         return setBrightness((current + delta).coerceIn(0, 100))
     }
 
-    data class TvState(
-        val brightness: Int,
-        val volume: Int?,
-        val muted: Boolean,
-        val screenOff: Boolean
-    )
+    data class TvState(val brightness: Int?, val volume: Int?, val muted: Boolean)
 
-    /** Fetch brightness, volume, and screen state in parallel over the shared session.
-     *  Returns null if TV is off or not responding (e.g. Quick Start standby). */
+    /** Fetch brightness and volume in parallel over the shared session.
+     *  Returns null if the TV answered neither. */
     fun getTvState(): TvState? {
         if (buildWsRequest() == null) return null
         val session = commandSession()
         var brightness: Int? = null
         var volume: Int? = null
         var muted = false
-        var screenOff = false
 
         val t1 = Thread {
             val r = session.send("ssap://settings/getSystemSettings",
@@ -505,15 +628,10 @@ class WebOsClient(private val context: Context) {
                         else p?.optBoolean("muted", false) ?: false
             }
         }
-        val t3 = Thread {
-            val r = session.send("ssap://com.webos.service.tvpower/power/getPowerState", JSONObject())
-            screenOff = (r as? CmdReply.Ok)?.payload?.optString("state") == "Screen Off"
-        }
+        t1.start(); t2.start()
+        t1.join(5000); t2.join(5000)
 
-        t1.start(); t2.start(); t3.start()
-        t1.join(5000); t2.join(5000); t3.join(5000)
-
-        return brightness?.let { TvState(it, volume, muted, screenOff) }
+        return if (brightness == null && volume == null) null else TvState(brightness, volume, muted)
     }
 
     data class InputSource(val id: String, val label: String)
@@ -776,6 +894,14 @@ class WebOsClient(private val context: Context) {
     companion object {
         const val DEFAULT_TV_IP = ""
         const val TV_PORT = 3001
+        private const val TAG = "WebOsClient"
+        private const val POWER_STATE_URI = "ssap://com.webos.service.tvpower/power/getPowerState"
+        private const val WATCH_RETRY_MS = 5_000L
+        private const val CONNECT_GRACE_MS = 10_000L
+        // Observed on a C4: turnOff pushes state "Active" with processing "Request Power Off"
+        // within 50 ms, then "Request/Prepare Active Standby", and lands on "Active Standby" ~3 s later
+        private val OFF_STATES = setOf("Active Standby", "Suspend", "Power Off")
+        private val OFF_TRANSITIONS = listOf("Power Off", "Standby", "Suspend")
 
         private val BRAND_COLORS = mapOf(
             "youtube.leanback.v4"           to 0xFFCC0000.toInt(),
