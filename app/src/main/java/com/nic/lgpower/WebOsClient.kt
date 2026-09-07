@@ -430,8 +430,11 @@ class WebOsClient(private val context: Context) {
     fun brightnessUp()   = adjustBrightness(+5)
     fun brightnessDown() = adjustBrightness(-5)
 
-    fun setBrightness(level: Int) = execute(
-        "ssap://settings/setSystemSettings",
+    // Writing picture settings needs WRITE_SETTINGS, which the TV only grants to
+    // the legacy signed manifest we no longer send (see buildRegistration). The
+    // Luna alert route works with the plain registration on every firmware.
+    fun setBrightness(level: Int) = lunaRequest(
+        "com.webos.settingsservice/setSystemSettings",
         JSONObject()
             .put("category", "picture")
             .put("settings", JSONObject()
@@ -465,13 +468,7 @@ class WebOsClient(private val context: Context) {
             (r as? CmdReply.Ok)?.payload
                 ?.optJSONObject("settings")?.optString("backlight")?.toIntOrNull()
         } ?: return Result.Error("Could not read backlight")
-        return execute(
-            "ssap://settings/setSystemSettings",
-            JSONObject().put("category", "picture")
-                .put("settings", JSONObject()
-                    .put("energySaving", "off")
-                    .put("backlight", (current + delta).coerceIn(0, 100).toString()))
-        )
+        return setBrightness((current + delta).coerceIn(0, 100))
     }
 
     data class TvState(
@@ -545,8 +542,8 @@ class WebOsClient(private val context: Context) {
         JSONObject().put("inputId", inputId)
     )
 
-    fun setPictureMode(mode: String) = execute(
-        "ssap://settings/setSystemSettings",
+    fun setPictureMode(mode: String) = lunaRequest(
+        "com.webos.settingsservice/setSystemSettings",
         JSONObject()
             .put("category", "picture")
             .put("settings", JSONObject().put("pictureMode", mode))
