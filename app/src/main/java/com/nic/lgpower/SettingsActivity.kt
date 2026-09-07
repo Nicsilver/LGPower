@@ -122,7 +122,7 @@ class SettingsActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.tv_app_version).text = BuildConfig.VERSION_NAME
         findViewById<View>(R.id.row_release_notes).setOnClickListener {
-            showReleaseNotesSheet("Release notes", ReleaseNotes.all, "Close")
+            showReleaseNotesDialog("Release notes", ReleaseNotes.all, "Close")
         }
 
         // Theme picker

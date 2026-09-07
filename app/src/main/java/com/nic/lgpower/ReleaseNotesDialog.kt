@@ -13,54 +13,48 @@ import android.widget.TextView
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-/** Bottom sheet listing [releases]; serves both the after-update popup and the full history. */
-fun Activity.showReleaseNotesSheet(
+/** Centered dialog listing [releases]; serves both the after-update popup and the full history. */
+fun Activity.showReleaseNotesDialog(
     title: String,
     releases: List<ReleaseNotes.Release>,
     buttonLabel: String,
     onDismiss: (() -> Unit)? = null
 ) {
-    val dialog = Dialog(this)
-    dialog.setContentView(R.layout.dialog_input_picker)
     val theme = ThemeManager.getActiveTheme(this)
-    val d = resources.displayMetrics.density
+    val metrics = resources.displayMetrics
+    val d = metrics.density
     fun dp(v: Int) = (v * d).toInt()
     val match = LinearLayout.LayoutParams.MATCH_PARENT
     val wrap = LinearLayout.LayoutParams.WRAP_CONTENT
     val dateFormat = DateTimeFormatter.ofPattern("d MMM yyyy")
 
-    dialog.window?.apply {
-        setBackgroundDrawableResource(android.R.color.transparent)
-        setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT)
-        setGravity(Gravity.BOTTOM)
-        addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-        setDimAmount(0.5f)
-        attributes = attributes.also { it.windowAnimations = android.R.style.Animation_InputMethod }
+    // Nesting is inverted against the settings screen (surface card holding window-coloured
+    // groups) so the dialog reads as one raised panel on the dimmed remote in both themes
+    val root = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        background = GradientDrawable().apply {
+            setColor(theme.surfaceBg)
+            cornerRadius = 24 * d
+        }
+        setPadding(dp(22), dp(24), dp(22), dp(20))
     }
 
-    dialog.findViewById<LinearLayout>(R.id.picker_root).background = GradientDrawable().apply {
-        setColor(theme.windowBg)
-        val r = 20 * d
-        cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
-    }
-
-    // The shared picker layout styles its title as a small section label; this sheet
-    // wants a real heading
-    dialog.findViewById<TextView>(R.id.dialog_picker_title).apply {
+    root.addView(TextView(this).apply {
         text = title
         textSize = 24f
         letterSpacing = -0.015f
         typeface = Typeface.DEFAULT_BOLD
+        gravity = Gravity.CENTER
         setTextColor(theme.primaryText)
-        (layoutParams as? LinearLayout.LayoutParams)?.bottomMargin = dp(14)
-    }
+        layoutParams = LinearLayout.LayoutParams(match, wrap).also { it.bottomMargin = dp(18) }
+    })
 
     val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
     releases.forEachIndexed { i, release ->
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(4), if (i == 0) 0 else dp(14), dp(4), dp(8))
+            setPadding(dp(2), if (i == 0) 0 else dp(18), dp(2), dp(8))
         }
         header.addView(TextView(this).apply {
             text = release.name
@@ -94,7 +88,7 @@ fun Activity.showReleaseNotesSheet(
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
-                setColor(theme.surfaceBg)
+                setColor(theme.windowBg)
                 cornerRadius = 14 * d
             }
             clipToOutline = true
@@ -107,7 +101,7 @@ fun Activity.showReleaseNotesSheet(
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 isBaselineAligned = false
-                setPadding(dp(16), dp(12), dp(16), dp(12))
+                setPadding(dp(16), dp(13), dp(16), dp(13))
             }
             row.addView(View(this).apply {
                 background = GradientDrawable().apply {
@@ -115,7 +109,7 @@ fun Activity.showReleaseNotesSheet(
                     setColor(theme.secondaryText)
                 }
                 layoutParams = LinearLayout.LayoutParams(dp(5), dp(5)).also {
-                    it.topMargin = dp(8); it.marginStart = dp(4); it.marginEnd = dp(15)
+                    it.topMargin = dp(8); it.marginStart = dp(2); it.marginEnd = dp(14)
                 }
             })
             row.addView(TextView(this).apply {
@@ -130,8 +124,8 @@ fun Activity.showReleaseNotesSheet(
         content.addView(card)
     }
 
-    // Cap the sheet so the full history scrolls instead of filling the screen
-    val maxHeight = (resources.displayMetrics.heightPixels * 0.68).toInt()
+    // Cap the list so the full history scrolls inside the dialog instead of filling the screen
+    val maxHeight = (metrics.heightPixels * 0.62).toInt()
     val scroll = object : ScrollView(this) {
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(maxHeight, MeasureSpec.AT_MOST))
@@ -140,8 +134,10 @@ fun Activity.showReleaseNotesSheet(
         isVerticalScrollBarEnabled = false
         addView(content, LinearLayout.LayoutParams(match, wrap))
     }
+    root.addView(scroll, LinearLayout.LayoutParams(match, wrap))
 
-    val button = TextView(this).apply {
+    val dialog = Dialog(this)
+    root.addView(TextView(this).apply {
         text = buttonLabel
         textSize = 15f
         typeface = Typeface.DEFAULT_BOLD
@@ -152,13 +148,17 @@ fun Activity.showReleaseNotesSheet(
             cornerRadius = 12 * d
         }
         isClickable = true; isFocusable = true
-        layoutParams = LinearLayout.LayoutParams(match, dp(46)).also { it.topMargin = dp(14) }
+        layoutParams = LinearLayout.LayoutParams(match, dp(46)).also { it.topMargin = dp(18) }
         setOnClickListener { dialog.dismiss() }
-    }
+    })
 
-    dialog.findViewById<LinearLayout>(R.id.inputs_container).apply {
-        addView(scroll)
-        addView(button)
+    dialog.setContentView(root)
+    dialog.window?.apply {
+        setBackgroundDrawableResource(android.R.color.transparent)
+        setLayout(metrics.widthPixels - dp(48), WindowManager.LayoutParams.WRAP_CONTENT)
+        setGravity(Gravity.CENTER)
+        addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        setDimAmount(0.6f)
     }
     if (onDismiss != null) dialog.setOnDismissListener { onDismiss() }
     dialog.show()
