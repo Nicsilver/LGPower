@@ -740,7 +740,7 @@ class MainActivity : AppCompatActivity() {
         if (lastSeen >= BuildConfig.VERSION_CODE) return
         val releases = if (lastSeen < 0) ReleaseNotes.all.take(1) else ReleaseNotes.since(lastSeen)
         if (releases.isEmpty()) return
-        showReleaseNotesSheet("What's new", releases, "Got it") {
+        showReleaseNotesDialog("What's new", releases, "Got it") {
             appPrefs.edit().putInt("last_seen_version", BuildConfig.VERSION_CODE).apply()
         }
     }
