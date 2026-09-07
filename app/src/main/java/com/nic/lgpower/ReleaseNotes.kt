@@ -17,7 +17,7 @@ object ReleaseNotes {
             "Connection dot follows the TV's real power state, no more flicker",
             "Power button works when the TV is in standby",
             "TV shows as off the instant you turn it off",
-            "Full release notes under Settings › About",
+            "Release notes in Settings › About",
         )),
         Release(31, "1.29.1", "2026-09-07", listOf(
             "Brightness and picture mode work again on webOS 25 and 26",

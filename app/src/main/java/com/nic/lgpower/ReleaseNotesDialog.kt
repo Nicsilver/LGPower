@@ -28,8 +28,8 @@ fun Activity.showReleaseNotesDialog(
     val wrap = LinearLayout.LayoutParams.WRAP_CONTENT
     val dateFormat = DateTimeFormatter.ofPattern("d MMM yyyy")
 
-    // Same nesting as the settings screen (window ground, surface groups). The panel is
-    // window-coloured like the dimmed remote behind it, so a hairline edge marks it out
+    // The panel is window-coloured like the dimmed remote behind it, so a hairline edge
+    // marks it out
     val root = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         background = GradientDrawable().apply {
@@ -86,23 +86,18 @@ fun Activity.showReleaseNotesDialog(
         })
         content.addView(header)
 
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
-                setColor(theme.surfaceBg)
-                cornerRadius = 14 * d
-            }
-            clipToOutline = true
-        }
+        // Notes sit straight on the panel with hairlines between them; a filled group
+        // inside the panel read as a second, greyer card
+        val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         release.notes.forEachIndexed { j, note ->
             if (j > 0) card.addView(View(this).apply {
                 setBackgroundColor(theme.divider)
-                layoutParams = LinearLayout.LayoutParams(match, 1).also { it.marginStart = dp(16) }
+                layoutParams = LinearLayout.LayoutParams(match, 1)
             })
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 isBaselineAligned = false
-                setPadding(dp(16), dp(13), dp(16), dp(13))
+                setPadding(dp(2), dp(12), dp(2), dp(12))
             }
             row.addView(View(this).apply {
                 background = GradientDrawable().apply {
