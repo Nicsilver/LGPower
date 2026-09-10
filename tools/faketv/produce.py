@@ -25,6 +25,7 @@ RED = "0xD9342B"
 LAG = 0.68  # script clock vs scrcpy capture, measured on the d-pad hold
 PULSE_STEPS, PULSE_DT = 7, 0.05
 XFADE = 0.35
+ZOOM_ENABLED = False   # the push-in was tried and rejected; kept behind a switch
 
 # where the slow push-in aims, per section, in raw phone pixels
 FOCUS = {
@@ -172,7 +173,7 @@ def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, captio
         mf, cur = marker_filters(events, t_from, t_from + dur, art, n, cur)
         fc += mf
     zoomf = ""
-    if focus:
+    if focus and ZOOM_ENABLED:
         fx, fy = PX + focus[0] * PW / 1080, PY + focus[1] * PH / 2400
         cxp, cyp = (W / 2 + fx) / 2, (H / 2 + fy) / 2
         frames = int(dur * FPS)
