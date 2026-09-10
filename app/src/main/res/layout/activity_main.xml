@@ -1060,7 +1060,8 @@
         android:layout_marginTop="64dp"
         android:text="Drag to move cursor"
         android:textColor="#66FFFFFF"
-        android:textSize="16sp" />
+        android:textSize="16sp"
+        android:visibility="gone" />
 
     <Button
         android:id="@+id/btn_touchpad_exit"

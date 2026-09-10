@@ -313,7 +313,7 @@ class MainActivity : AppCompatActivity() {
             pointerSession = null
             touchpadOverlay.visibility = View.GONE
             btnExit.visibility = View.GONE
-            touchpadHint.visibility = View.VISIBLE
+            touchpadHint.visibility = View.GONE
         }
         exitTouchpadFn = ::exitTouchpad
 
@@ -446,7 +446,7 @@ class MainActivity : AppCompatActivity() {
                     resetBorder()
                     lockAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
                         duration = LOCK_HOLD_MS
-                        interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+                        interpolator = android.view.animation.DecelerateInterpolator(1.6f)
                         addUpdateListener { lockReveal.setProgress(it.animatedValue as Float) }
                         start()
                     }
@@ -470,10 +470,10 @@ class MainActivity : AppCompatActivity() {
                     if (!hasMoved && (abs(dx) > moveThresholdPx || abs(dy) > moveThresholdPx)) {
                         hasMoved = true
                         lockHandler.removeCallbacksAndMessages(null)
-                        // Dragging without locking: the reveal folds back into the button
+                        // Dragging without locking: snap the reveal to full almost instantly
                         lockAnimator?.cancel()
-                        lockAnimator = ValueAnimator.ofFloat(lockReveal.getProgress(), 0f).apply {
-                            duration = 160
+                        lockAnimator = ValueAnimator.ofFloat(lockReveal.getProgress(), 1f).apply {
+                            duration = 100
                             addUpdateListener { lockReveal.setProgress(it.animatedValue as Float) }
                             start()
                         }

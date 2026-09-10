@@ -55,10 +55,10 @@ class LockRevealView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         if (progress <= 0f) return
         if (progress >= 1f) { canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), solid); return }
-        // A rounded rectangle centred on the button, scaled so it fills the screen at 1.
-        // Half-extents reach the farthest edge in each axis, plus the blur so nothing peeks out.
-        val hw = (max(cx, width - cx) + blur) * progress
-        val hh = (max(cy, height - cy) + blur) * progress
+        // A rounded square growing evenly from the button, so the nearest edge is reached
+        // first and the farthest corner last; sized so it covers the screen at 1.
+        val half = (max(max(cx, width - cx), max(cy, height - cy)) + blur) * progress
+        val hw = half; val hh = half
         rect.set(cx - hw, cy - hh, cx + hw, cy + hh)
         val radius = 0.45f * kotlin.math.min(hw, hh)
         canvas.drawRoundRect(rect, radius, radius, paint)
