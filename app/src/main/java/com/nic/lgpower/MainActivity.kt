@@ -470,9 +470,13 @@ class MainActivity : AppCompatActivity() {
                     if (!hasMoved && (abs(dx) > moveThresholdPx || abs(dy) > moveThresholdPx)) {
                         hasMoved = true
                         lockHandler.removeCallbacksAndMessages(null)
-                        // Dragging without locking: keep a soft shadow around the button
-                        lockAnimator?.cancel(); lockAnimator = null
-                        lockReveal.setProgress(0.05f)
+                        // Dragging without locking: shrink the reveal to a small halo around the button
+                        lockAnimator?.cancel()
+                        lockAnimator = ValueAnimator.ofFloat(lockReveal.getProgress(), 0.006f).apply {
+                            duration = 160
+                            addUpdateListener { lockReveal.setProgress(it.animatedValue as Float) }
+                            start()
+                        }
                     }
                     lastTouchX = event.rawX
                     lastTouchY = event.rawY
