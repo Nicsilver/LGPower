@@ -10,52 +10,56 @@ tap()   { echo "$(now) tap $1 $2 130" >> taps.txt; $ADB -s $S shell input swipe 
 swipe() { echo "$(now) swipe $1 $2 $3 $4 ${5:-300}" >> taps.txt; $ADB -s $S shell input swipe $1 $2 $3 $4 ${5:-300}; sleep ${6:-0.6}; }
 key()   { $ADB -s $S shell input keyevent $1; sleep ${2:-0.6}; }
 mark()  { echo "$(now) $1" >> marks.txt; }
+# Gboard key centres on the 1080x2400 AVD (portrait, English layout)
+kx() { case $1 in q)echo 60;; w)echo 165;; e)echo 273;; r)echo 381;; t)echo 486;; y)echo 594;; u)echo 702;; i)echo 810;; o)echo 918;; p)echo 1026;;
+              a)echo 114;; s)echo 216;; d)echo 324;; f)echo 432;; g)echo 540;; h)echo 648;; j)echo 756;; k)echo 861;; l)echo 966;;
+              z)echo 219;; x)echo 324;; c)echo 432;; v)echo 540;; b)echo 648;; n)echo 753;; m)echo 861;; _)echo 540;; esac; }
+ky() { case $1 in q|w|e|r|t|y|u|i|o|p)echo 1713;; a|s|d|f|g|h|j|k|l)echo 1866;; z|x|c|v|b|n|m)echo 2022;; _)echo 2181;; esac; }
+type_word() { for ((i=0;i<${#1};i++)); do c=${1:$i:1}; tap $(kx $c) $(ky $c) 0.14; done; }
 
 $ADB -s $S shell settings put global animator_duration_scale 1.0
-$ADB -s $S shell settings put global transition_animation_scale 1.0
-$ADB -s $S shell settings put global window_animation_scale 1.0
 $ADB -s $S shell am start -n com.nic.lgpower/.MainActivity >/dev/null; sleep 3
 T0=0; $ADB -s $S shell input tap 539 1394; sleep 1.5; $ADB -s $S shell input tap 539 1394; sleep 1.0   # warm the pointer socket
 rm -f tour_raw.mp4 marks.txt taps.txt
-scrcpy -s $S --no-playback --record=tour_raw.mp4 --max-fps=60 --video-bit-rate=16M --time-limit=52 > scrcpy.log 2>&1 &
+scrcpy -s $S --no-playback --record=tour_raw.mp4 --max-fps=60 --video-bit-rate=16M --time-limit=46 > scrcpy.log 2>&1 &
 SP=$!
 T0=$(python -c "import time;print(time.time())")
 sleep 2.0
 
 mark "D-pad, hold to repeat"
-tap 737 1394 0.5; tap 539 1592 0.5; tap 337 1394 0.5; swipe 737 1394 737 1394 900 0.4; tap 539 1394 0.9
+tap 737 1394 0.5; tap 539 1592 0.5; tap 337 1394 0.5; swipe 737 1394 737 1394 900 0.4; tap 539 1394 0.8
 
 mark "Volume and brightness sliders"
-swipe 139 1500 139 1150 700 0.3; swipe 139 1150 139 1420 700 0.3; swipe 940 1150 940 1450 700 0.7
+swipe 139 1500 139 1150 700 0.25; swipe 139 1150 139 1420 700 0.25; swipe 940 1150 940 1450 700 0.7
 
 mark "Touchpad, hold to lock"
-swipe 539 632 539 632 1300 0.2; swipe 300 1000 800 1300 400 0.2; swipe 800 1300 400 1500 400 0.2; tap 648 2052 0.5; tap 900 252 0.7
+swipe 539 632 539 632 1300 0.2; swipe 300 1000 800 1300 450 0.15; swipe 800 1300 400 1500 450 0.2; tap 648 2052 0.5; tap 900 252 0.7
 
 mark "Type with your keyboard"
-tap 802 632 1.2; $ADB -s $S shell input text "planet%searth"; sleep 0.8; tap 978 1425 1.0
+tap 802 632 1.4; type_word "planet"; tap 540 2181 0.14; type_word "earth"; sleep 0.4; tap 978 1425 1.0
 
 mark "Numpad, guide, info and CC"
-tap 539 2086 0.9; tap 540 951 0.4; tap 828 951 0.4; tap 288 783 0.4; tap 540 2086 0.8
+tap 539 2086 0.9; tap 540 951 0.35; tap 828 951 0.35; tap 288 783 0.35; tap 540 2086 0.7
 
 mark "Picture mode"
-tap 348 2086 1.1; tap 540 1500 1.1
+tap 348 2086 1.0; tap 540 1500 1.0
 
 mark "Input source"
-tap 773 961 1.1; tap 540 1911 1.1
+tap 773 961 1.0; tap 540 1911 1.0
 
 mark "App shortcuts"
-tap 294 474 0.7; tap 828 474 1.0
+tap 294 474 0.6; tap 828 474 0.9
 
-mark "Themes: Light"
-tap 1001 142 1.0; swipe 540 2000 540 800 400 0.7; tap 141 1431 1.0; tap 540 1365 1.0; key BACK 1.8
+mark "Themes"
+tap 1001 142 0.9; swipe 540 2000 540 800 400 0.6; tap 141 1431 0.9; tap 540 1365 0.9; key BACK 1.6
 
-mark "Themes: Nord"
-tap 1001 142 1.0; swipe 540 2000 540 800 400 0.7; tap 141 1431 1.0; tap 540 1911 1.0; key BACK 1.8
+mark "montage"
+sleep 0.3
 
 mark "Screen off, audio keeps playing"
-tap 156 2085 2.4
+tap 156 2085 2.2
 
 mark "end"
-sleep 0.5
+sleep 0.4
 wait $SP
 cat marks.txt

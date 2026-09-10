@@ -125,14 +125,16 @@ three-phone row). `python _frame.py <raw_dir> <out_dir>`.
 colour row, pickers, shortcuts, theme switch, screen off) while scrcpy records, and logs
 every tap and swipe with a timestamp. `produce.py` turns that into the 1080x1920 clip in
 `store/video/`: title card, phone in a bezel on a dark glow, a caption per section, an
-red pulse on every tap (injected taps are invisible to Android's own "show touches",
-so they are drawn in post from the tap log), and an end card. Taps are sent as 130 ms
-presses so the app's pressed state renders; recording and output are 60 fps.
+white pulse on every tap and a ring that travels along drags (injected taps are invisible
+to Android's own "show touches", so they are drawn in post from the tap log), a theme
+montage cut in at the "montage" mark from the stills in `store/video/themes/`, and an end
+card. Taps are sent as 130 ms presses so the app's pressed state renders; typing taps the
+Gboard keys so each letter gets a pulse; recording and output are 60 fps.
 
 ```
 export ANDROID_SERIAL=emulator-5574 OUT=/tmp/tour
 bash rec_tour.sh                       # writes tour_raw.mp4, marks.txt, taps.txt in $OUT
-python produce.py /tmp/tour/tour_raw.mp4 /tmp/tour/marks.txt /tmp/tour/tour_produced.mp4
+python produce.py /tmp/tour/tour_raw.mp4 /tmp/tour/marks.txt /tmp/tour/tour_produced.mp4 ../../store/video/themes
 ```
 
 Before recording: theme on Dark, `last_seen_version` in the prefs equal to the current
