@@ -52,7 +52,7 @@ mark "App shortcuts"
 tap 294 474 0.5; tap 828 474 0.7
 
 mark "Themes"
-tap 1001 142 0.7; swipe 540 2000 540 800 350 0.5; tap 141 1431 0.7; tap 540 1365 0.7; key BACK 1.3
+tap 1001 142 0.7; swipe 540 2000 540 800 350 0.5; tap 141 1431 0.7; tap 540 1365 0.25; key BACK 1.4
 
 mark "montage"
 sleep 0.3

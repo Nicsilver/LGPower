@@ -22,7 +22,7 @@ FONT_R = "C\\:/Windows/Fonts/segoeui.ttf"
 INK = "0x1E1B1B"
 MUTED = "0x6B6465"
 RED = "0xD9342B"
-LAG = 0.93  # script clock vs scrcpy capture, measured on the d-pad hold (varies per run)
+LAG = 0.73  # script clock vs scrcpy capture, measured on the d-pad hold (varies per run)
 PULSE_STEPS, PULSE_DT = 7, 0.05
 XFADE = 0.35
 ZOOM_ENABLED = False
@@ -95,6 +95,72 @@ def pulses():
     return out
 
 
+from PIL import ImageFont
+
+STORE = r"C:\Programming\LGPowerWidget\store"
+
+
+def _font(bold, size):
+    return ImageFont.truetype(r"C:\Windows\Fonts\segoeuib.ttf" if bold else r"C:\Windows\Fonts\segoeui.ttf", size)
+
+
+def _card_base():
+    im = Image.new("RGB", (PW, PH), (20, 20, 22))
+    glow = Image.new("RGB", (PW, PH), (20, 20, 22))
+    ImageDraw.Draw(glow).ellipse([-200, -300, PW + 200, 700], fill=(120, 30, 28))
+    glow = glow.filter(ImageFilter.GaussianBlur(180))
+    return Image.blend(im, glow, 0.55)
+
+
+def _center_text(d, y, text, font, fill):
+    w = d.textlength(text, font=font); d.text(((PW - w) / 2, y), text, font=font, fill=fill); return y + font.size
+
+
+def _icon(size):
+    ic = Image.open(os.path.join(STORE, "play_icon_512.png")).convert("RGBA").resize((size, size), Image.LANCZOS)
+    m = Image.new("L", (size, size), 0); ImageDraw.Draw(m).rounded_rectangle([0, 0, size - 1, size - 1], int(size * 0.22), fill=255)
+    ic.putalpha(m); return ic
+
+
+def _pill(d, cx, y, text, font, fill, ink, pad=26, h=None):
+    w = d.textlength(text, font=font); h = h or font.size + 28
+    d.rounded_rectangle([cx - w / 2 - pad, y, cx + w / 2 + pad, y + h], h // 2, fill=fill)
+    d.text((cx - w / 2, y + (h - font.size) / 2 - 4), text, font=font, fill=ink)
+    return y + h
+
+
+def title_card(path):
+    im = _card_base(); d = ImageDraw.Draw(im)
+    ic = _icon(300); im.paste(ic, ((PW - 300) // 2, 400), ic)
+    y = _center_text(d, 760, "LG Power", _font(True, 112), (255, 255, 255))
+    y = _center_text(d, y + 22, "A remote for LG webOS TVs", _font(False, 42), (200, 200, 205))
+    f = _font(False, 30); y += 70; x = PW / 2
+    labels = ["Wi-Fi control", "IR power fallback", "No ads"]
+    widths = [d.textlength(s, font=f) + 44 for s in labels]; gap = 18; total = sum(widths) + gap * 2; x0 = (PW - total) / 2
+    for s, w in zip(labels, widths):
+        d.rounded_rectangle([x0, y, x0 + w, y + 58], 29, outline=(110, 110, 118), width=2)
+        d.text((x0 + 22, y + 10), s, font=f, fill=(210, 210, 215)); x0 += w + gap
+    im.save(path)
+
+
+def end_card(path):
+    im = _card_base(); d = ImageDraw.Draw(im)
+    ic = _icon(210); im.paste(ic, ((PW - 210) // 2, 250), ic)
+    y = _center_text(d, 500, "LG Power", _font(True, 92), (255, 255, 255))
+    y = _center_text(d, y + 14, "Remote for LG webOS TVs", _font(False, 38), (200, 200, 205))
+    y = _pill(d, PW / 2, y + 60, "Free on Google Play", _font(True, 40), (255, 255, 255), (20, 20, 22), pad=40)
+    y += 26
+    y = _center_text(d, y, "Open source · AGPL-3.0", _font(False, 34), (170, 170, 178))
+    y = _center_text(d, y + 8, "github.com/Nicsilver/LGPower", _font(False, 34), (255, 106, 92))
+    y += 70; d.line([(90, y), (PW - 90, y)], fill=(60, 60, 66), width=2); y += 50
+    f = _font(False, 34)
+    for line in ["Power, d-pad, touchpad, keyboard", "Pickers, numpad, app shortcuts", "Widgets, eight themes, an editor"]:
+        w = d.textlength(line, font=f); x = (PW - w) / 2
+        d.ellipse([x - 34, y + 13, x - 18, y + 29], fill=(217, 52, 43)); d.text((x, y), line, font=f, fill=(225, 225, 230)); y += 58
+    _center_text(d, PH - 120, "Independent app, not affiliated with LG", _font(False, 26), (120, 120, 128))
+    im.save(path)
+
+
 def esc(s):
     return s.replace("\\", "\\\\").replace(":", "\\:").replace("'", "’").replace(",", "\\,")
 
@@ -156,13 +222,18 @@ def marker_filters(events, t_from, t_to, art, first_input, chain_in):
 
 # ── rendering ─────────────────────────────────────────────────────────────────
 
-def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, caption=None, events=(), t_from=0.0, cards=(), focus=None, zoom=1.045, speed=1.0):
+def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, caption=None, events=(), t_from=0.0, cards=(), focus=None, zoom=1.045, speed=1.0, still=None):
     """One segment. caption: text shown for the whole segment. focus: raw phone (x, y) the push-in aims at."""
     inputs = ["-loop", "1", "-framerate", str(FPS), "-i", bg, "-loop", "1", "-framerate", str(FPS), "-i", bz]
     n = 2
     fc = (f"[0:v]crop={W}:{H}:x='({BW - W})*(0.5+0.5*sin((t+{t_offset:.1f})/13))':y='({BH - H})*(0.5+0.5*cos((t+{t_offset:.1f})/17))',"
           f"noise=alls=4:allf=t+u[bgd];[bgd][1:v]overlay=0:0[base];")
     cur = "base"
+    if still:
+        inputs += ["-loop", "1", "-framerate", str(FPS), "-i", still, "-loop", "1", "-i", mask]
+        fc += (f"[{n}:v]scale={PW}:{PH}[scr];[{n + 1}:v]format=gray[m];[scr][m]alphamerge[scrA];"
+               f"[{cur}][scrA]overlay={PX}:{PY}:format=auto[withscr];")
+        cur = "withscr"; n += 2
     if src:
         inputs += ["-ss", f"{src_from * speed:.3f}", "-i", src, "-loop", "1", "-i", mask]
         fc += (f"[{n}:v]setpts=(PTS-STARTPTS)/{speed},scale={PW}:{PH}[scr];[{n + 1}:v]format=gray[m];[scr][m]alphamerge[scrA];"
@@ -194,15 +265,27 @@ def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, captio
                            "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", out])
 
 
-def montage_source(stills, out, each=0.28):
-    lst = out + ".txt"
-    with open(lst, "w", encoding="utf8") as f:
-        for s in stills:
-            f.write(f"file '{s}'\nduration {each}\n")
-        f.write(f"file '{stills[-1]}'\n")
-    subprocess.check_call(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-vf", f"scale={PW}:{PH},fps={FPS}",
+MONTAGE_ORDER = ["onelight", "solarized_light", "catppuccin", "dracula", "monokai", "nord", "dark", "light"]
+
+
+def montage_source(stills, out, each=0.34, fade=0.12):
+    """Stills cross-dissolving into each other, ordered so the run ends on the theme the
+    recording continues in (Light)."""
+    by = {os.path.basename(s).split("_", 1)[1][:-4]: s for s in stills}
+    order = [by[k] for k in MONTAGE_ORDER if k in by]
+    inputs = []
+    for s in order:
+        inputs += ["-loop", "1", "-framerate", str(FPS), "-t", f"{each:.2f}", "-i", s]
+    fc = "".join(f"[{i}:v]scale={PW}:{PH},setsar=1[i{i}];" for i in range(len(order)))
+    cur = "i0"; off = 0.0
+    for i in range(1, len(order)):
+        off += each - fade
+        fc += f"[{cur}][i{i}]xfade=transition=fade:duration={fade}:offset={off:.3f}[m{i}];"; cur = f"m{i}"
+    fc += f"[{cur}]format=yuv420p[v]"
+    script = out + ".filter"; open(script, "w", encoding="utf8").write(fc)
+    subprocess.check_call(["ffmpeg", "-v", "error", "-y"] + inputs + ["-/filter_complex", script, "-map", "[v]", "-r", str(FPS),
                            "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", out])
-    return each * len(stills)
+    return each * len(order) - fade * (len(order) - 1)
 
 
 def join(parts, out):
@@ -233,8 +316,8 @@ def main(raw, marks_path, out, stills_dir=None):
     def seg(name, **kw):
         p = os.path.join(SC, f"prod_{name}.mp4"); render(p, t_offset=toff, bg=bg, bz=bz, mask=mask, art=art, **kw); parts.append(p); return p
 
-    seg("title", dur=2.6, cards=[("LG Power", 122, "white", FONT_B, 760), ("A remote for LG webOS TVs", 44, "0xD0D0D0", FONT_R, 930),
-                                 ("Wi-Fi control, IR power fallback, no ads", 32, "0x9A9A9A", FONT_R, 1000)])
+    tc = os.path.join(SC, "prod_title_card.png"); title_card(tc)
+    seg("title", dur=2.6, still=tc)
     toff += 2.6
     for i, (t, lab) in enumerate(marks[:-1]):
         t_next = marks[i + 1][0]
@@ -251,8 +334,8 @@ def main(raw, marks_path, out, stills_dir=None):
         key = lab.split()[0].rstrip(",:")
         seg(f"s{i:02d}", dur=b - a, src=raw, src_from=a, caption=lab, events=events, t_from=a, focus=FOCUS.get(key), speed=SPEED)
         toff += b - a
-    seg("end", dur=2.8, cards=[("Free on Google Play", 72, "white", FONT_B, 800), ("Open source, AGPL-3.0", 38, "0xD0D0D0", FONT_R, 920),
-                               ("github.com/Nicsilver/LGPower", 34, "0xFF6A5C", FONT_R, 990)])
+    ec = os.path.join(SC, "prod_end_card.png"); end_card(ec)
+    seg("end", dur=3.4, still=ec)
     join(parts, out)
     print("wrote", out, round(os.path.getsize(out) / 1e6, 2), "MB", len(parts), "segments")
 
