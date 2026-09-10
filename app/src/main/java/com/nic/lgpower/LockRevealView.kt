@@ -28,13 +28,20 @@ class LockRevealView @JvmOverloads constructor(
         maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
     }
     private val solid = Paint()
+    private val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1.5f * density }
 
     private var cx = 0f
     private var cy = 0f
     private var progress = 0f
 
     var scrimColor: Int = 0xEE000000.toInt()
-        set(value) { field = value; paint.color = value; solid.color = value; invalidate() }
+        set(value) {
+            field = value; paint.color = value; solid.color = value
+            // A thin rim that contrasts with the scrim so the edge of the disc reads clearly
+            val light = (android.graphics.Color.red(value) + android.graphics.Color.green(value) + android.graphics.Color.blue(value)) > 384
+            edge.color = if (light) 0x40000000 else 0x70FFFFFF
+            invalidate()
+        }
 
     init { setLayerType(LAYER_TYPE_SOFTWARE, null); paint.color = scrimColor; solid.color = scrimColor }
 
@@ -42,12 +49,16 @@ class LockRevealView @JvmOverloads constructor(
 
     fun setProgress(p: Float) { progress = p.coerceIn(0f, 1f); invalidate() }
 
+    fun getProgress() = progress
+
     override fun onDraw(canvas: Canvas) {
         if (progress <= 0f) return
         if (progress >= 1f) { canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), solid); return }
         // Farthest corner plus the blur, so the disc really covers everything at 1
         val maxR = max(max(hypot(cx, cy), hypot(width - cx, cy)), max(hypot(cx, height - cy), hypot(width - cx, height - cy))) + blur
         // Area-linear growth reads as a steady fill rather than a slow start
-        canvas.drawCircle(cx, cy, maxR * sqrt(progress), paint)
+        val r = maxR * sqrt(progress)
+        canvas.drawCircle(cx, cy, r, paint)
+        canvas.drawCircle(cx, cy, r, edge)
     }
 }
