@@ -118,3 +118,23 @@ three-phone row). `python _frame.py <raw_dir> <out_dir>`.
   until the launcher refreshes them. Re-add the widget rather than tapping the stale one.
 - Trampoline activities that finish after async work must not use `Theme.NoDisplay`
   (crash on resume). `Theme.Translucent.NoTitleBar` is the one that works.
+
+## App-tour video
+
+`rec_tour.sh` drives a ~40 s scripted tour (d-pad, sliders, touchpad, keyboard, numpad,
+colour row, pickers, shortcuts, theme switch, screen off) while scrcpy records, and logs
+every tap and swipe with a timestamp. `produce.py` turns that into the 1080x1920 clip in
+`store/video/`: title card, phone in a bezel on a dark glow, a caption per section, an
+expanding ring on every tap (injected taps are invisible to Android's own "show touches",
+so they are drawn in post), and an end card.
+
+```
+export ANDROID_SERIAL=emulator-5574 OUT=/tmp/tour
+bash rec_tour.sh                       # writes tour_raw.mp4, marks.txt, taps.txt in $OUT
+python produce.py /tmp/tour/tour_raw.mp4 /tmp/tour/marks.txt /tmp/tour/tour_produced.mp4
+```
+
+Before recording: theme on Dark, `last_seen_version` in the prefs equal to the current
+versionCode (or the what's-new sheet sits over the first section), and a freshly started
+faketv so the power state is Active. `LAG` in `produce.py` is the delay between the script's
+clock and scrcpy actually capturing; 0.5 s measured here, re-measure if captions drift.

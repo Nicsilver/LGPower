@@ -10,3 +10,4 @@ CLAUDE.md
 *.keystore
 *.keystore.old
 store/screenshots/old_*/
+store/video/old_*/
