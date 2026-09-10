@@ -28,7 +28,7 @@
 </head>
 <body>
 <h1>LG Power — Privacy Policy</h1>
-<p class="updated">Last updated: 14 July 2026</p>
+<p class="updated">Last updated: 10 September 2026</p>
 
 <p>LG Power is an Android app that turns your phone into a remote control for LG
 webOS TVs. This policy explains what data the app handles. In short: <strong>LG
@@ -39,23 +39,26 @@ accounts, no analytics, no advertising, and no servers.</p>
 <p>All data stays on your device, in the app's private storage. Specifically:</p>
 <ul>
   <li><strong>Your TV's IP address</strong> — so the app can reconnect without re-scanning your network.</li>
+  <li><strong>Your TV's MAC address</strong> — so the app can wake the TV over the network (Wake-on-LAN).</li>
   <li><strong>A webOS pairing key</strong> — issued by your TV the first time you pair, so it doesn't prompt you again.</li>
-  <li><strong>Your preferences</strong> — such as configured app shortcuts and theme.</li>
+  <li><strong>Your preferences</strong> — such as configured app shortcuts, cached TV app icons and theme.</li>
 </ul>
 <p>None of this is ever sent to the developer or to any third party. Uninstalling
 the app removes it.</p>
 
 <h2>Network access</h2>
 <p>LG Power communicates only with your own TV over your local Wi-Fi network,
-using the webOS control protocol. The Power button additionally uses your phone's
-infrared (IR) blaster to reach the TV. The app makes no connections to the
-internet or to any external service.</p>
+using the webOS control protocol. Text you type in the keyboard sheet is sent to
+the TV's active text field and is not stored. The Power button, the OK widget and
+the service remote can additionally use your phone's infrared (IR) blaster to reach
+the TV; IR codes go from the phone to the TV and nowhere else. The app makes no
+connections to the internet or to any external service.</p>
 
 <h2>Permissions</h2>
 <ul>
-  <li><code>TRANSMIT_IR</code> — send the infrared power signal to the TV.</li>
+  <li><code>TRANSMIT_IR</code> — send infrared codes (power, OK, service remote) to the TV.</li>
   <li><code>INTERNET</code> — open a local WebSocket connection to your TV (LAN only).</li>
-  <li><code>ACCESS_WIFI_STATE</code> / <code>CHANGE_WIFI_MULTICAST_STATE</code> — discover the TV on your network.</li>
+  <li><code>ACCESS_WIFI_STATE</code> / <code>ACCESS_NETWORK_STATE</code> / <code>CHANGE_WIFI_MULTICAST_STATE</code> — discover the TV on your network and keep TV traffic on Wi-Fi rather than mobile data.</li>
   <li><code>VIBRATE</code> — provide haptic feedback on button presses.</li>
 </ul>
 

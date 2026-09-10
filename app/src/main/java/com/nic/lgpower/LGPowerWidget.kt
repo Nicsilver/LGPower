@@ -46,7 +46,7 @@ class LGPowerWidget : AppWidgetProvider() {
 
         fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, widgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.widget_layout)
-            val intent = Intent(context, IrActivity::class.java).apply {
+            val intent = Intent(context, PowerActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)

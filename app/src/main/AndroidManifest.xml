@@ -55,7 +55,12 @@
             android:label="Theme Editor"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- IR power widget trampoline -->
+        <!-- Power widget trampoline: Wi-Fi off / Wake-on-LAN on, IR only as a fallback -->
+        <activity
+            android:name=".PowerActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- IR trampoline for the OK widget and IR-only fallbacks -->
         <activity
             android:name=".IrActivity"
             android:exported="false"
