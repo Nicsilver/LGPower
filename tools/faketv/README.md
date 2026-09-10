@@ -125,8 +125,9 @@ three-phone row). `python _frame.py <raw_dir> <out_dir>`.
 colour row, pickers, shortcuts, theme switch, screen off) while scrcpy records, and logs
 every tap and swipe with a timestamp. `produce.py` turns that into the 1080x1920 clip in
 `store/video/`: title card, phone in a bezel on a dark glow, a caption per section, an
-expanding ring on every tap (injected taps are invisible to Android's own "show touches",
-so they are drawn in post), and an end card.
+red pulse on every tap (injected taps are invisible to Android's own "show touches",
+so they are drawn in post from the tap log), and an end card. Taps are sent as 130 ms
+presses so the app's pressed state renders; recording and output are 60 fps.
 
 ```
 export ANDROID_SERIAL=emulator-5574 OUT=/tmp/tour
@@ -137,4 +138,6 @@ python produce.py /tmp/tour/tour_raw.mp4 /tmp/tour/marks.txt /tmp/tour/tour_prod
 Before recording: theme on Dark, `last_seen_version` in the prefs equal to the current
 versionCode (or the what's-new sheet sits over the first section), and a freshly started
 faketv so the power state is Active. `LAG` in `produce.py` is the delay between the script's
-clock and scrcpy actually capturing; 0.5 s measured here, re-measure if captions drift.
+clock and scrcpy actually capturing; 0.72 s measured here (sample the d-pad wedge
+brightness in the raw video and compare with the hold's time in taps.txt), re-measure if
+captions or pulses drift.
