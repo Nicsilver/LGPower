@@ -59,21 +59,21 @@ def background(path):
 def bezel(path):
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).rounded_rectangle([PX - BEZ - 8, PY - BEZ + 60, PX + PW + BEZ + 8, PY + PH + BEZ + 70], 96, fill=(30, 20, 20, 150))
+    ImageDraw.Draw(shadow).rounded_rectangle([PX - BEZ - 8, PY - BEZ + 60, PX + PW + BEZ + 8, PY + PH + BEZ + 70], 60, fill=(30, 20, 20, 150))
     shadow = shadow.filter(ImageFilter.GaussianBlur(50))
     im.alpha_composite(shadow)
     d = ImageDraw.Draw(im)
     d.rounded_rectangle([PX + PW + BEZ - 2, PY + 300, PX + PW + BEZ + 8, PY + 420], 5, fill=(40, 40, 44, 255))
     d.rounded_rectangle([PX + PW + BEZ - 2, PY + 470, PX + PW + BEZ + 8, PY + 700], 5, fill=(40, 40, 44, 255))
     d.rounded_rectangle([PX - BEZ - 8, PY + 380, PX - BEZ + 2, PY + 520], 5, fill=(40, 40, 44, 255))
-    d.rounded_rectangle([PX - BEZ, PY - BEZ, PX + PW + BEZ, PY + PH + BEZ], 92, fill=(28, 28, 31, 255), outline=(96, 96, 102, 255), width=3)
-    d.rounded_rectangle([PX - BEZ + 4, PY - BEZ + 4, PX + PW + BEZ - 4, PY + PH + BEZ - 4], 88, outline=(12, 12, 14, 255), width=3)
+    d.rounded_rectangle([PX - BEZ, PY - BEZ, PX + PW + BEZ, PY + PH + BEZ], 56, fill=(28, 28, 31, 255), outline=(96, 96, 102, 255), width=3)
+    d.rounded_rectangle([PX - BEZ + 4, PY - BEZ + 4, PX + PW + BEZ - 4, PY + PH + BEZ - 4], 52, outline=(12, 12, 14, 255), width=3)
     im.save(path)
 
 
 def screen_mask(path):
     m = Image.new("L", (PW, PH), 0)
-    ImageDraw.Draw(m).rounded_rectangle([0, 0, PW - 1, PH - 1], 66, fill=255)
+    ImageDraw.Draw(m).rounded_rectangle([0, 0, PW - 1, PH - 1], 34, fill=255)
     m.save(path)
 
 
