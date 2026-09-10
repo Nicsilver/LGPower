@@ -9,6 +9,11 @@ now()   { python -c "import time;print(round(time.time()-$T0,3))"; }
 tap()   { echo "$(now) tap $1 $2 ${4:-130}" >> taps.txt; $ADB -s $S shell input swipe $1 $2 $1 $2 ${4:-130}; sleep ${3:-0.6}; }
 swipe() { echo "$(now) swipe $1 $2 $3 $4 ${5:-300}" >> taps.txt; $ADB -s $S shell input swipe $1 $2 $3 $4 ${5:-300}; sleep ${6:-0.6}; }
 key()   { $ADB -s $S shell input keyevent $1; sleep ${2:-0.6}; }
+# ddrag pill from to ms [wait]: app-side eased slider animation (debug build only); pill x is
+# 139 (volume) or 940 (brightness); level -> raw y on the 1080x2400 AVD is 1720 - 5.92*level
+ddrag() { x=139; [ "$1" = brightness ] && x=940; y1=$(( 1720 - 592 * $2 / 100 )); y2=$(( 1720 - 592 * $3 / 100 ))
+          echo "$(now) drag $x $y1 $x $y2 $4 ease" >> taps.txt
+          $ADB -s $S shell am broadcast -a com.nic.lgpower.DEMO_DRAG --es pill $1 --ei from $2 --ei to $3 --ei ms $4 >/dev/null; sleep ${5:-0.6}; }
 mark()  { echo "$(now) $1" >> marks.txt; }
 # Gboard key centres on the 1080x2400 AVD (portrait, English layout)
 kx() { case $1 in q)echo 60;; w)echo 165;; e)echo 273;; r)echo 381;; t)echo 486;; y)echo 594;; u)echo 702;; i)echo 810;; o)echo 918;; p)echo 1026;;
@@ -27,11 +32,11 @@ SP=$!
 T0=$(python -c "import time;print(time.time())")
 sleep 2.0
 
-mark "D-pad, hold to repeat"
-tap 737 1394 0.35; tap 539 1592 0.35; tap 337 1394 0.35; swipe 737 1394 737 1394 800 0.3; tap 539 1394 0.6
+mark "D-pad and OK"
+tap 737 1394 0.35; tap 539 1592 0.35; tap 337 1394 0.35; tap 539 1194 0.35; tap 539 1394 0.6
 
 mark "Volume and brightness sliders"
-swipe 139 1560 139 1200 600 0.7; swipe 139 1200 139 1500 600 0.7; swipe 940 1200 940 1550 600 0.6
+ddrag volume 18 92 700 0.95; ddrag volume 92 40 700 0.95; ddrag brightness 70 30 700 0.9
 
 mark "Touchpad, hold to lock"
 swipe 539 632 539 632 1250 0.15; swipe 300 1000 800 1300 380 0.1; swipe 800 1300 400 1500 380 0.15; tap 648 2052 0.4; tap 900 252 0.5

@@ -478,6 +478,17 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (BuildConfig.DEBUG && demoReceiver == null) {
+            demoReceiver = object : android.content.BroadcastReceiver() {
+                override fun onReceive(c: android.content.Context?, i: android.content.Intent?) {
+                    val id = if (i?.getStringExtra("pill") == "brightness") R.id.brightness_pill else R.id.volume_pill
+                    demoDrags[id]?.invoke(i?.getIntExtra("from", 0) ?: 0, i?.getIntExtra("to", 0) ?: 0, (i?.getIntExtra("ms", 600) ?: 600).toLong())
+                }
+            }
+            val filter = android.content.IntentFilter("com.nic.lgpower.DEMO_DRAG")
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(demoReceiver, filter, android.content.Context.RECEIVER_EXPORTED)
+            else registerReceiver(demoReceiver, filter)
+        }
         val currentThemeId = ThemeManager.getActiveThemeId(this)
         if (lastAppliedThemeId.isNotEmpty() && lastAppliedThemeId != currentThemeId) {
             recreate()
@@ -496,6 +507,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        demoReceiver?.let { runCatching { unregisterReceiver(it) }; demoReceiver = null }
         super.onPause()
         stopWatching?.invoke()
         stopWatching = null
@@ -732,6 +744,11 @@ class MainActivity : AppCompatActivity() {
 
     private val appPrefs by lazy { getSharedPreferences("webos", MODE_PRIVATE) }
 
+    // Debug-only: lets the store-video script animate a slider from adb
+    // (am broadcast -a com.nic.lgpower.DEMO_DRAG --es pill volume --ei from 18 --ei to 90 --ei ms 700)
+    private val demoDrags = mutableMapOf<Int, (Int, Int, Long) -> Unit>()
+    private var demoReceiver: android.content.BroadcastReceiver? = null
+
     // Once per update, covering every release since the app was last opened. No marker
     // means the user updated from before release notes existed, so only the current
     // release is shown. The marker is written on dismiss so a killed app shows it again.
@@ -842,6 +859,24 @@ class MainActivity : AppCompatActivity() {
         val bar  = findViewById<View>(barId)
         val pillHeightPx = resources.getDimensionPixelSize(R.dimen.dpad_size)
         val dragThreshold = 10 * resources.displayMetrics.density
+        if (BuildConfig.DEBUG) demoDrags[pillId] = { from, to, ms ->
+            val label = (pill.parent as? android.view.ViewGroup)?.getChildAt(0) as? TextView
+            ValueAnimator.ofInt(from, to).apply {
+                duration = ms
+                interpolator = android.view.animation.DecelerateInterpolator(1.8f)
+                addUpdateListener { a ->
+                    val level = a.animatedValue as Int
+                    bar.layoutParams = bar.layoutParams.also { it.height = (pillHeightPx * level / 100f).toInt() }
+                    bar.requestLayout()
+                    label?.text = level.toString()
+                    onDragMove?.invoke(level)
+                }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) { onDragEnd(to); onActionUp?.invoke() }
+                })
+                start()
+            }
+        }
         var startY = 0f
         var isDragging = false
         var lastHapticLevel = -1
