@@ -91,9 +91,12 @@ Everything user-facing since the listing was last touched (1.25.0 to 1.30.0). Pa
 - Main remote fits smaller phones, pairing screen stops after 30 seconds
 - Release notes under Settings > About
 
-## Follow-ups in the app (need a release, not part of the listing)
+## Follow-ups
 
-- strings.xml widget labels say "LG C4 Power", "LG C4 Screen Off", "LG C4 OK". Should be model-neutral.
-- ServiceRemoteActivity footer "MKJ39170828 REPLICA · IR ONLY" names LG's part number and the word replica. Rephrase.
-- docs/privacy.html: date, plus lines for the MAC address, keyboard text (sent to the TV only) and IR codes.
-- Home screen Power and OK widgets are IR-only; consider routing the Power widget through Wake-on-LAN like the in-app button.
+Shipped in 1.31.0 (tag v1.31.0, 2026-09-10):
+- Widget picker labels are model-neutral: "TV Power", "TV Screen Off", "TV OK".
+- Service remote footer reads "IR ONLY · AIM THE PHONE AT THE TV"; no part number, no "replica".
+- Home screen Power widget goes over Wi-Fi / Wake-on-LAN like the in-app button, IR only as a fallback.
+- docs/privacy.html dated 10 September 2026, lists the MAC address, keyboard text handling and the network-state permission.
+
+Still IR-only by design: the OK widget (OK is meaningless when the TV is off, and IR is instant).
