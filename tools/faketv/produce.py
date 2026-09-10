@@ -1,6 +1,9 @@
-"""Turn tour_raw.mp4 + marks.txt + taps.txt into a produced 1080x1920 60 fps clip:
-drifting background with grain, phone in a bezel, section captions, white tap pulses and
-travelling drag rings, a theme montage cut in at the "montage" mark, title and end cards.
+"""Turn tour_raw.mp4 + marks.txt + taps.txt into a produced 1080x1920 60 fps clip.
+
+Each section is rendered as its own segment (light drifting background, big phone in a
+graphite bezel, caption, tap pulses, drag rings, a slow push-in towards the section's
+focus), then the segments are joined with short cross-dissolves. A theme montage from
+stills is cut in at the "montage" mark. Title and end cards bookend it.
 
 Usage: python produce.py <raw.mp4> <marks.txt> <out.mp4> [theme_stills_dir]
 """
@@ -10,74 +13,82 @@ from PIL import Image, ImageDraw, ImageFilter
 SC = os.path.dirname(os.path.abspath(sys.argv[1])) if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
 W, H = 1080, 1920
 BW, BH = 1300, 2300               # oversized background so it can drift
-PW, PH = 690, 1532                # phone screen on the canvas
-PX, PY = (W - PW) // 2, 290
-BEZ = 22
+PW, PH = 780, 1734                # phone screen on the canvas (1080x2400 scaled)
+PX, PY = (W - PW) // 2, 236
+BEZ = 20
 FPS = 60
 FONT_B = "C\\:/Windows/Fonts/segoeuib.ttf"
 FONT_R = "C\\:/Windows/Fonts/segoeui.ttf"
-RED = "0xE53935"
-LAG = 0.63  # script clock vs scrcpy capture, measured on the d-pad hold
+INK = "0x1E1B1B"
+MUTED = "0x6B6465"
+RED = "0xD9342B"
+LAG = 0.68  # script clock vs scrcpy capture, measured on the d-pad hold
 PULSE_STEPS, PULSE_DT = 7, 0.05
+XFADE = 0.35
+
+# where the slow push-in aims, per section, in raw phone pixels
+FOCUS = {
+    "D-pad": (540, 1400), "Volume": (540, 1300), "Touchpad": (540, 1200), "Type": (540, 1800),
+    "Numpad": (540, 900), "Picture": (540, 1650), "Input": (540, 1850), "App": (540, 420),
+    "Themes": (540, 1200), "Eight": (540, 1200), "Screen": (300, 1900),
+}
 
 
 # ── static art ────────────────────────────────────────────────────────────────
 
 def background(path):
-    img = Image.new("RGB", (BW, BH), (13, 13, 16))
-    blobs = Image.new("RGB", (BW, BH), (13, 13, 16))
+    img = Image.new("RGB", (BW, BH), (238, 234, 231))
+    blobs = Image.new("RGB", (BW, BH), (238, 234, 231))
     d = ImageDraw.Draw(blobs)
-    d.ellipse([-200, 200, 700, 1100], fill=(96, 26, 30))       # crimson, upper left
-    d.ellipse([700, 1300, 1500, 2300], fill=(24, 34, 62))      # slate blue, lower right
-    d.ellipse([500, -100, 1200, 500], fill=(40, 30, 50))       # faint violet, top right
-    blobs = blobs.filter(ImageFilter.GaussianBlur(220))
-    img = Image.blend(img, blobs, 0.9)
-    band = Image.new("L", (BW, BH), 0)
-    ImageDraw.Draw(band).polygon([(0, 1500), (BW, 300), (BW, 700), (0, 1900)], fill=40)
-    band = band.filter(ImageFilter.GaussianBlur(120))
-    img.paste(Image.new("RGB", (BW, BH), (255, 235, 230)), (0, 0), band)
+    d.ellipse([-250, 150, 650, 1050], fill=(246, 190, 178))     # coral, upper left
+    d.ellipse([700, 1300, 1550, 2250], fill=(184, 206, 234))    # sky, lower right
+    d.ellipse([600, -150, 1350, 550], fill=(244, 222, 180))     # pale gold, top right
+    d.ellipse([-100, 1500, 500, 2300], fill=(214, 226, 214))    # sage, bottom left
+    blobs = blobs.filter(ImageFilter.GaussianBlur(200))
+    img = Image.blend(img, blobs, 0.85)
     vig = Image.new("L", (BW, BH), 0)
-    ImageDraw.Draw(vig).ellipse([-150, -100, BW + 150, BH + 100], fill=255)
-    vig = vig.filter(ImageFilter.GaussianBlur(260))
-    dark = Image.new("RGB", (BW, BH), (6, 6, 8))
-    img = Image.composite(img, dark, vig)
+    ImageDraw.Draw(vig).ellipse([-200, -150, BW + 200, BH + 150], fill=255)
+    vig = vig.filter(ImageFilter.GaussianBlur(300))
+    edge = Image.new("RGB", (BW, BH), (214, 208, 205))
+    img = Image.composite(img, edge, vig)
     img.save(path)
 
 
 def bezel(path):
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).rounded_rectangle([PX - BEZ - 10, PY - BEZ + 50, PX + PW + BEZ + 10, PY + PH + BEZ + 60], 80, fill=(0, 0, 0, 190))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(46))
+    ImageDraw.Draw(shadow).rounded_rectangle([PX - BEZ - 8, PY - BEZ + 60, PX + PW + BEZ + 8, PY + PH + BEZ + 70], 96, fill=(30, 20, 20, 150))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(50))
     im.alpha_composite(shadow)
     d = ImageDraw.Draw(im)
-    d.rounded_rectangle([PX - BEZ, PY - BEZ, PX + PW + BEZ, PY + PH + BEZ], 76, fill=(22, 22, 25, 255), outline=(70, 70, 76, 255), width=2)
-    d.arc([PX - BEZ, PY - BEZ, PX - BEZ + 152, PY - BEZ + 152], 180, 270, fill=(150, 150, 160, 140), width=2)
+    d.rounded_rectangle([PX + PW + BEZ - 2, PY + 300, PX + PW + BEZ + 8, PY + 420], 5, fill=(40, 40, 44, 255))
+    d.rounded_rectangle([PX + PW + BEZ - 2, PY + 470, PX + PW + BEZ + 8, PY + 700], 5, fill=(40, 40, 44, 255))
+    d.rounded_rectangle([PX - BEZ - 8, PY + 380, PX - BEZ + 2, PY + 520], 5, fill=(40, 40, 44, 255))
+    d.rounded_rectangle([PX - BEZ, PY - BEZ, PX + PW + BEZ, PY + PH + BEZ], 92, fill=(28, 28, 31, 255), outline=(96, 96, 102, 255), width=3)
+    d.rounded_rectangle([PX - BEZ + 4, PY - BEZ + 4, PX + PW + BEZ - 4, PY + PH + BEZ - 4], 88, outline=(12, 12, 14, 255), width=3)
     im.save(path)
 
 
 def screen_mask(path):
     m = Image.new("L", (PW, PH), 0)
-    ImageDraw.Draw(m).rounded_rectangle([0, 0, PW - 1, PH - 1], 56, fill=255)
+    ImageDraw.Draw(m).rounded_rectangle([0, 0, PW - 1, PH - 1], 66, fill=255)
     m.save(path)
 
 
 def pulses():
-    """White pulse: small disc that grows r 14->38 while fading, one PNG per step, plus a
-    travelling ring for drags."""
     out = []
     for i in range(PULSE_STEPS):
         k = i / (PULSE_STEPS - 1)
-        r = int(14 + 24 * k)
-        a = int(210 * (1 - k) ** 1.3)
+        r = int(15 + 26 * k)
+        a = int(215 * (1 - k) ** 1.3)
         pad = 4
         im = Image.new("RGBA", (2 * r + 2 * pad, 2 * r + 2 * pad), (0, 0, 0, 0))
         d = ImageDraw.Draw(im)
         d.ellipse([pad, pad, pad + 2 * r, pad + 2 * r], fill=(255, 255, 255, a // 2), outline=(255, 255, 255, a), width=3)
         p = os.path.join(SC, f"prod_pulse{i}.png"); im.save(p); out.append((p, r + pad))
-    r, pad = 22, 4
+    r, pad = 24, 4
     im = Image.new("RGBA", (2 * r + 2 * pad, 2 * r + 2 * pad), (0, 0, 0, 0))
-    ImageDraw.Draw(im).ellipse([pad, pad, pad + 2 * r, pad + 2 * r], fill=(255, 255, 255, 70), outline=(255, 255, 255, 200), width=3)
+    ImageDraw.Draw(im).ellipse([pad, pad, pad + 2 * r, pad + 2 * r], fill=(255, 255, 255, 70), outline=(255, 255, 255, 210), width=3)
     p = os.path.join(SC, "prod_drag.png"); im.save(p); out.append((p, r + pad))
     return out
 
@@ -105,7 +116,6 @@ def read_taps(path):
 
 
 def marker_filters(events, t_from, t_to, art, first_input, chain_in):
-    """Pulses for taps/holds and a travelling ring for drags; times relative to t_from."""
     sx, sy = PW / 1080, PH / 2400
     f, cur = "", chain_in
     evs = [e for e in events if t_from - 1 <= e["t"] <= t_to]
@@ -144,12 +154,12 @@ def marker_filters(events, t_from, t_to, art, first_input, chain_in):
 
 # ── rendering ─────────────────────────────────────────────────────────────────
 
-def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, captions=(), events=(), t_from=0.0, cards=()):
-    """One segment. captions: (a, b, text) relative to segment start. cards: (text, size, color, font, y)."""
+def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, caption=None, events=(), t_from=0.0, cards=(), focus=None, zoom=1.045):
+    """One segment. caption: text shown for the whole segment. focus: raw phone (x, y) the push-in aims at."""
     inputs = ["-loop", "1", "-framerate", str(FPS), "-i", bg, "-loop", "1", "-framerate", str(FPS), "-i", bz]
     n = 2
     fc = (f"[0:v]crop={W}:{H}:x='({BW - W})*(0.5+0.5*sin((t+{t_offset:.1f})/13))':y='({BH - H})*(0.5+0.5*cos((t+{t_offset:.1f})/17))',"
-          f"noise=alls=7:allf=t+u[bgd];[bgd][1:v]overlay=0:0[base];")
+          f"noise=alls=4:allf=t+u[bgd];[bgd][1:v]overlay=0:0[base];")
     cur = "base"
     if src:
         inputs += ["-ss", f"{src_from:.3f}", "-i", src, "-loop", "1", "-i", mask]
@@ -161,22 +171,28 @@ def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, captio
     if events:
         mf, cur = marker_filters(events, t_from, t_from + dur, art, n, cur)
         fc += mf
+    zoomf = ""
+    if focus:
+        fx, fy = PX + focus[0] * PW / 1080, PY + focus[1] * PH / 2400
+        cxp, cyp = (W / 2 + fx) / 2, (H / 2 + fy) / 2
+        frames = int(dur * FPS)
+        z = f"1+({zoom - 1})*min(1,on/{frames})"
+        zoomf = (f",scale={W * 2}:{H * 2}:flags=bicubic,zoompan=z='{z}':x='{2 * cxp:.0f}-(iw/zoom)/2':y='{2 * cyp:.0f}-(ih/zoom)/2':d=1:s={W}x{H}:fps={FPS}")
     txt = ""
-    for a, b, text in captions:
-        al = f"if(lt(t,{a:.2f}+0.3),(t-{a:.2f})/0.3,1)"
-        txt += (f",drawtext=fontfile='{FONT_B}':text='{esc(text)}':fontsize=58:fontcolor=white:x=(w-text_w)/2:y=142:alpha='{al}':enable='between(t,{a:.2f},{b:.2f})'"
-                f",drawbox=x=(iw-56)/2:y=224:w=56:h=4:color={RED}@0.9:t=fill:enable='between(t,{a:.2f},{b:.2f})'")
-    if captions:
-        txt += f",drawtext=fontfile='{FONT_R}':text='LG POWER':fontsize=24:fontcolor=white@0.55:x=(w-text_w)/2:y=100"
+    if caption:
+        txt += (f",drawtext=fontfile='{FONT_R}':text='LG POWER':fontsize=22:fontcolor={MUTED}:x=(w-text_w)/2:y=86"
+                f",drawtext=fontfile='{FONT_B}':text='{esc(caption)}':fontsize=54:fontcolor={INK}:x=(w-text_w)/2:y=118"
+                f",drawbox=x=(iw-52)/2:y=194:w=52:h=4:color={RED}@0.95:t=fill")
     for text, size, color, font, y in cards:
         txt += f",drawtext=fontfile='{font}':text='{esc(text)}':fontsize={size}:fontcolor={color}:x=(w-text_w)/2:y={y}"
-    fc += f"[{cur}]null{txt},fade=t=in:st=0:d=0.35,fade=t=out:st={dur - 0.35:.2f}:d=0.35,format=yuv420p[v]"
+    txt = zoomf + txt
+    fc += f"[{cur}]null{txt},format=yuv420p[v]"
     script = out + ".filter"; open(script, "w", encoding="utf8").write(fc)
     subprocess.check_call(["ffmpeg", "-v", "error", "-y"] + inputs + ["-/filter_complex", script, "-map", "[v]", "-t", f"{dur:.3f}", "-r", str(FPS),
-                           "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-pix_fmt", "yuv420p", out])
+                           "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", out])
 
 
-def montage_source(stills, out, each=0.3):
+def montage_source(stills, out, each=0.28):
     lst = out + ".txt"
     with open(lst, "w", encoding="utf8") as f:
         for s in stills:
@@ -187,58 +203,56 @@ def montage_source(stills, out, each=0.3):
     return each * len(stills)
 
 
+def join(parts, out):
+    """Cross-dissolve consecutive parts (each part's ends overlap by XFADE)."""
+    durs = [float(subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", p]).decode()) for p in parts]
+    inputs = []
+    for p in parts:
+        inputs += ["-i", p]
+    fc = ""; cur = "0:v"; offset = 0.0
+    for i in range(1, len(parts)):
+        offset += durs[i - 1] - XFADE
+        fc += f"[{cur}][{i}:v]xfade=transition=fade:duration={XFADE}:offset={offset:.3f}[x{i}];"
+        cur = f"x{i}"
+    fc += f"[{cur}]fade=t=in:st=0:d=0.4,format=yuv420p[v]"
+    script = out + ".filter"; open(script, "w", encoding="utf8").write(fc)
+    subprocess.check_call(["ffmpeg", "-v", "error", "-y"] + inputs + ["-/filter_complex", script, "-map", "[v]", "-r", str(FPS),
+                           "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out])
+
+
 def main(raw, marks_path, out, stills_dir=None):
     bg = os.path.join(SC, "prod_bg.png"); bz = os.path.join(SC, "prod_bezel.png"); mask = os.path.join(SC, "prod_mask.png")
     background(bg); bezel(bz); screen_mask(mask)
     art = pulses()
     marks = [(float(l.split(" ", 1)[0]) - LAG, l.split(" ", 1)[1].strip()) for l in open(marks_path, encoding="utf8").read().strip().splitlines()]
     events = read_taps(os.path.join(os.path.dirname(os.path.abspath(marks_path)), "taps.txt"))
-    start = marks[0][0] - 0.5
-    end = marks[-1][0] + 0.2
-    mont_i = next((i for i, (t, l) in enumerate(marks) if l == "montage"), None)
-    parts = []
+    parts = []; toff = 0.0
 
-    def section_caps(t_from, t_to):
-        caps = []
-        for i, (t, lab) in enumerate(marks[:-1]):
-            if lab == "montage":
+    def seg(name, **kw):
+        p = os.path.join(SC, f"prod_{name}.mp4"); render(p, t_offset=toff, bg=bg, bz=bz, mask=mask, art=art, **kw); parts.append(p); return p
+
+    seg("title", dur=2.6, cards=[("LG Power", 122, "white", FONT_B, 760), ("A remote for LG webOS TVs", 44, "0xD0D0D0", FONT_R, 930),
+                                 ("Wi-Fi control, IR power fallback, no ads", 32, "0x9A9A9A", FONT_R, 1000)])
+    toff += 2.6
+    for i, (t, lab) in enumerate(marks[:-1]):
+        t_next = marks[i + 1][0]
+        a = t - (0.5 if i == 0 else XFADE / 2)
+        b = t_next + (XFADE / 2 if i + 1 < len(marks) - 1 else 0.2)
+        if lab == "montage":
+            if not stills_dir:
                 continue
-            a, b = max(t, t_from), min(marks[i + 1][0], t_to)
-            if b > a:
-                caps.append((a - t_from, b - t_from, lab))
-        return caps
-
-    title = os.path.join(SC, "prod_title.mp4")
-    render(title, 2.4, 0, bg, bz, mask, art, cards=[("LG Power", 118, "white", FONT_B, 780), ("A remote for LG webOS TVs", 42, "0xC8C8C8", FONT_R, 950),
-                                                     ("Wi-Fi control, IR power fallback, no ads", 32, "0x8E8E8E", FONT_R, 1020)])
-    parts.append(title); toff = 2.4
-
-    if mont_i is not None and stills_dir:
-        t_mont = marks[mont_i][0]; t_after = marks[mont_i + 1][0]
-        a_mp4 = os.path.join(SC, "prod_a.mp4")
-        render(a_mp4, t_mont - start, toff, bg, bz, mask, art, src=raw, src_from=start, captions=section_caps(start, t_mont), events=events, t_from=start)
-        parts.append(a_mp4); toff += t_mont - start
-        stills = sorted(glob.glob(os.path.join(stills_dir, "*.png")))
-        msrc = os.path.join(SC, "prod_montage_src.mp4"); mdur = montage_source(stills, msrc)
-        m_mp4 = os.path.join(SC, "prod_montage.mp4")
-        render(m_mp4, mdur, toff, bg, bz, mask, art, src=msrc, captions=[(0, mdur, "Eight themes and an editor")])
-        parts.append(m_mp4); toff += mdur
-        b_mp4 = os.path.join(SC, "prod_b.mp4")
-        render(b_mp4, end - t_after, toff, bg, bz, mask, art, src=raw, src_from=t_after, captions=section_caps(t_after, end), events=events, t_from=t_after)
-        parts.append(b_mp4); toff += end - t_after
-    else:
-        a_mp4 = os.path.join(SC, "prod_a.mp4")
-        render(a_mp4, end - start, toff, bg, bz, mask, art, src=raw, src_from=start, captions=section_caps(start, end), events=events, t_from=start)
-        parts.append(a_mp4); toff += end - start
-
-    endc = os.path.join(SC, "prod_end.mp4")
-    render(endc, 2.6, toff, bg, bz, mask, art, cards=[("Free on Google Play", 70, "white", FONT_B, 820), ("Open source, AGPL-3.0", 38, "0xC8C8C8", FONT_R, 940),
-                                                        ("github.com/Nicsilver/LGPower", 34, RED, FONT_R, 1010)])
-    parts.append(endc)
-    lst = os.path.join(SC, "prod_list.txt")
-    open(lst, "w", encoding="utf8").write("\n".join(f"file '{p}'" for p in parts))
-    subprocess.check_call(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", "-movflags", "+faststart", out])
-    print("wrote", out, round(os.path.getsize(out) / 1e6, 2), "MB")
+            stills = sorted(glob.glob(os.path.join(stills_dir, "*.png")))
+            msrc = os.path.join(SC, "prod_montage_src.mp4"); mdur = montage_source(stills, msrc) + XFADE
+            seg("montage", dur=mdur, src=msrc, caption="Eight themes and an editor", focus=FOCUS["Eight"], zoom=1.03)
+            toff += mdur
+            continue
+        key = lab.split()[0].rstrip(",:")
+        seg(f"s{i:02d}", dur=b - a, src=raw, src_from=a, caption=lab, events=events, t_from=a, focus=FOCUS.get(key))
+        toff += b - a
+    seg("end", dur=2.8, cards=[("Free on Google Play", 72, "white", FONT_B, 800), ("Open source, AGPL-3.0", 38, "0xD0D0D0", FONT_R, 920),
+                               ("github.com/Nicsilver/LGPower", 34, "0xFF6A5C", FONT_R, 990)])
+    join(parts, out)
+    print("wrote", out, round(os.path.getsize(out) / 1e6, 2), "MB", len(parts), "segments")
 
 
 if __name__ == "__main__":
