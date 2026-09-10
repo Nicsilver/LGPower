@@ -284,19 +284,25 @@ class MainActivity : AppCompatActivity() {
         val touchpadHint     = findViewById<View>(R.id.touchpad_hint)
         val btnExit          = findViewById<View>(R.id.btn_touchpad_exit)
         val lockReveal       = findViewById<LockRevealView>(R.id.lock_reveal)
+        val lockBorder       = findViewById<LockBorderView>(R.id.lock_border)
+        var borderAnimator: ValueAnimator? = null
         val btnClick         = findViewById<android.widget.Button>(R.id.btn_touchpad_click)
         val btnTpBack        = findViewById<android.widget.ImageButton>(R.id.btn_touchpad_back)
 
         fun resetBorder() {
             lockAnimator?.cancel()
             lockAnimator = null
+            borderAnimator?.cancel()
+            borderAnimator = null
             lockReveal.setProgress(0f)
+            lockBorder.setProgress(0f)
         }
 
         // The overlay follows the theme: a light scrim and dark text on light themes
         fun styleTouchpadOverlay() {
             val th = ThemeManager.getActiveTheme(this)
             lockReveal.scrimColor = ColorUtil.withAlpha(th.windowBg, 0xF2)
+            lockBorder.setOnLightScrim(ColorUtil.luminance(th.windowBg) > 0.5)
             (touchpadHint as TextView).setTextColor(ColorUtil.withAlpha(th.primaryText, 0x99))
             btnClick.setTextColor(th.primaryText)
             btnClick.backgroundTintList = android.content.res.ColorStateList.valueOf(th.surfaceBg)
@@ -458,6 +464,13 @@ class MainActivity : AppCompatActivity() {
                                 window.decorView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                 touchpadHint.visibility = View.GONE
                                 btnExit.visibility = View.VISIBLE
+                                // Locked: the edge line runs up both sides as the "you're in" accent
+                                borderAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+                                    duration = 420
+                                    interpolator = android.view.animation.DecelerateInterpolator(1.4f)
+                                    addUpdateListener { lockBorder.setProgress(it.animatedValue as Float) }
+                                    start()
+                                }
                             }
                         }
                     }, LOCK_HOLD_MS)
