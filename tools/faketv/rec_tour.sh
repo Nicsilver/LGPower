@@ -5,8 +5,8 @@ set -u
 ADB=/c/Android/android-sdk/platform-tools/adb.exe; S=${ANDROID_SERIAL:-emulator-5574}
 OUT=${OUT:-$(dirname "$0")}; mkdir -p "$OUT"; cd "$OUT"
 now()   { python -c "import time;print(round(time.time()-$T0,3))"; }
-# A tap is a 130 ms press so the button's pressed state actually renders a few frames.
-tap()   { echo "$(now) tap $1 $2 130" >> taps.txt; $ADB -s $S shell input swipe $1 $2 $1 $2 130; sleep ${3:-0.6}; }
+# A tap is a short press so the button's pressed state actually renders a few frames.
+tap()   { echo "$(now) tap $1 $2 ${4:-130}" >> taps.txt; $ADB -s $S shell input swipe $1 $2 $1 $2 ${4:-130}; sleep ${3:-0.6}; }
 swipe() { echo "$(now) swipe $1 $2 $3 $4 ${5:-300}" >> taps.txt; $ADB -s $S shell input swipe $1 $2 $3 $4 ${5:-300}; sleep ${6:-0.6}; }
 key()   { $ADB -s $S shell input keyevent $1; sleep ${2:-0.6}; }
 mark()  { echo "$(now) $1" >> marks.txt; }
@@ -15,13 +15,14 @@ kx() { case $1 in q)echo 60;; w)echo 165;; e)echo 273;; r)echo 381;; t)echo 486;
               a)echo 114;; s)echo 216;; d)echo 324;; f)echo 432;; g)echo 540;; h)echo 648;; j)echo 756;; k)echo 861;; l)echo 966;;
               z)echo 219;; x)echo 324;; c)echo 432;; v)echo 540;; b)echo 648;; n)echo 753;; m)echo 861;; _)echo 540;; esac; }
 ky() { case $1 in q|w|e|r|t|y|u|i|o|p)echo 1713;; a|s|d|f|g|h|j|k|l)echo 1866;; z|x|c|v|b|n|m)echo 2022;; _)echo 2181;; esac; }
-type_word() { for ((i=0;i<${#1};i++)); do c=${1:$i:1}; tap $(kx $c) $(ky $c) 0.14; done; }
+type_word() { for ((i=0;i<${#1};i++)); do c=${1:$i:1}; tap $(kx $c) $(ky $c) 0.05 80; done; }
 
 $ADB -s $S shell settings put global animator_duration_scale 1.0
+$ADB -s $S shell cmd uimode night yes >/dev/null      # dark Gboard
 $ADB -s $S shell am start -n com.nic.lgpower/.MainActivity >/dev/null; sleep 3
 T0=0; $ADB -s $S shell input tap 539 1394; sleep 1.5; $ADB -s $S shell input tap 539 1394; sleep 1.0   # warm the pointer socket
 rm -f tour_raw.mp4 marks.txt taps.txt
-scrcpy -s $S --no-playback --record=tour_raw.mp4 --max-fps=60 --video-bit-rate=16M --time-limit=46 > scrcpy.log 2>&1 &
+scrcpy -s $S --no-playback --record=tour_raw.mp4 --max-fps=60 --video-bit-rate=16M --time-limit=48 > scrcpy.log 2>&1 &
 SP=$!
 T0=$(python -c "import time;print(time.time())")
 sleep 2.0
@@ -30,13 +31,13 @@ mark "D-pad, hold to repeat"
 tap 737 1394 0.5; tap 539 1592 0.5; tap 337 1394 0.5; swipe 737 1394 737 1394 900 0.4; tap 539 1394 0.8
 
 mark "Volume and brightness sliders"
-swipe 139 1500 139 1150 700 0.25; swipe 139 1150 139 1420 700 0.25; swipe 940 1150 940 1450 700 0.7
+swipe 139 1560 139 1200 900 0.9; swipe 139 1200 139 1500 900 0.9; swipe 940 1200 940 1550 900 0.9
 
 mark "Touchpad, hold to lock"
 swipe 539 632 539 632 1300 0.2; swipe 300 1000 800 1300 450 0.15; swipe 800 1300 400 1500 450 0.2; tap 648 2052 0.5; tap 900 252 0.7
 
 mark "Type with your keyboard"
-tap 802 632 1.4; type_word "planet"; tap 540 2181 0.14; type_word "earth"; sleep 0.4; tap 978 1425 1.0
+tap 802 632 1.3; type_word "planet"; tap 540 2181 0.05 80; type_word "earth"; sleep 0.5; tap 978 1425 1.0
 
 mark "Numpad, guide, info and CC"
 tap 539 2086 0.9; tap 540 951 0.35; tap 828 951 0.35; tap 288 783 0.35; tap 540 2086 0.7
@@ -62,4 +63,5 @@ tap 156 2085 2.2
 mark "end"
 sleep 0.4
 wait $SP
+$ADB -s $S shell cmd uimode night no >/dev/null
 cat marks.txt
