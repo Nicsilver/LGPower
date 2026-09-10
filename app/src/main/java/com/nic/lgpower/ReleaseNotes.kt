@@ -13,6 +13,10 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(35, "1.31.2", "2026-09-11", listOf(
+            "Touchpad lock grows out of the button, 0.6 s hold",
+            "Touchpad overlay follows light themes",
+        )),
         Release(34, "1.31.1", "2026-09-11", listOf(
             "Locked to portrait",
             "Picker rows light up when tapped",
