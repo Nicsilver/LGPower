@@ -2,7 +2,7 @@
 Posted my free LG remote app here the other week. It works on the 2025/2026 TVs now, plus the stuff you guys asked for
 
 === VIDEO FILE ===
-C:\Programming\LGPowerWidget\storeideo	our_9x16.mp4
+C:\Programming\LGPowerWidget\store\video\tour_9x16.mp4
 
 === FIRST COMMENT (post right after; body text + links, old reddit video posts have no body) ===
 Posted LG Power here about 10 days ago and got a lot of good replies, so here's a quick clip of it in action plus what changed since.
