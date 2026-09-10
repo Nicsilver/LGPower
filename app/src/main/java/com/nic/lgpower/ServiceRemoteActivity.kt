@@ -175,7 +175,7 @@ class ServiceRemoteActivity : AppCompatActivity() {
         row(tile("PWR", 0x08), tile("▼", 0x41), spacer())
 
         root.addView(TextView(this).apply {
-            text = "MKJ39170828 REPLICA · IR ONLY"
+            text = "IR ONLY · AIM THE PHONE AT THE TV"
             textSize = 9f
             letterSpacing = 0.1f
             typeface = mono

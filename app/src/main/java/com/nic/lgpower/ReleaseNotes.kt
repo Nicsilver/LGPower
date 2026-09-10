@@ -13,6 +13,10 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(33, "1.31.0", "2026-09-10", listOf(
+            "Power widget works over Wi-Fi and Wake-on-LAN, IR only as a fallback",
+            "Widgets no longer say LG C4 in the widget picker",
+        )),
         Release(32, "1.30.0", "2026-09-07", listOf(
             "Connection dot follows the TV's real power state, no more flicker",
             "Power button works when the TV is in standby",
