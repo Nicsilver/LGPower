@@ -22,10 +22,11 @@ FONT_R = "C\\:/Windows/Fonts/segoeui.ttf"
 INK = "0x1E1B1B"
 MUTED = "0x6B6465"
 RED = "0xD9342B"
-LAG = 0.68  # script clock vs scrcpy capture, measured on the d-pad hold
+LAG = 0.93  # script clock vs scrcpy capture, measured on the d-pad hold (varies per run)
 PULSE_STEPS, PULSE_DT = 7, 0.05
 XFADE = 0.35
-ZOOM_ENABLED = False   # the push-in was tried and rejected; kept behind a switch
+ZOOM_ENABLED = False
+SPEED = 1.15   # global playback speed-up; marks and taps are scaled to match   # the push-in was tried and rejected; kept behind a switch
 
 # where the slow push-in aims, per section, in raw phone pixels
 FOCUS = {
@@ -104,15 +105,15 @@ def read_taps(path):
     ev = []
     for line in open(path, encoding="utf8"):
         p = line.split()
-        t = float(p[0]) - LAG
+        t = (float(p[0]) - LAG) / SPEED
         if p[1] == "tap":
             ev.append(dict(kind="tap", t=t, x=int(p[2]), y=int(p[3])))
         else:
             x1, y1, x2, y2, ms = map(int, p[2:7])
             if (x1, y1) == (x2, y2):
-                ev.append(dict(kind="hold", t=t, x=x1, y=y1, dur=ms / 1000))
+                ev.append(dict(kind="hold", t=t, x=x1, y=y1, dur=ms / 1000 / SPEED))
             else:
-                ev.append(dict(kind="drag", t=t, x=x1, y=y1, x2=x2, y2=y2, dur=ms / 1000))
+                ev.append(dict(kind="drag", t=t, x=x1, y=y1, x2=x2, y2=y2, dur=ms / 1000 / SPEED))
     return ev
 
 
@@ -155,7 +156,7 @@ def marker_filters(events, t_from, t_to, art, first_input, chain_in):
 
 # ── rendering ─────────────────────────────────────────────────────────────────
 
-def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, caption=None, events=(), t_from=0.0, cards=(), focus=None, zoom=1.045):
+def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, caption=None, events=(), t_from=0.0, cards=(), focus=None, zoom=1.045, speed=1.0):
     """One segment. caption: text shown for the whole segment. focus: raw phone (x, y) the push-in aims at."""
     inputs = ["-loop", "1", "-framerate", str(FPS), "-i", bg, "-loop", "1", "-framerate", str(FPS), "-i", bz]
     n = 2
@@ -163,8 +164,8 @@ def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, captio
           f"noise=alls=4:allf=t+u[bgd];[bgd][1:v]overlay=0:0[base];")
     cur = "base"
     if src:
-        inputs += ["-ss", f"{src_from:.3f}", "-i", src, "-loop", "1", "-i", mask]
-        fc += (f"[{n}:v]setpts=PTS-STARTPTS,scale={PW}:{PH}[scr];[{n + 1}:v]format=gray[m];[scr][m]alphamerge[scrA];"
+        inputs += ["-ss", f"{src_from * speed:.3f}", "-i", src, "-loop", "1", "-i", mask]
+        fc += (f"[{n}:v]setpts=(PTS-STARTPTS)/{speed},scale={PW}:{PH}[scr];[{n + 1}:v]format=gray[m];[scr][m]alphamerge[scrA];"
                f"[{cur}][scrA]overlay={PX}:{PY}:format=auto[withscr];")
         cur = "withscr"; n += 2
     for p, _ in art:
@@ -225,7 +226,7 @@ def main(raw, marks_path, out, stills_dir=None):
     bg = os.path.join(SC, "prod_bg.png"); bz = os.path.join(SC, "prod_bezel.png"); mask = os.path.join(SC, "prod_mask.png")
     background(bg); bezel(bz); screen_mask(mask)
     art = pulses()
-    marks = [(float(l.split(" ", 1)[0]) - LAG, l.split(" ", 1)[1].strip()) for l in open(marks_path, encoding="utf8").read().strip().splitlines()]
+    marks = [((float(l.split(" ", 1)[0]) - LAG) / SPEED, l.split(" ", 1)[1].strip()) for l in open(marks_path, encoding="utf8").read().strip().splitlines()]
     events = read_taps(os.path.join(os.path.dirname(os.path.abspath(marks_path)), "taps.txt"))
     parts = []; toff = 0.0
 
@@ -248,7 +249,7 @@ def main(raw, marks_path, out, stills_dir=None):
             toff += mdur
             continue
         key = lab.split()[0].rstrip(",:")
-        seg(f"s{i:02d}", dur=b - a, src=raw, src_from=a, caption=lab, events=events, t_from=a, focus=FOCUS.get(key))
+        seg(f"s{i:02d}", dur=b - a, src=raw, src_from=a, caption=lab, events=events, t_from=a, focus=FOCUS.get(key), speed=SPEED)
         toff += b - a
     seg("end", dur=2.8, cards=[("Free on Google Play", 72, "white", FONT_B, 800), ("Open source, AGPL-3.0", 38, "0xD0D0D0", FONT_R, 920),
                                ("github.com/Nicsilver/LGPower", 34, "0xFF6A5C", FONT_R, 990)])
