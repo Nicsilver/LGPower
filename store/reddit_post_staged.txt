@@ -1,0 +1,25 @@
+=== TITLE (paste into the title box) ===
+Posted my free LG remote app here the other week. It works on the 2025/2026 TVs now, plus the stuff you guys asked for
+
+=== VIDEO FILE ===
+C:\Programming\LGPowerWidget\storeideo	our_9x16.mp4
+
+=== FIRST COMMENT (post right after; body text + links, old reddit video posts have no body) ===
+Posted LG Power here about 10 days ago and got a lot of good replies, so here's a quick clip of it in action plus what changed since.
+
+Biggest one: the newest webOS firmware (25/26) quietly ignores the pairing handshake most remote apps use. The TV just never shows the pairing prompt. That's fixed now, so if it spun forever on your TV last time it should work. Two people from the last thread confirmed it, one on a G5 and one on a C3 that had been updated to webOS 26.
+
+Stuff people asked for in that thread:
+
+- numpad with guide, info, exit and CC behind a 123 button
+- the colour buttons stay open now, so you can hit the same one over and over
+- IR service remote under settings > advanced, EZ-Adjust and IN-Start straight from the phone's IR blaster (needs a phone that has one). Be careful in there tho, IN-STOP factory resets the TV, ask me how I know
+
+And one from me: the connection dot follows the TV's real power state now, and power works from standby.
+
+Still free, no ads, nothing tracked, open source. Links in the comments :)
+
+Play Store: https://play.google.com/store/apps/details?id=com.nic.lgpower
+Source: https://github.com/Nicsilver/LGPower
+
+Setup is still just: phone on the same network as the TV, open the app, tap the TV it finds, accept the pairing prompt on the TV screen. Pairing is remembered after that.
