@@ -62,6 +62,10 @@ fun Activity.showPickerSheet(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             isClickable = true; isFocusable = true
+            // Pressed feedback; rows had none, so a tap looked like nothing happened
+            background = android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(ColorUtil.withAlpha(theme.primaryText, 0x2A)),
+                null, android.graphics.drawable.ColorDrawable(android.graphics.Color.WHITE))
             setPadding((16*d).toInt(), 0, (16*d).toInt(), 0)
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (52*d).toInt())
         }
@@ -79,7 +83,8 @@ fun Activity.showPickerSheet(
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
             })
         }
-        row.setOnClickListener { dialog.dismiss(); onSelect(id) }
+        // Let the ripple show before the sheet goes away
+        row.setOnClickListener { row.postDelayed({ dialog.dismiss(); onSelect(id) }, 110) }
         if (onLongPress != null) row.setOnLongClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
             dialog.dismiss(); onLongPress(id); true

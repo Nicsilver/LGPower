@@ -6,7 +6,7 @@ ADB=/c/Android/android-sdk/platform-tools/adb.exe; S=${ANDROID_SERIAL:-emulator-
 OUT=${OUT:-$(dirname "$0")}; mkdir -p "$OUT"; cd "$OUT"
 now()   { python -c "import time;print(round(time.time()-$T0,3))"; }
 # A tap is a short press so the button's pressed state actually renders a few frames.
-tap()   { echo "$(now) tap $1 $2 ${4:-130}" >> taps.txt; $ADB -s $S shell input swipe $1 $2 $1 $2 ${4:-130}; sleep ${3:-0.6}; }
+tap()   { echo "$(now) tap $1 $2 ${4:-170}" >> taps.txt; $ADB -s $S shell input swipe $1 $2 $1 $2 ${4:-170}; sleep ${3:-0.6}; }
 swipe() { echo "$(now) swipe $1 $2 $3 $4 ${5:-300}" >> taps.txt; $ADB -s $S shell input swipe $1 $2 $3 $4 ${5:-300}; sleep ${6:-0.6}; }
 key()   { $ADB -s $S shell input keyevent $1; sleep ${2:-0.6}; }
 # ddrag pill from to ms [wait]: app-side eased slider animation (debug build only); pill x is
@@ -48,10 +48,10 @@ mark "Numpad, guide, info and CC"
 tap 539 2086 0.7; tap 540 951 0.25; tap 828 951 0.25; tap 288 783 0.3; tap 540 2086 0.5
 
 mark "Picture mode"
-tap 348 2086 0.8; tap 540 1500 0.8
+tap 348 2086 0.8; tap 540 1500 0.9
 
 mark "Input source"
-tap 773 961 0.8; tap 540 1911 0.8
+tap 773 961 0.8; tap 540 1911 0.9
 
 mark "App shortcuts"
 tap 294 474 0.5; tap 828 474 0.7
