@@ -284,25 +284,19 @@ class MainActivity : AppCompatActivity() {
         val touchpadHint     = findViewById<View>(R.id.touchpad_hint)
         val btnExit          = findViewById<View>(R.id.btn_touchpad_exit)
         val lockReveal       = findViewById<LockRevealView>(R.id.lock_reveal)
-        val lockBorder       = findViewById<LockBorderView>(R.id.lock_border)
-        var borderAnimator: ValueAnimator? = null
         val btnClick         = findViewById<android.widget.Button>(R.id.btn_touchpad_click)
         val btnTpBack        = findViewById<android.widget.ImageButton>(R.id.btn_touchpad_back)
 
         fun resetBorder() {
             lockAnimator?.cancel()
             lockAnimator = null
-            borderAnimator?.cancel()
-            borderAnimator = null
             lockReveal.setProgress(0f)
-            lockBorder.setProgress(0f)
         }
 
         // The overlay follows the theme: a light scrim and dark text on light themes
         fun styleTouchpadOverlay() {
             val th = ThemeManager.getActiveTheme(this)
             lockReveal.scrimColor = ColorUtil.withAlpha(th.windowBg, 0xF2)
-            lockBorder.setOnLightScrim(ColorUtil.luminance(th.windowBg) > 0.5)
             (touchpadHint as TextView).setTextColor(ColorUtil.withAlpha(th.primaryText, 0x99))
             btnClick.setTextColor(th.primaryText)
             btnClick.backgroundTintList = android.content.res.ColorStateList.valueOf(th.surfaceBg)
@@ -452,7 +446,7 @@ class MainActivity : AppCompatActivity() {
                     resetBorder()
                     lockAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
                         duration = LOCK_HOLD_MS
-                        interpolator = android.view.animation.DecelerateInterpolator(1.6f)
+                        interpolator = LinearInterpolator()
                         addUpdateListener { lockReveal.setProgress(it.animatedValue as Float) }
                         start()
                     }
@@ -464,13 +458,6 @@ class MainActivity : AppCompatActivity() {
                                 window.decorView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                 touchpadHint.visibility = View.GONE
                                 btnExit.visibility = View.VISIBLE
-                                // Locked: the edge line runs up both sides as the "you're in" accent
-                                borderAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-                                    duration = 420
-                                    interpolator = android.view.animation.DecelerateInterpolator(1.4f)
-                                    addUpdateListener { lockBorder.setProgress(it.animatedValue as Float) }
-                                    start()
-                                }
                             }
                         }
                     }, LOCK_HOLD_MS)
@@ -787,7 +774,7 @@ class MainActivity : AppCompatActivity() {
     // Debug-only: lets the store-video script animate a slider from adb
     // (am broadcast -a com.nic.lgpower.DEMO_DRAG --es pill volume --ei from 18 --ei to 90 --ei ms 700)
     private val demoDrags = mutableMapOf<Int, (Int, Int, Long) -> Unit>()
-    private val LOCK_HOLD_MS = 700L   // hold on the Touchpad button before it locks
+    private val LOCK_HOLD_MS = 600L   // hold on the Touchpad button before it locks
     private var demoReceiver: android.content.BroadcastReceiver? = null
 
     // Once per update, covering every release since the app was last opened. No marker
