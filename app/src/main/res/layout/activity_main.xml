@@ -1052,7 +1052,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Lights up along the screen edge once the touchpad is locked -->
+    <!-- Soft light bands along the side edges once the touchpad is locked -->
     <com.nic.lgpower.LockBorderView
         android:id="@+id/lock_border"
         android:layout_width="match_parent"
