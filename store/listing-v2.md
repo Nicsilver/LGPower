@@ -62,21 +62,20 @@ LG Power collects no data and has no servers. Your TV's address, MAC and pairing
 
 LG Power is an independent, unofficial app. It is not affiliated with, endorsed by or sponsored by LG Electronics. LG, webOS and Magic Remote are trademarks of LG Electronics. All other product names, logos and brands are property of their respective owners and are used for identification only.
 
-## Screenshots (8, 1080x1920 framed, caption on top)
+## Screenshots (8, 1080x1920, same look as the video)
 
-Final order, matching store/screenshots/:
-1. 01_remote: main remote, Dark, four shortcuts. "The whole remote on one screen"
-2. 02_keyboard: keyboard sheet with text. "Type into TV search with your keyboard"
-3. 03_touchpad: touchpad locked. "Hold Touchpad to lock a full-screen pad"
-4. 04_pickers: three phones in a row, input / picture / sound. "Input, picture and sound pickers"
-5. 05_numpad: numpad. "Channel numbers, guide, info and subtitles"
-6. 06_widgets: launcher home screen with the Power, Screen Off and OK widgets. "Widgets for Power, Screen Off and OK"
-7. 07_themes: three-phone fan, Monokai / Light / Nord. "Light, dark and six more themes"
-8. 08_service: service remote with the part-number footer and password row masked out. "Service remote over IR"
+Pastel background, graphite phone, one phone per frame, caption with a red underline. All captured with the real shortcut icons and the dark keyboard. Composer: store/screenshots/_frame.py (imports tools/faketv/produce.py for the background and bezel), captions in _captions.json.
 
-Spare: 09_colors_SPARE (colour row open), near-duplicate of the hero shot. Swap it in for 08 if the service remote feels too edgy for the listing.
+1. 01_remote: main remote, Dark. "The whole remote on one screen"
+2. 02_keyboard: keyboard sheet, dark Gboard. "Type into TV search"
+3. 03_touchpad: touchpad locked. "Hold Touchpad to lock a cursor pad"
+4. 04_pickers: picture mode picker. "Picture, sound and input pickers"
+5. 05_numpad: numpad. "Numpad, guide, info and subtitles"
+6. 06_widgets: launcher with the Power, Screen Off and OK widgets. "Widgets for Power, Screen Off and OK"
+7. 07_themes: main remote, Light. "Light, dark and six more themes"
+8. 08_service: service remote, part number and password masked. "Service remote over IR"
 
-Known compromise: shortcut pills on the main screen carry app colours taken from the TV's own icons (YouTube red, Netflix red, Disney+ blue, Spotify green). That is the real UI, and the broadened disclaimer covers it.
+Earlier sets are in old_v1 to old_v3 (gitignored).
 
 ## Release notes for the live 1.30.0 build (500 chars max)
 
