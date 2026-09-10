@@ -22,7 +22,7 @@ FONT_R = "C\\:/Windows/Fonts/segoeui.ttf"
 INK = "0x1E1B1B"
 MUTED = "0x6B6465"
 RED = "0xD9342B"
-LAG = 0.73  # script clock vs scrcpy capture, measured on the d-pad hold (varies per run)
+LAG = 0.6  # script clock vs scrcpy capture, measured on the d-pad hold (varies per run)
 PULSE_STEPS, PULSE_DT = 7, 0.05
 XFADE = 0.35
 ZOOM_ENABLED = False
@@ -152,12 +152,18 @@ def end_card(path):
     y += 26
     y = _center_text(d, y, "Open source · AGPL-3.0", _font(False, 34), (170, 170, 178))
     y = _center_text(d, y + 8, "github.com/Nicsilver/LGPower", _font(False, 34), (255, 106, 92))
-    y += 70; d.line([(90, y), (PW - 90, y)], fill=(60, 60, 66), width=2); y += 50
+    y += 56; d.line([(90, y), (PW - 90, y)], fill=(60, 60, 66), width=2); y += 44
     f = _font(False, 34)
     for line in ["Power, d-pad, touchpad, keyboard", "Pickers, numpad, app shortcuts", "Widgets, eight themes, an editor"]:
         w = d.textlength(line, font=f); x = (PW - w) / 2
-        d.ellipse([x - 34, y + 13, x - 18, y + 29], fill=(217, 52, 43)); d.text((x, y), line, font=f, fill=(225, 225, 230)); y += 58
-    _center_text(d, PH - 120, "Independent app, not affiliated with LG", _font(False, 26), (120, 120, 128))
+        d.ellipse([x - 34, y + 13, x - 18, y + 29], fill=(217, 52, 43)); d.text((x, y), line, font=f, fill=(225, 225, 230)); y += 56
+    # QR to the Play listing, in a white tile
+    qr = Image.open(os.path.join(SC, "qr_play.png")).convert("RGB").resize((300, 300), Image.NEAREST)
+    tile = Image.new("RGB", (340, 340), (255, 255, 255)); tile.paste(qr, (20, 20))
+    tm = Image.new("L", (340, 340), 0); ImageDraw.Draw(tm).rounded_rectangle([0, 0, 339, 339], 28, fill=255)
+    ty = y + 40; im.paste(tile, ((PW - 340) // 2, ty), tm)
+    _center_text(d, ty + 340 + 22, "Scan to install", _font(False, 30), (200, 200, 205))
+    _center_text(d, PH - 90, "Independent app, not affiliated with LG", _font(False, 24), (120, 120, 128))
     im.save(path)
 
 
@@ -176,10 +182,11 @@ def read_taps(path):
             ev.append(dict(kind="tap", t=t, x=int(p[2]), y=int(p[3])))
         else:
             x1, y1, x2, y2, ms = map(int, p[2:7])
+            ease = len(p) > 7 and p[7] == "ease"
             if (x1, y1) == (x2, y2):
                 ev.append(dict(kind="hold", t=t, x=x1, y=y1, dur=ms / 1000 / SPEED))
             else:
-                ev.append(dict(kind="drag", t=t, x=x1, y=y1, x2=x2, y2=y2, dur=ms / 1000 / SPEED))
+                ev.append(dict(kind="drag", t=t, x=x1, y=y1, x2=x2, y2=y2, dur=ms / 1000 / SPEED, ease=ease))
     return ev
 
 
@@ -213,6 +220,8 @@ def marker_filters(events, t_from, t_to, art, first_input, chain_in):
         x2, y2 = PX + e["x2"] * sx - rad, PY + e["y2"] * sy - rad
         c = f"between(t,{a:.3f},{b + 0.08:.3f})"
         k = f"min(1,(t-{a:.3f})/{e['dur']:.3f})"
+        if e.get("ease"):
+            k = f"(1-pow(1-{k},2))"   # ease-out: fast start, slow end
         xs = f"if({c},{x1:.0f}+({x2 - x1:.0f})*{k},{xs})"; ys = f"if({c},{y1:.0f}+({y2 - y1:.0f})*{k},{ys})"; en.append(c)
     if en:
         f += f"[{cur}][{first_input + PULSE_STEPS}:v]overlay=x='{xs}':y='{ys}':enable='{'+'.join(en)}'[mkd];"
@@ -335,7 +344,7 @@ def main(raw, marks_path, out, stills_dir=None):
         seg(f"s{i:02d}", dur=b - a, src=raw, src_from=a, caption=lab, events=events, t_from=a, focus=FOCUS.get(key), speed=SPEED)
         toff += b - a
     ec = os.path.join(SC, "prod_end_card.png"); end_card(ec)
-    seg("end", dur=3.4, still=ec)
+    seg("end", dur=4.2, still=ec)
     join(parts, out)
     print("wrote", out, round(os.path.getsize(out) / 1e6, 2), "MB", len(parts), "segments")
 

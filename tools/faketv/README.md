@@ -143,3 +143,10 @@ faketv so the power state is Active. `LAG` in `produce.py` is the delay between 
 clock and scrcpy actually capturing; 0.72 s measured here (sample the d-pad wedge
 brightness in the raw video and compare with the hold's time in taps.txt), re-measure if
 captions or pulses drift.
+
+Slider drags in the video are not touch input at all: debug builds of the app listen for
+`am broadcast -a com.nic.lgpower.DEMO_DRAG --es pill volume --ei from 18 --ei to 90 --ei ms 700`
+(`pill` is `volume` or `brightness`) and animate the pill with a decelerate curve, sending
+the real setVolume / brightness calls as they go. `adb input swipe` emits too few move
+events to look smooth, and raw `sendevent` needs root and is too slow per event.
+`qr_play.png` is the Play-listing QR used on the end card.
