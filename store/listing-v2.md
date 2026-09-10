@@ -2,6 +2,8 @@
 
 Current live listing: title "LGPower", 3 dark screenshots, feature list from July.
 
+Status 2026-09-11: title, short + full description, 8 phone screenshots and both tablet sets (same 8) submitted for review together with 1.31.2 (versionCode 35). Reddit video post still to be posted by hand (store/reddit_post_staged.txt).
+
 ## Title (30 chars max)
 
 Recommended:
