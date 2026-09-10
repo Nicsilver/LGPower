@@ -14,7 +14,7 @@ BEZ = 22
 FONT_B = "C\\:/Windows/Fonts/segoeuib.ttf"
 FONT_R = "C\\:/Windows/Fonts/segoeui.ttf"
 RED = "0xE53935"
-LAG = 0.5   # scrcpy starts capturing ~0.5 s after the script stamps T0 (measured on the d-pad hold)
+LAG = 0.72  # script clock vs scrcpy capture, measured on the d-pad hold
 
 
 def background(path):
@@ -42,24 +42,37 @@ def screen_mask(path):
     m.save(path)
 
 
+PULSE_STEPS = 8
+PULSE_DT = 0.055
+
+
 def rings():
+    """Soft red pulse: a filled disc that grows from r=20 to r=60 while fading, with a white
+    core during the first steps. One PNG per step; produce.py overlays them in sequence."""
     out = []
-    for i, (r, a) in enumerate([(26, 230), (42, 150), (58, 80)]):
-        im = Image.new("RGBA", (2 * r + 8, 2 * r + 8), (0, 0, 0, 0))
+    for i in range(PULSE_STEPS):
+        k = i / (PULSE_STEPS - 1)
+        r = int(20 + 40 * k)
+        halo = int(190 * (1 - k) ** 1.4)
+        pad = 6
+        im = Image.new("RGBA", (2 * r + 2 * pad, 2 * r + 2 * pad), (0, 0, 0, 0))
         d = ImageDraw.Draw(im)
-        d.ellipse([4, 4, 2 * r + 4, 2 * r + 4], outline=(255, 255, 255, a), width=6)
-        if i == 0:
-            d.ellipse([4, 4, 2 * r + 4, 2 * r + 4], fill=(255, 255, 255, 90))
-        p = os.path.join(SC, f"prod_ring{i}.png"); im.save(p); out.append((p, r + 4))
+        d.ellipse([pad, pad, pad + 2 * r, pad + 2 * r], fill=(229, 57, 53, halo))
+        d.ellipse([pad, pad, pad + 2 * r, pad + 2 * r], outline=(255, 120, 110, min(255, halo + 40)), width=3)
+        if i < 3:
+            c = r + pad
+            d.ellipse([c - 9, c - 9, c + 9, c + 9], fill=(255, 255, 255, 230))
+        p = os.path.join(SC, f"prod_ring{i}.png"); im.save(p); out.append((p, r + pad))
     return out
 
 
 def tap_overlays(taps_path, start, ring_paths, inputs, chain_in):
-    """Returns (filter string, label_out) adding expanding rings for each tap/swipe."""
+    """Returns (filter string, label_out) adding a pulse for each tap and both ends of a swipe.
+    A held press (swipe with the same start and end) keeps step 3 on screen for the hold."""
     if not os.path.exists(taps_path):
         return "", chain_in
     sx, sy = PW / 1080, PH / 2400
-    events = []  # (t, x, y)
+    events = []  # (t, x, y, hold)
     for line in open(taps_path, encoding="utf8"):
         parts = line.split()
         t0 = float(parts[0]) - LAG - start
@@ -67,22 +80,19 @@ def tap_overlays(taps_path, start, ring_paths, inputs, chain_in):
             events.append((t0, int(parts[2]), int(parts[3]), 0.0))
         else:
             x1, y1, x2, y2, ms = map(int, parts[2:7])
-            hold = ms / 1000
             if (x1, y1) == (x2, y2):
-                events.append((t0, x1, y1, hold))
+                events.append((t0, x1, y1, ms / 1000))
             else:
-                events.append((t0, x1, y1, 0.0)); events.append((t0 + hold, x2, y2, 0.0))
-    steps = [(0.0, 0.13), (0.13, 0.26), (0.26, 0.40)]
-    # One overlay per ring size; position and visibility are piecewise expressions of t,
-    # because an input stream can only feed one filter in a graph.
+                events.append((t0, x1, y1, 0.0)); events.append((t0 + ms / 1000, x2, y2, 0.0))
     f = ""; cur = chain_in
-    for i, (a, b) in enumerate(steps):
+    for i in range(PULSE_STEPS):
         p, rad = ring_paths[i]
         xs, ys, en = "-9999", "-9999", []
-        for n, (t0, x, y, hold) in enumerate(events):
+        for (t0, x, y, hold) in events:
             cx, cy = PX + x * sx - rad, PY + y * sy - rad
-            bb = a + hold if (hold > 0 and i == 1) else b
-            cond = f"between(t,{t0 + a:.2f},{t0 + bb:.2f})"
+            a = t0 + i * PULSE_DT + (hold if i > 3 else 0)
+            b = a + PULSE_DT + (hold if i == 3 else 0)
+            cond = f"between(t,{a:.3f},{b:.3f})"
             xs = f"if({cond},{cx:.0f},{xs})"; ys = f"if({cond},{cy:.0f},{ys})"; en.append(cond)
         f += f"[{cur}][{inputs + i}:v]overlay=x='{xs}':y='{ys}':enable='{'+'.join(en)}'[ring{i}];"
         cur = f"ring{i}"
@@ -122,10 +132,10 @@ def main(raw, marks_path, out):
           f"[{tap_out}]null{label}{cap},"
           f"fade=t=in:st=0:d=0.4,fade=t=out:st={dur - 0.5:.2f}:d=0.5,format=yuv420p[v]")
     script = os.path.join(SC, "prod_filter.txt"); open(script, "w", encoding="utf8").write(fc)
-    cmd = ["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", "30", "-i", bg, "-i", raw, "-loop", "1", "-i", mask]
+    cmd = ["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", "60", "-i", bg, "-i", raw, "-loop", "1", "-i", mask]
     for p, _ in ring_paths:
-        cmd += ["-loop", "1", "-framerate", "30", "-i", p]
-    cmd += ["-/filter_complex", script, "-map", "[v]", "-t", f"{dur:.2f}", "-r", "30",
+        cmd += ["-loop", "1", "-framerate", "60", "-i", p]
+    cmd += ["-/filter_complex", script, "-map", "[v]", "-t", f"{dur:.2f}", "-r", "60",
             "-c:v", "libx264", "-preset", "slow", "-crf", "19", main_mp4]
     subprocess.check_call(cmd)
 
@@ -137,8 +147,8 @@ def main(raw, marks_path, out):
                     f"x=(w-text_w)/2:y={y}")
             y += int(size * 1.45)
         fc = f"[0:v]format=yuv420p{txt},fade=t=in:st=0:d=0.4,fade=t=out:st={secs - 0.5}:d=0.5[v]"
-        subprocess.check_call(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", "30", "-i", bg,
-                               "-filter_complex", fc, "-map", "[v]", "-t", str(secs), "-r", "30",
+        subprocess.check_call(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", "60", "-i", bg,
+                               "-filter_complex", fc, "-map", "[v]", "-t", str(secs), "-r", "60",
                                "-c:v", "libx264", "-preset", "slow", "-crf", "19", path])
 
     title = os.path.join(SC, "prod_title.mp4"); endc = os.path.join(SC, "prod_end.mp4")
