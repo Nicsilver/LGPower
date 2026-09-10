@@ -491,6 +491,10 @@ class MainActivity : AppCompatActivity() {
         }
         val currentThemeId = ThemeManager.getActiveThemeId(this)
         if (lastAppliedThemeId.isNotEmpty() && lastAppliedThemeId != currentThemeId) {
+            // The old instance stays on screen until the new one draws, which flashed the
+            // previous theme for a moment. Hide it and show the new background meanwhile.
+            findViewById<View>(android.R.id.content).visibility = View.INVISIBLE
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(ThemeManager.getActiveTheme(this).windowBg))
             recreate()
             return
         }
