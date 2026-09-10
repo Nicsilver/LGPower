@@ -8,7 +8,6 @@ import android.util.AttributeSet
 import android.view.View
 import kotlin.math.hypot
 import kotlin.math.max
-import kotlin.math.sqrt
 
 /**
  * The touchpad scrim, revealed as a soft-edged disc growing out of the Touchpad button
@@ -39,7 +38,7 @@ class LockRevealView @JvmOverloads constructor(
             field = value; paint.color = value; solid.color = value
             // A thin rim that contrasts with the scrim so the edge of the disc reads clearly
             val light = (android.graphics.Color.red(value) + android.graphics.Color.green(value) + android.graphics.Color.blue(value)) > 384
-            edge.color = if (light) 0x40000000 else 0x70FFFFFF
+            edge.color = if (light) 0x14000000 else 0x22FFFFFF
             invalidate()
         }
 
@@ -51,14 +50,18 @@ class LockRevealView @JvmOverloads constructor(
 
     fun getProgress() = progress
 
+    private val rect = android.graphics.RectF()
+
     override fun onDraw(canvas: Canvas) {
         if (progress <= 0f) return
         if (progress >= 1f) { canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), solid); return }
-        // Farthest corner plus the blur, so the disc really covers everything at 1
-        val maxR = max(max(hypot(cx, cy), hypot(width - cx, cy)), max(hypot(cx, height - cy), hypot(width - cx, height - cy))) + blur
-        // Area-linear growth reads as a steady fill rather than a slow start
-        val r = maxR * sqrt(progress)
-        canvas.drawCircle(cx, cy, r, paint)
-        canvas.drawCircle(cx, cy, r, edge)
+        // A rounded rectangle centred on the button, scaled so it fills the screen at 1.
+        // Half-extents reach the farthest edge in each axis, plus the blur so nothing peeks out.
+        val hw = (max(cx, width - cx) + blur) * progress
+        val hh = (max(cy, height - cy) + blur) * progress
+        rect.set(cx - hw, cy - hh, cx + hw, cy + hh)
+        val radius = 0.45f * kotlin.math.min(hw, hh)
+        canvas.drawRoundRect(rect, radius, radius, paint)
+        canvas.drawRoundRect(rect, radius, radius, edge)
     }
 }

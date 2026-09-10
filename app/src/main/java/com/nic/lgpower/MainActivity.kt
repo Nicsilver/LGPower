@@ -445,8 +445,8 @@ class MainActivity : AppCompatActivity() {
                     // The scrim grows out of the button over the 1 s hold; full screen = locked
                     resetBorder()
                     lockAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-                        duration = 1000
-                        interpolator = LinearInterpolator()
+                        duration = LOCK_HOLD_MS
+                        interpolator = android.view.animation.AccelerateDecelerateInterpolator()
                         addUpdateListener { lockReveal.setProgress(it.animatedValue as Float) }
                         start()
                     }
@@ -460,7 +460,7 @@ class MainActivity : AppCompatActivity() {
                                 btnExit.visibility = View.VISIBLE
                             }
                         }
-                    }, 1000)
+                    }, LOCK_HOLD_MS)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -470,9 +470,9 @@ class MainActivity : AppCompatActivity() {
                     if (!hasMoved && (abs(dx) > moveThresholdPx || abs(dy) > moveThresholdPx)) {
                         hasMoved = true
                         lockHandler.removeCallbacksAndMessages(null)
-                        // Dragging without locking: shrink the reveal to a small halo around the button
+                        // Dragging without locking: the reveal folds back into the button
                         lockAnimator?.cancel()
-                        lockAnimator = ValueAnimator.ofFloat(lockReveal.getProgress(), 0.006f).apply {
+                        lockAnimator = ValueAnimator.ofFloat(lockReveal.getProgress(), 0f).apply {
                             duration = 160
                             addUpdateListener { lockReveal.setProgress(it.animatedValue as Float) }
                             start()
@@ -774,6 +774,7 @@ class MainActivity : AppCompatActivity() {
     // Debug-only: lets the store-video script animate a slider from adb
     // (am broadcast -a com.nic.lgpower.DEMO_DRAG --es pill volume --ei from 18 --ei to 90 --ei ms 700)
     private val demoDrags = mutableMapOf<Int, (Int, Int, Long) -> Unit>()
+    private val LOCK_HOLD_MS = 700L   // hold on the Touchpad button before it locks
     private var demoReceiver: android.content.BroadcastReceiver? = null
 
     // Once per update, covering every release since the app was last opened. No marker
