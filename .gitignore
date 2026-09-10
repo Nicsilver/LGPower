@@ -9,3 +9,4 @@ local.properties
 CLAUDE.md
 *.keystore
 *.keystore.old
+store/screenshots/old_*/
