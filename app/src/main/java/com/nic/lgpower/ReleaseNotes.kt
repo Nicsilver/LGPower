@@ -13,6 +13,11 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(34, "1.31.1", "2026-09-11", listOf(
+            "Locked to portrait",
+            "Picker rows light up when tapped",
+            "No flash of the old theme when switching themes",
+        )),
         Release(33, "1.31.0", "2026-09-10", listOf(
             "Power widget works over Wi-Fi and Wake-on-LAN, IR only as a fallback",
             "Widgets no longer say LG C4 in the widget picker",
