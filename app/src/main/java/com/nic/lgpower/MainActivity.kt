@@ -283,12 +283,25 @@ class MainActivity : AppCompatActivity() {
         val touchpadOverlay  = findViewById<View>(R.id.touchpad_overlay)
         val touchpadHint     = findViewById<View>(R.id.touchpad_hint)
         val btnExit          = findViewById<View>(R.id.btn_touchpad_exit)
-        val lockBorder       = findViewById<LockBorderView>(R.id.lock_border)
+        val lockReveal       = findViewById<LockRevealView>(R.id.lock_reveal)
+        val btnClick         = findViewById<android.widget.Button>(R.id.btn_touchpad_click)
+        val btnTpBack        = findViewById<android.widget.ImageButton>(R.id.btn_touchpad_back)
 
         fun resetBorder() {
             lockAnimator?.cancel()
             lockAnimator = null
-            lockBorder.setProgress(0f)
+            lockReveal.setProgress(0f)
+        }
+
+        // The overlay follows the theme: a light scrim and dark text on light themes
+        fun styleTouchpadOverlay() {
+            val th = ThemeManager.getActiveTheme(this)
+            lockReveal.scrimColor = ColorUtil.withAlpha(th.windowBg, 0xF2)
+            (touchpadHint as TextView).setTextColor(ColorUtil.withAlpha(th.primaryText, 0x99))
+            btnClick.setTextColor(th.primaryText)
+            btnClick.backgroundTintList = android.content.res.ColorStateList.valueOf(th.surfaceBg)
+            btnTpBack.backgroundTintList = android.content.res.ColorStateList.valueOf(th.surfaceBg)
+            btnTpBack.imageTintList = android.content.res.ColorStateList.valueOf(th.primaryText)
         }
 
         fun exitTouchpad() {
@@ -423,14 +436,18 @@ class MainActivity : AppCompatActivity() {
                     hasMoved = false
                     isLocked = false
                     moveAccumulator = 0f
+                    styleTouchpadOverlay()
+                    val loc = IntArray(2); v.getLocationInWindow(loc)
+                    val ov = IntArray(2); touchpadOverlay.getLocationInWindow(ov)
+                    lockReveal.setCenter(loc[0] - ov[0] + v.width / 2f, loc[1] - ov[1] + v.height / 2f)
                     touchpadOverlay.visibility = View.VISIBLE
                     pointerSession = client.openPointerSession()
-                    // Grow the border around the screen over 1.5s
+                    // The scrim grows out of the button over the 1 s hold; full screen = locked
                     resetBorder()
                     lockAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
                         duration = 1000
                         interpolator = LinearInterpolator()
-                        addUpdateListener { lockBorder.setProgress(it.animatedValue as Float) }
+                        addUpdateListener { lockReveal.setProgress(it.animatedValue as Float) }
                         start()
                     }
                     // Lock if finger stays still for 1.5s
@@ -453,7 +470,9 @@ class MainActivity : AppCompatActivity() {
                     if (!hasMoved && (abs(dx) > moveThresholdPx || abs(dy) > moveThresholdPx)) {
                         hasMoved = true
                         lockHandler.removeCallbacksAndMessages(null)
-                        resetBorder()
+                        // Dragging without locking: keep a soft shadow around the button
+                        lockAnimator?.cancel(); lockAnimator = null
+                        lockReveal.setProgress(0.05f)
                     }
                     lastTouchX = event.rawX
                     lastTouchY = event.rawY

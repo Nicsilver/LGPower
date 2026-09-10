@@ -1043,12 +1043,12 @@
     android:id="@+id/touchpad_overlay"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#EE000000"
+    android:background="@android:color/transparent"
     android:visibility="gone">
 
-    <!-- Growing border around the screen edge -->
-    <com.nic.lgpower.LockBorderView
-        android:id="@+id/lock_border"
+    <!-- Scrim revealed as a disc growing out of the Touchpad button while it is held -->
+    <com.nic.lgpower.LockRevealView
+        android:id="@+id/lock_reveal"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
