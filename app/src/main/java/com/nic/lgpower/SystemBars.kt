@@ -1,6 +1,7 @@
 package com.nic.lgpower
 
 import android.app.Activity
+import android.os.Build
 import android.view.View
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -14,6 +15,9 @@ import androidx.core.view.WindowInsetsCompat
  */
 object SystemBars {
     fun applyTo(activity: Activity, root: View, background: Int) {
+        // Below 35 the decor still keeps content clear of the bars itself; padding again
+        // there would reserve the status bar height twice.
+        if (Build.VERSION.SDK_INT < 35) return
         WindowCompat.setDecorFitsSystemWindows(activity.window, false)
         root.setBackgroundColor(background)
         val l = root.paddingLeft; val t = root.paddingTop; val r = root.paddingRight; val b = root.paddingBottom
