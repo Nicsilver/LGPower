@@ -52,9 +52,12 @@ class SetupActivity : AppCompatActivity() {
         val container = findViewById<LinearLayout>(R.id.tv_items_container)
         val noTvs = findViewById<View>(R.id.no_tvs_layout)
 
+        setupManualEntry(theme, d)
+
         if (ips.isEmpty()) {
             label.text = ""
             noTvs.visibility = View.VISIBLE
+            container.removeAllViews()
             applyButton(
                 findViewById(R.id.btn_search_again), theme,
                 accent = false
@@ -117,6 +120,47 @@ class SetupActivity : AppCompatActivity() {
 
         container.removeAllViews()
         container.addView(card)
+    }
+
+    private fun setupManualEntry(theme: ThemeConfig, d: Float) {
+        val toggle = findViewById<android.widget.Button>(R.id.btn_manual_ip)
+        val card = findViewById<LinearLayout>(R.id.manual_ip_card)
+        val field = findViewById<android.widget.EditText>(R.id.edit_manual_ip)
+        val connect = findViewById<android.widget.Button>(R.id.btn_manual_connect)
+
+        applyButton(toggle, theme, accent = false)
+        applyButton(connect, theme, accent = true)
+        card.background = GradientDrawable().apply { setColor(theme.surfaceBg); cornerRadius = 14 * d }
+        findViewById<TextView>(R.id.manual_ip_label).setTextColor(theme.sectionLabel)
+        findViewById<TextView>(R.id.manual_ip_hint).setTextColor(theme.secondaryText)
+        field.setTextColor(theme.primaryText)
+        field.setHintTextColor(ColorUtil.withAlpha(theme.secondaryText, 0x78))
+        field.background = GradientDrawable().apply {
+            setColor(theme.windowBg); cornerRadius = 10 * d
+            setStroke((1f * d).toInt(), theme.btnGhostBorder)
+        }
+
+        card.visibility = View.GONE
+        toggle.visibility = View.VISIBLE
+        toggle.setOnClickListener {
+            toggle.visibility = View.GONE
+            card.visibility = View.VISIBLE
+            field.requestFocus()
+            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                .showSoftInput(field, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        }
+        val go = {
+            val ip = field.text.toString().trim()
+            if (IPV4.matches(ip)) {
+                (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                    .hideSoftInputFromWindow(field.windowToken, 0)
+                selectTv(ip)
+            } else {
+                field.error = "Enter a valid IPv4 address"
+            }
+        }
+        connect.setOnClickListener { go() }
+        field.setOnEditorActionListener { _, _, _ -> go(); true }
     }
 
     // ── Pairing ───────────────────────────────────────────────────────────────
@@ -213,6 +257,10 @@ class SetupActivity : AppCompatActivity() {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private enum class Screen { SEARCHING, TV_LIST, PAIRING }
+
+    private companion object {
+        val IPV4 = Regex("""^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$""")
+    }
 
     private fun showScreen(s: Screen) {
         findViewById<View>(R.id.screen_searching).visibility = if (s == Screen.SEARCHING) View.VISIBLE else View.GONE
