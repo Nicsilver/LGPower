@@ -288,6 +288,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_np_cc).setOnClickListener    { sendCommand { client.pressKey("CC") } }
         findViewById<View>(R.id.btn_np_exit).setOnClickListener  { sendCommand { client.pressKey("EXIT") } }
         findViewById<View>(R.id.btn_np_enter).setOnClickListener { sendCommand { client.pressEnter() } }
+        findViewById<View>(R.id.btn_np_tv).setOnClickListener { sendCommand { client.launchApp("com.webos.app.livetv") } }
 
         // App settings
         findViewById<View>(R.id.btn_app_settings).setOnClickListener {
@@ -712,7 +713,7 @@ class MainActivity : AppCompatActivity() {
             background = ghostKey()
         }
 
-        listOf(R.id.btn_np_guide, R.id.btn_np_info, R.id.btn_np_cc, R.id.btn_np_exit)
+        listOf(R.id.btn_np_guide, R.id.btn_np_info, R.id.btn_np_cc, R.id.btn_np_exit, R.id.btn_np_tv)
             .forEach { id -> findViewById<Button>(id)?.setTextColor(theme.secondaryText) }
         findViewById<TextView>(R.id.tv_np_readout)?.setTextColor(
             (theme.primaryText and 0x00FFFFFF) or (0x40 shl 24))

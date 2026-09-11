@@ -17,7 +17,7 @@ object ReleaseNotes {
             "Several TVs: tap the name in the corner to switch or add; Settings › TVs to rename or remove",
             "Media keys: rewind, play, pause and forward behind a new Media button under the d-pad",
             "Up to 8 app shortcuts in two rows",
-            "OK key on the numpad",
+            "OK and Live TV keys on the numpad page",
             "Channel buttons can replace the brightness slider (Settings › Controls)",
             "Guided tour of the remote after setup, replayable from Settings › About",
             "Theme editor: Light/Dark swaps the base palette, the preview is interactive",
