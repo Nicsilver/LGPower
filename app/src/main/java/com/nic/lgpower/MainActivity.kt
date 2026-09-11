@@ -835,8 +835,15 @@ class MainActivity : AppCompatActivity() {
     /** The title is the active TV's name and opens the saved-TV picker. */
     private fun setupTitlePicker() {
         val title = findViewById<TextView>(R.id.tv_main_title)
+        val theme = ThemeManager.getActiveTheme(this)
+        val d = resources.displayMetrics.density
         title.text = TvStore.activeName(appPrefs)
-        title.compoundDrawableTintList = ColorStateList.valueOf(ThemeManager.getActiveTheme(this).secondaryText)
+        title.compoundDrawableTintList = ColorStateList.valueOf(theme.secondaryText)
+        // Pressed state hugs the text as a rounded pill; the borderless ripple is a circle
+        title.background = android.graphics.drawable.RippleDrawable(
+            ColorStateList.valueOf(ColorUtil.withAlpha(theme.primaryText, 0x22)),
+            null,
+            GradientDrawable().apply { cornerRadius = 12 * d; setColor(android.graphics.Color.WHITE) })
         title.setOnClickListener {
             val tvs = TvStore.list(appPrefs)
             val activeId = TvStore.activeId(appPrefs)
