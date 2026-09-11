@@ -9,6 +9,7 @@ import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.MulticastSocket
 import java.net.NetworkInterface
 import java.net.Socket
 import java.net.SocketTimeoutException
@@ -30,12 +31,18 @@ object TvDiscovery {
 
     /** Blocking — call from a background thread. Returns deduplicated IPs. */
     fun discover(context: Context): List<String> {
-        val results = Collections.synchronizedSet(LinkedHashSet<String>())
-        val latch   = CountDownLatch(2)
-        val network = LanNetwork.get(context)
+        val results  = Collections.synchronizedSet(LinkedHashSet<String>())
+        val network  = LanNetwork.get(context)
+        val tethered = LanNetwork.tetheredAddresses(context)
+        val latch    = CountDownLatch(2 + 2 * tethered.size)
 
         Thread { ssdpScan(context, network, results); latch.countDown() }.start()
-        Thread { portScan(context, network, results); latch.countDown() }.start()
+        Thread { getLocalIp(context, network)?.let { portScan(it, network, results) }; latch.countDown() }.start()
+        // A TV joined to the phone's own hotspot lives on a subnet no Network object covers
+        for (local in tethered) {
+            Thread { ssdpScanFrom(context, local, results); latch.countDown() }.start()
+            Thread { portScan(local, null, results); latch.countDown() }.start()
+        }
 
         latch.await(SCAN_MS + 1000, TimeUnit.MILLISECONDS)
         return results.toList()
@@ -75,6 +82,39 @@ object TvDiscovery {
         }
     }
 
+    // Same search, sent out of a hotspot interface instead of the LAN network
+    private fun ssdpScanFrom(context: Context, local: Inet4Address, out: MutableSet<String>) {
+        val wm   = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val lock = wm.createMulticastLock("lg_power_ssdp_ap").also { it.acquire() }
+        try {
+            val socket = MulticastSocket(InetSocketAddress(local, 0)).apply {
+                soTimeout = 500
+                networkInterface = NetworkInterface.getByInetAddress(local)
+            }
+            val addr = InetAddress.getByName(SSDP_ADDR)
+            repeat(2) {
+                val data = ssdpSearch("urn:lge-com:service:webos-second-screen:1").toByteArray()
+                socket.send(DatagramPacket(data, data.size, addr, SSDP_PORT))
+            }
+            val buf      = ByteArray(2048)
+            val deadline = System.currentTimeMillis() + SCAN_MS
+            val checked  = HashSet<String>()
+            while (System.currentTimeMillis() < deadline) {
+                try {
+                    val pkt = DatagramPacket(buf, buf.size)
+                    socket.receive(pkt)
+                    extractIp(String(pkt.data, 0, pkt.length))
+                        ?.takeIf { checked.add(it) && isWebOsTv(it, null) }
+                        ?.let { out.add(it) }
+                } catch (_: SocketTimeoutException) { }
+            }
+            socket.close()
+        } catch (_: Exception) {
+        } finally {
+            lock.release()
+        }
+    }
+
     // A live SSAP port is what separates a webOS TV from any other UPnP responder
     private fun isWebOsTv(ip: String, network: Network?): Boolean = try {
         val socket = network?.socketFactory?.createSocket() ?: Socket()
@@ -96,9 +136,8 @@ object TvDiscovery {
     // Scan every host on the local /24 for port 3001 (WebOS WSS port).
     // With 50 threads and 300ms timeout this takes ~2s for 254 hosts.
 
-    private fun portScan(context: Context, network: Network?, out: MutableSet<String>) {
-        val local = getLocalIp(context, network) ?: return
-        val base  = local.address  // 4 bytes, e.g. [192, 168, 1, x]
+    private fun portScan(local: Inet4Address, network: Network?, out: MutableSet<String>) {
+        val base = local.address  // 4 bytes, e.g. [192, 168, 1, x]
 
         val executor = Executors.newFixedThreadPool(50)
         val latch    = CountDownLatch(254)
