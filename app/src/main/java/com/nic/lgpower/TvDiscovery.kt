@@ -26,11 +26,52 @@ object TvDiscovery {
     private const val WEBOS_PORT = 3001
     private const val SCAN_MS   = 3000L
 
+    /** A found TV: address plus, when it answered SSDP, the unique device name from its description. */
+    data class Found(val ip: String, val udn: String?)
+
     private fun ssdpSearch(st: String) =
         "M-SEARCH * HTTP/1.1\r\nHOST: $SSDP_ADDR:$SSDP_PORT\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: $st\r\n\r\n"
 
     /** Blocking — call from a background thread. Returns deduplicated IPs. */
-    fun discover(context: Context): List<String> {
+    fun discover(context: Context): List<String> = discoverDetailed(context).map { it.ip }
+
+    /** Same, with the SSDP fingerprint for TVs that answered the multicast search. */
+    fun discoverDetailed(context: Context): List<Found> {
+        locations.clear()
+        val ips = discoverIps(context)
+        return ips.map { ip -> Found(ip, locations[ip]?.let { udnFrom(it) }) }
+    }
+
+    // LOCATION header per responding IP, kept so the description can be fetched afterwards
+    private val locations = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /**
+     * Unicast SSDP search straight at one address, for TVs that were typed in by hand.
+     * Returns the UDN, or null if nothing answered within a second.
+     */
+    fun fingerprint(context: Context, ip: String): String? = try {
+        val socket = DatagramSocket().apply { soTimeout = 1000 }
+        if (!LanNetwork.isTethered(context, ip)) LanNetwork.get(context)?.bindSocket(socket)
+        val data = ssdpSearch("urn:lge-com:service:webos-second-screen:1").toByteArray()
+        socket.send(DatagramPacket(data, data.size, InetAddress.getByName(ip), SSDP_PORT))
+        val buf = ByteArray(2048)
+        val pkt = DatagramPacket(buf, buf.size)
+        socket.receive(pkt)
+        socket.close()
+        locationOf(String(pkt.data, 0, pkt.length))?.let { udnFrom(it) }
+    } catch (_: Exception) { null }
+
+    private fun locationOf(response: String): String? =
+        response.lines().firstOrNull { it.startsWith("LOCATION", ignoreCase = true) }
+            ?.substringAfter(":")?.trim()?.takeIf { it.isNotEmpty() }
+
+    private fun udnFrom(location: String): String? = try {
+        val conn = URL(location).openConnection().apply { connectTimeout = 800; readTimeout = 800 }
+        val xml = conn.getInputStream().bufferedReader().use { it.readText() }
+        Regex("<UDN>\\s*(?:uuid:)?([^<]+?)\\s*</UDN>", RegexOption.IGNORE_CASE).find(xml)?.groupValues?.get(1)?.trim()
+    } catch (_: Exception) { null }
+
+    private fun discoverIps(context: Context): List<String> {
         val results  = Collections.synchronizedSet(LinkedHashSet<String>())
         val network  = LanNetwork.get(context)
         val local    = getLocalIp(context, network)
@@ -129,11 +170,10 @@ object TvDiscovery {
     }
 
     private fun extractIp(response: String): String? {
-        val line = response.lines().firstOrNull {
-            it.startsWith("LOCATION", ignoreCase = true)
-        } ?: return null
-        return runCatching { URL(line.substringAfter(":").trim()).host }
+        val location = locationOf(response) ?: return null
+        return runCatching { URL(location).host }
             .getOrNull()?.takeIf { it.isNotEmpty() }
+            ?.also { locations[it] = location }
     }
 
     // ── Port scan ─────────────────────────────────────────────────────────────

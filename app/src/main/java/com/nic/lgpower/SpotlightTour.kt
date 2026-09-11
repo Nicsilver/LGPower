@@ -52,8 +52,10 @@ object Tour {
             "Type on the phone, send to the TV. Works in the TV's search and browser; YouTube and Netflix only accept their own on-screen keyboard."),
         Step(R.id.volume_pill, "Volume",
             "Tap the ends to step, or drag anywhere on the pill to slide. The phone's volume keys work here too."),
+        Step(R.id.btn_media, "Media keys",
+            "Rewind, play, pause and forward slide in at the bottom. Colors next to the numpad does the same for the colour keys."),
         Step(R.id.btn_numpad, "Numpad and more keys",
-            "Channel numbers, Guide, Info, subtitles, an OK key and the media keys live here. Next opens Settings."),
+            "Channel numbers, Guide, Info, subtitles and an OK key. Next opens Settings."),
     )
 
     val settingsSteps = listOf(

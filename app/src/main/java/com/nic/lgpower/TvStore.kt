@@ -13,7 +13,7 @@ import java.util.UUID
  */
 object TvStore {
 
-    data class Tv(val id: String, val name: String, val ip: String, val mac: String, val clientKey: String)
+    data class Tv(val id: String, val name: String, val ip: String, val mac: String, val clientKey: String, val udn: String = "")
 
     private const val LIST = "tvs"
     private const val ACTIVE = "active_tv"
@@ -52,9 +52,9 @@ object TvStore {
     }
 
     /** Adds the live connection prefs as a new TV and makes it the active one. */
-    fun addFromLive(prefs: SharedPreferences, name: String): Tv {
+    fun addFromLive(prefs: SharedPreferences, name: String, udn: String = ""): Tv {
         val tv = Tv(UUID.randomUUID().toString(), name.ifBlank { nextDefaultName(prefs) },
-            prefs.getString("tv_ip", "") ?: "", prefs.getString("tv_mac", "") ?: "", prefs.getString("client_key", "") ?: "")
+            prefs.getString("tv_ip", "") ?: "", prefs.getString("tv_mac", "") ?: "", prefs.getString("client_key", "") ?: "", udn)
         write(prefs, read(prefs) + tv)
         prefs.edit().putString(ACTIVE, tv.id).apply()
         return tv
@@ -97,6 +97,11 @@ object TvStore {
         }
     }
 
+    /** Which saved TV a discovered one is, if any: by fingerprint when both sides have one, else by address. */
+    fun match(prefs: SharedPreferences, ip: String, udn: String?): Tv? = list(prefs).firstOrNull { tv ->
+        if (!udn.isNullOrBlank() && tv.udn.isNotBlank()) tv.udn == udn else tv.ip == ip
+    }
+
     fun rename(prefs: SharedPreferences, id: String, name: String) {
         if (name.isBlank()) return
         write(prefs, read(prefs).map { if (it.id == id) it.copy(name = name.trim()) else it })
@@ -131,13 +136,13 @@ object TvStore {
         val arr = JSONArray(prefs.getString(LIST, "[]"))
         (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
-            Tv(o.getString("id"), o.getString("name"), o.optString("ip"), o.optString("mac"), o.optString("key"))
+            Tv(o.getString("id"), o.getString("name"), o.optString("ip"), o.optString("mac"), o.optString("key"), o.optString("udn"))
         }
     }.getOrDefault(emptyList())
 
     private fun write(prefs: SharedPreferences, tvs: List<Tv>) {
         val arr = JSONArray()
-        tvs.forEach { arr.put(JSONObject().put("id", it.id).put("name", it.name).put("ip", it.ip).put("mac", it.mac).put("key", it.clientKey)) }
+        tvs.forEach { arr.put(JSONObject().put("id", it.id).put("name", it.name).put("ip", it.ip).put("mac", it.mac).put("key", it.clientKey).put("udn", it.udn)) }
         prefs.edit().putString(LIST, arr.toString()).apply()
     }
 }

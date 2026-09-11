@@ -15,7 +15,7 @@ object ReleaseNotes {
     val all = listOf(
         Release(39, "1.35.0", "2026-09-12", listOf(
             "Several TVs: tap the name in the corner to switch or add; Settings › TVs to rename or remove",
-            "Media keys (rewind, play, pause, forward) on the numpad page, or on the remote via Settings",
+            "Media keys: rewind, play, pause and forward behind a new Media button under the d-pad",
             "Up to 8 app shortcuts in two rows",
             "OK key on the numpad",
             "Channel buttons can replace the brightness slider (Settings › Controls)",
