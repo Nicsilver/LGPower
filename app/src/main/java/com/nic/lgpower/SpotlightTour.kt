@@ -30,12 +30,18 @@ object Tour {
     val steps = listOf(
         Step(R.id.shortcuts_row, "App shortcuts",
             "These launch apps on the TV. Pick up to eight under Settings › Load apps from TV, long-press one there to reorder."),
+        Step(R.id.btn_power, "Power",
+            "Turns the TV on from standby over the network, or with the phone's IR blaster if it has one. The dot in the corner shows whether the TV is on."),
         Step(R.id.btn_touchpad, "Touchpad",
             "Tap and drag straight from this button to move the pointer. Hold it for a moment to lock the touchpad open; Back closes it."),
+        Step(R.id.btn_keyboard, "Keyboard",
+            "Type on the phone, send to the TV. Works in the TV's search and browser; YouTube and Netflix only accept their own on-screen keyboard."),
+        Step(R.id.volume_pill, "Volume",
+            "Tap the ends to step, or drag anywhere on the pill to slide. The phone's volume keys work here too."),
         Step(R.id.btn_numpad, "Numpad and more keys",
             "Channel numbers, Guide, Info, subtitles, an OK key and the media keys live here. Settings can move the media keys onto the remote."),
         Step(R.id.tv_main_title, "Your TVs",
-            "This is the current TV. Tap it to switch to another saved TV or to add one. Settings › TVs is where you rename or remove them."),
+            "The current TV. Tap it to switch to another saved TV or to add one. Settings › TVs is where you rename or remove them."),
     )
 }
 
@@ -197,10 +203,27 @@ private class SpotlightView(
         }
     }
 
-    // Everything outside the card advances; the highlighted control itself stays inert
+    // The dimmed area advances; the highlighted control is shown, not usable, so a tap
+    // on it just nudges the ring instead of jumping ahead
+    private var downInHole = false
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.action == MotionEvent.ACTION_UP) advance()
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> downInHole = hole.contains(event.x, event.y)
+            MotionEvent.ACTION_UP -> if (downInHole || hole.contains(event.x, event.y)) pulse() else advance()
+        }
         return true
+    }
+
+    private fun pulse() {
+        ValueAnimator.ofFloat(0f, 1f, 0f).apply {
+            duration = 260
+            addUpdateListener { a ->
+                ringPaint.strokeWidth = (1.5f + 2.5f * (a.animatedValue as Float)) * d
+                ringPaint.alpha = (0x66 + (0x99 * (a.animatedValue as Float)).toInt()).coerceAtMost(255)
+                invalidate()
+            }
+            start()
+        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {

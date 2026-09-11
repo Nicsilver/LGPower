@@ -44,15 +44,10 @@ class SettingsActivity : AppCompatActivity() {
         switchMediaOnMain.isChecked = prefs.getBoolean("media_on_main", false)
         switchMediaOnMain.setOnCheckedChangeListener { _, v -> prefs.edit().putBoolean("media_on_main", v).apply() }
         switchKeepScreenOn.isChecked     = prefs.getBoolean("keep_screen_on", false)
-        val tvRightPill = findViewById<TextView>(R.id.tv_right_pill)
-        tvRightPill.text = RightPill.get(prefs).label
-        findViewById<View>(R.id.row_right_pill).setOnClickListener {
-            val current = RightPill.get(prefs)
-            showPickerSheet("Right side", RightPill.entries.map { Triple(it.key, it.label, it == current) }) { key ->
-                val mode = RightPill.entries.first { it.key == key }
-                RightPill.set(prefs, mode)
-                tvRightPill.text = mode.label
-            }
+        val switchChannelPill = findViewById<Switch>(R.id.switch_channel_pill)
+        switchChannelPill.isChecked = RightPill.get(prefs) == RightPill.CHANNEL
+        switchChannelPill.setOnCheckedChangeListener { _, v ->
+            RightPill.set(prefs, if (v) RightPill.CHANNEL else RightPill.BRIGHTNESS)
         }
         switchKeepScreenOn.setOnCheckedChangeListener { sw, v ->
             if (!v) { prefs.edit().putBoolean("keep_screen_on", false).apply(); return@setOnCheckedChangeListener }
@@ -260,7 +255,7 @@ class SettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
             intArrayOf(theme.switchThumbOn, theme.switchThumbOff)
         )
-        listOf(R.id.switch_keep_screen_on, R.id.switch_media_on_main)
+        listOf(R.id.switch_channel_pill, R.id.switch_keep_screen_on, R.id.switch_media_on_main)
             .forEach { id ->
                 val sw = findViewById<Switch>(id) ?: return@forEach
                 sw.trackTintList = trackCsl

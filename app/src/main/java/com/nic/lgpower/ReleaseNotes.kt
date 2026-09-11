@@ -14,12 +14,13 @@ object ReleaseNotes {
 
     val all = listOf(
         Release(39, "1.35.0", "2026-09-12", listOf(
-            "Several TVs: tap the name at the top to switch, add, rename or remove",
+            "Several TVs: tap the name in the corner to switch or add; Settings › TVs to rename or remove",
             "Media keys (rewind, play, pause, forward) on the numpad page, or on the remote via Settings",
             "Up to 8 app shortcuts in two rows",
             "OK key on the numpad",
-            "Right side of the remote is one choice: brightness slider, brightness buttons or channel buttons",
-            "Short tour after setup, replayable from Settings › About",
+            "Channel buttons can replace the brightness slider (Settings › Controls)",
+            "Guided tour of the remote after setup, replayable from Settings › About",
+            "Theme editor: Light/Dark swaps the base palette, the preview is interactive",
             "Finds a TV connected to the phone's own hotspot",
             "Wake-on-LAN also sent directly to the TV's address, for TVs on another VLAN",
         )),

@@ -23,22 +23,10 @@
         android:paddingTop="16dp"
         android:paddingBottom="48dp">
 
-        <!-- Title -->
-        <TextView
-            android:id="@+id/tv_main_title"
-            android:tag="title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="LG TV Remote"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:drawableEnd="@drawable/ic_chevron_down"
-            android:drawablePadding="4dp"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="4dp"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+        <!-- Keeps the column clear of the TV pill and the gear, which float in the corners -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="36dp" />
 
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
@@ -1151,6 +1139,27 @@
 
     </LinearLayout>
 </ScrollView>
+
+<!-- Current TV — top-left pill, opens the saved-TV picker -->
+<TextView
+    android:id="@+id/tv_main_title"
+    android:layout_width="wrap_content"
+    android:layout_height="36dp"
+    android:layout_gravity="top|start"
+    android:layout_marginStart="16dp"
+    android:layout_marginTop="12dp"
+    android:gravity="center_vertical"
+    android:text="LG TV Remote"
+    android:textColor="#FFFFFF"
+    android:textSize="14sp"
+    android:textStyle="bold"
+    android:maxWidth="220dp"
+    android:maxLines="1"
+    android:ellipsize="end"
+    android:drawableEnd="@drawable/ic_chevron_down"
+    android:drawablePadding="2dp"
+    android:paddingStart="14dp"
+    android:paddingEnd="8dp" />
 
 <!-- Status dot + settings button — top-right corner -->
 <LinearLayout

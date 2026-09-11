@@ -7,17 +7,13 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ProgressBar
 import android.widget.TextView
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 
 /** One saved TV: name, address, MAC, and the switch / remove actions. */
 class TvDetailActivity : AppCompatActivity() {
 
     private val prefs by lazy { getSharedPreferences("webos", MODE_PRIVATE) }
-    private val client by lazy { WebOsClient(this) }
     private lateinit var tvId: String
     private var removed = false
 
@@ -50,52 +46,6 @@ class TvDetailActivity : AppCompatActivity() {
                 cancelClosesScreen = false,
                 onAccept = { removed = true; TvStore.remove(prefs, tvId); finish() }
             )
-        }
-
-        // Auto-detect MAC talks to the TV this screen describes, which needs the live
-        // connection to point at it: only offered for the active TV
-        val detect = findViewById<Button>(R.id.btn_detect_mac)
-        detect.isEnabled = isActive
-        detect.alpha = if (isActive) 1f else 0.4f
-        detect.setOnClickListener {
-            it.isEnabled = false
-            Thread {
-                val found = client.getMacFromDevice()
-                runOnUiThread {
-                    it.isEnabled = true
-                    if (found != null) {
-                        findViewById<EditText>(R.id.edit_tv_mac).setText(found)
-                        Toast.makeText(this, "Found $found", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this, "Not found — TV must be on to auto-detect", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }.start()
-        }
-
-        val spinner = findViewById<ProgressBar>(R.id.discover_spinner)
-        findViewById<Button>(R.id.btn_discover).setOnClickListener {
-            spinner.visibility = View.VISIBLE
-            it.isEnabled = false
-            Thread {
-                val found = TvDiscovery.discover(this)
-                runOnUiThread {
-                    spinner.visibility = View.GONE
-                    it.isEnabled = true
-                    val ipField = findViewById<EditText>(R.id.edit_tv_ip)
-                    when {
-                        found.isEmpty() -> Toast.makeText(this, "No TV found", Toast.LENGTH_SHORT).show()
-                        found.size == 1 -> {
-                            ipField.setText(found[0])
-                            Toast.makeText(this, "Found ${found[0]}", Toast.LENGTH_SHORT).show()
-                        }
-                        else -> AlertDialog.Builder(this)
-                            .setTitle("Select TV")
-                            .setItems(found.toTypedArray()) { _, i -> ipField.setText(found[i]) }
-                            .show()
-                    }
-                }
-            }.start()
         }
     }
 
@@ -130,11 +80,6 @@ class TvDetailActivity : AppCompatActivity() {
         fun ghost() = GradientDrawable().apply {
             cornerRadius = 10f * dp; setColor(0)
             setStroke((1f * dp).toInt(), theme.btnGhostBorder)
-        }
-        findViewById<Button>(R.id.btn_detect_mac).apply { background = ghost(); setTextColor(theme.secondaryText) }
-        findViewById<Button>(R.id.btn_discover).apply {
-            background = GradientDrawable().apply { cornerRadius = 10f * dp; setColor(theme.btnAccentBg) }
-            setTextColor(theme.btnAccentText)
         }
         findViewById<Button>(R.id.btn_use_tv).apply {
             background = GradientDrawable().apply { cornerRadius = 10f * dp; setColor(theme.btnAccentBg) }

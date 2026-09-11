@@ -134,8 +134,24 @@ class ThemeEditorActivity : AppCompatActivity() {
             setOnClickListener { onClick() }
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
         }
-        seg.addView(half("Dark", !light) { if (light) { light = false; buildSegment(); refreshPreview() } })
-        seg.addView(half("Light", light) { if (!light) { light = true; buildSegment(); refreshPreview() } })
+        seg.addView(half("Dark", !light) { if (light) setAppearance(light = false) })
+        seg.addView(half("Light", light) { if (!light) setAppearance(light = true) })
+    }
+
+    // Appearance is a starting point: it swaps the neutral seeds for the built-in Dark
+    // or Light palette and keeps the accent, so the choice is visible straight away
+    private fun setAppearance(light: Boolean) {
+        this.light = light
+        val base = runCatching { ThemeManager.listThemes(this).first { it.id == if (light) "light" else "dark" } }.getOrNull()
+        if (base != null) {
+            seedBg = base.seedBg
+            seedSurface = base.seedSurface
+            seedText = base.seedText
+            seedSecondary = base.seedSecondary
+        }
+        buildSegment()
+        buildColorRows()
+        refreshPreview()
     }
 
     private data class ColorRow(val label: String, val get: () -> Int, val set: (Int) -> Unit)
@@ -213,9 +229,13 @@ class ThemeEditorActivity : AppCompatActivity() {
         ThemeManager.applyToRoot(frame, t)
 
         findViewById<Button>(R.id.preview_accent).apply {
-            background = roundRect(t.btnAccentBg, 12f)
+            background = android.graphics.drawable.RippleDrawable(
+                ColorStateList.valueOf(ColorUtil.withAlpha(t.btnAccentText, 0x33)),
+                roundRect(t.btnAccentBg, 12f), null)
             setTextColor(t.btnAccentText)
+            setOnClickListener { this@ThemeEditorActivity.findViewById<Switch>(R.id.preview_switch).toggle() }
         }
+        wirePreviewPill(t)
         findViewById<ImageView>(R.id.preview_icon_power).setColorFilter(t.circleBtnIconTint)
         findViewById<ImageView>(R.id.preview_icon_home).setColorFilter(t.circleBtnIconTint)
         findViewById<Switch>(R.id.preview_switch).apply {
@@ -227,6 +247,36 @@ class ThemeEditorActivity : AppCompatActivity() {
                 arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
                 intArrayOf(t.switchThumbOn, t.switchThumbOff)
             )
+        }
+    }
+
+    // The preview pill behaves like the volume pill on the remote: drag to set a level
+    private var previewLevel = 24
+    private fun wirePreviewPill(t: ThemeConfig) {
+        val pill = findViewById<View>(R.id.preview_pill)
+        val fill = findViewById<View>(R.id.preview_pill_fill)
+        val value = findViewById<TextView>(R.id.preview_pill_value)
+        // Plain rectangle clipped by the pill's own rounded outline, like the real slider
+        pill.clipToOutline = true
+        fill.setBackgroundColor(ColorUtil.withAlpha(t.pillLabelText, 0x33))
+        fun render() {
+            value.text = previewLevel.toString()
+            fill.post {
+                fill.layoutParams = fill.layoutParams.also { it.width = (pill.width * previewLevel / 100f).toInt() }
+                fill.requestLayout()
+            }
+        }
+        render()
+        pill.setOnTouchListener { v, e ->
+            when (e.action) {
+                android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_MOVE -> {
+                    v.parent.requestDisallowInterceptTouchEvent(true)
+                    previewLevel = (e.x / v.width * 100).toInt().coerceIn(0, 100)
+                    render(); true
+                }
+                android.view.MotionEvent.ACTION_UP -> { v.performClick(); true }
+                else -> false
+            }
         }
     }
 
