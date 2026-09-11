@@ -13,6 +13,9 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(37, "1.33.0", "2026-09-11", listOf(
+            "Keep screen on toggle in Settings, for a phone used as a dedicated remote",
+        )),
         Release(36, "1.32.0", "2026-09-11", listOf(
             "Enter the TV's IP address by hand in setup, for TVs on another VLAN or wired through a dongle",
         )),
