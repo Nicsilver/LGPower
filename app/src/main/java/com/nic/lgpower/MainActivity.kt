@@ -56,6 +56,9 @@ class MainActivity : AppCompatActivity() {
     private var isLocked = false
     private var colorRowOpen = false
     private var colorRowJustDismissed = false
+    private val mediaOnMain get() = appPrefs.getBoolean("media_on_main", false)
+    // The row that slides in over the bottom row: colours by default, media keys if chosen in Settings
+    private fun slideRow(): View = findViewById(if (mediaOnMain) R.id.media_buttons_row else R.id.color_buttons_row)
     private var numpadOpen = false
     private val lockHandler = Handler(Looper.getMainLooper())
     private val moveThresholdPx = 12f
@@ -230,14 +233,19 @@ class MainActivity : AppCompatActivity() {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             if (!colorRowJustDismissed) {
                 colorRowOpen = true
-                findViewById<View>(R.id.color_buttons_row).visibility = View.VISIBLE
+                slideRow().visibility = View.VISIBLE
                 findViewById<View>(R.id.normal_bottom_row).visibility = View.GONE
             }
         }
-        findViewById<View>(R.id.btn_color_red).setOnClickListener    { sendCommand { client.pressKey("RED") } }
-        findViewById<View>(R.id.btn_color_green).setOnClickListener  { sendCommand { client.pressKey("GREEN") } }
-        findViewById<View>(R.id.btn_color_yellow).setOnClickListener { sendCommand { client.pressKey("YELLOW") } }
-        findViewById<View>(R.id.btn_color_blue).setOnClickListener   { sendCommand { client.pressKey("BLUE") } }
+        listOf(R.id.btn_color_red to "RED", R.id.btn_color_green to "GREEN",
+               R.id.btn_color_yellow to "YELLOW", R.id.btn_color_blue to "BLUE",
+               R.id.np_color_red to "RED", R.id.np_color_green to "GREEN",
+               R.id.np_color_yellow to "YELLOW", R.id.np_color_blue to "BLUE",
+               R.id.btn_media_rew to "REWIND", R.id.btn_media_play to "PLAY",
+               R.id.btn_media_pause to "PAUSE", R.id.btn_media_ff to "FASTFORWARD",
+               R.id.np_media_rew to "REWIND", R.id.np_media_play to "PLAY",
+               R.id.np_media_pause to "PAUSE", R.id.np_media_ff to "FASTFORWARD")
+            .forEach { (id, key) -> findViewById<View>(id).setOnClickListener { sendCommand { client.pressKey(key) } } }
 
         // Numpad mode — full-screen swap with the normal remote
         findViewById<View>(R.id.btn_numpad).setOnClickListener {
@@ -503,6 +511,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        applyExtraKeysLayout()
         if (BuildConfig.DEBUG && demoReceiver == null) {
             demoReceiver = object : android.content.BroadcastReceiver() {
                 override fun onReceive(c: android.content.Context?, i: android.content.Intent?) {
@@ -644,7 +653,8 @@ class MainActivity : AppCompatActivity() {
                R.id.btn_up, R.id.btn_down, R.id.btn_left, R.id.btn_right,
                R.id.btn_mute, R.id.btn_screen_off,
                R.id.btn_volume_up, R.id.btn_volume_down,
-               R.id.btn_brightness_up, R.id.btn_brightness_down)
+               R.id.btn_brightness_up, R.id.btn_brightness_down,
+               R.id.btn_media_rew, R.id.btn_media_play, R.id.btn_media_pause, R.id.btn_media_ff)
             .forEach { id -> findViewById<android.widget.ImageButton>(id)?.imageTintList = iconTint }
         // Touchpad icon is an ImageView (no button wrapper has the icon directly)
         findViewById<android.widget.ImageView>(R.id.iv_touchpad_icon)?.imageTintList = iconTint
@@ -678,6 +688,11 @@ class MainActivity : AppCompatActivity() {
             setTextColor(theme.secondaryText)
             background = ghostKey()
         }
+        listOf(R.id.np_media_rew, R.id.np_media_play, R.id.np_media_pause, R.id.np_media_ff)
+            .forEach { id -> findViewById<android.widget.ImageButton>(id)?.apply {
+                background = ghostKey()
+                imageTintList = ColorStateList.valueOf(theme.primaryText)
+            } }
         listOf(R.id.btn_np_guide, R.id.btn_np_info, R.id.btn_np_cc, R.id.btn_np_exit)
             .forEach { id -> findViewById<Button>(id)?.setTextColor(theme.secondaryText) }
         findViewById<TextView>(R.id.tv_np_readout)?.setTextColor(
@@ -794,6 +809,25 @@ class MainActivity : AppCompatActivity() {
         if (releases.isEmpty()) return
         showReleaseNotesDialog("What's new", releases, "Got it") {
             appPrefs.edit().putInt("last_seen_version", BuildConfig.VERSION_CODE).apply()
+        }
+    }
+
+    /** Media keys and colour keys swap places between the main remote and the numpad page. */
+    private fun applyExtraKeysLayout() {
+        val media = mediaOnMain
+        findViewById<android.widget.ImageButton>(R.id.btn_colors).apply {
+            setImageResource(if (media) R.drawable.ic_media else R.drawable.ic_colors)
+            imageTintList = if (media) ColorStateList.valueOf(ThemeManager.getActiveTheme(this@MainActivity).circleBtnIconTint) else null
+            contentDescription = if (media) "Media keys" else "Color Buttons"
+        }
+        findViewById<TextView>(R.id.tv_colors_label).text = if (media) "Media" else "Colors"
+        findViewById<View>(R.id.np_media_row).visibility = if (media) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.np_color_row).visibility = if (media) View.VISIBLE else View.GONE
+        if (colorRowOpen) {
+            colorRowOpen = false
+            findViewById<View>(R.id.media_buttons_row).visibility = View.GONE
+            findViewById<View>(R.id.color_buttons_row).visibility = View.GONE
+            findViewById<View>(R.id.normal_bottom_row).visibility = View.VISIBLE
         }
     }
 
@@ -1204,7 +1238,7 @@ class MainActivity : AppCompatActivity() {
         if (ev.action == MotionEvent.ACTION_DOWN) {
             colorRowJustDismissed = false
             if (colorRowOpen) {
-                val colorRow = findViewById<View>(R.id.color_buttons_row)
+                val colorRow = slideRow()
                 val rect = android.graphics.Rect()
                 colorRow.getGlobalVisibleRect(rect)
                 if (!rect.contains(ev.rawX.toInt(), ev.rawY.toInt())) {
