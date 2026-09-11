@@ -1162,7 +1162,8 @@
     android:layout_gravity="top|end"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:layout_margin="8dp">
+    android:layout_marginHorizontal="8dp"
+    android:layout_marginTop="12dp">
 
     <View
         android:id="@+id/status_dot"

@@ -56,7 +56,7 @@ class SetupActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun showTvList(ips: List<String>) {
+    private fun showTvList(found: List<String>) {
         showScreen(Screen.TV_LIST)
         val theme = ThemeManager.getActiveTheme(this)
         val d = resources.displayMetrics.density
@@ -68,6 +68,12 @@ class SetupActivity : AppCompatActivity() {
         val noTvs = findViewById<View>(R.id.no_tvs_layout)
 
         setupManualEntry(theme, d)
+
+        // The MAC is only known after pairing, so "already added" goes by address
+        val known = TvStore.list(prefs).map { it.ip }.toSet()
+        val ips = found.filter { it !in known }
+        findViewById<TextView>(R.id.no_tvs_label).text =
+            if (found.isNotEmpty()) "The only TV found is already added" else "No TVs found on this network"
 
         if (ips.isEmpty()) {
             label.text = ""
