@@ -40,6 +40,9 @@ class SettingsActivity : AppCompatActivity() {
         // Controls toggles
         val switchVolSlider        = findViewById<Switch>(R.id.switch_vol_slider)
         val switchKeepScreenOn     = findViewById<Switch>(R.id.switch_keep_screen_on)
+        val switchMediaOnMain      = findViewById<Switch>(R.id.switch_media_on_main)
+        switchMediaOnMain.isChecked = prefs.getBoolean("media_on_main", false)
+        switchMediaOnMain.setOnCheckedChangeListener { _, v -> prefs.edit().putBoolean("media_on_main", v).apply() }
         switchVolSlider.isChecked        = prefs.getBoolean("vol_slider", true)
         switchKeepScreenOn.isChecked     = prefs.getBoolean("keep_screen_on", false)
         switchVolSlider.setOnCheckedChangeListener        { _, v -> prefs.edit().putBoolean("vol_slider", v).apply() }
@@ -300,7 +303,7 @@ class SettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
             intArrayOf(theme.switchThumbOn, theme.switchThumbOff)
         )
-        listOf(R.id.switch_vol_slider, R.id.switch_keep_screen_on)
+        listOf(R.id.switch_vol_slider, R.id.switch_keep_screen_on, R.id.switch_media_on_main)
             .forEach { id ->
                 val sw = findViewById<Switch>(id) ?: return@forEach
                 sw.trackTintList = trackCsl
