@@ -523,6 +523,11 @@ class MainActivity : AppCompatActivity() {
         }
         client.resetConnection()
         configureRightPill()
+        // A phone parked as a dedicated remote shouldn't dim to black between presses
+        if (appPrefs.getBoolean("keep_screen_on", false))
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         refreshShortcuts()
         // Restore cached values immediately so bars aren't empty while network fetches
         val cachedVolume = appPrefs.getInt("last_volume", -1)

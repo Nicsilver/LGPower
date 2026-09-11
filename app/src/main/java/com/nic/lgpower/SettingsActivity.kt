@@ -40,12 +40,15 @@ class SettingsActivity : AppCompatActivity() {
         val switchVolSlider        = findViewById<Switch>(R.id.switch_vol_slider)
         val switchBrtSlider        = findViewById<Switch>(R.id.switch_brightness_slider)
         val switchRightPillChannel = findViewById<Switch>(R.id.switch_right_pill_channel)
+        val switchKeepScreenOn     = findViewById<Switch>(R.id.switch_keep_screen_on)
         switchVolSlider.isChecked        = prefs.getBoolean("vol_slider", true)
         switchBrtSlider.isChecked        = prefs.getBoolean("brightness_slider", true)
         switchRightPillChannel.isChecked = prefs.getBoolean("right_pill_channel", false)
+        switchKeepScreenOn.isChecked     = prefs.getBoolean("keep_screen_on", false)
         switchVolSlider.setOnCheckedChangeListener        { _, v -> prefs.edit().putBoolean("vol_slider", v).apply() }
         switchBrtSlider.setOnCheckedChangeListener        { _, v -> prefs.edit().putBoolean("brightness_slider", v).apply() }
         switchRightPillChannel.setOnCheckedChangeListener { _, v -> prefs.edit().putBoolean("right_pill_channel", v).apply() }
+        switchKeepScreenOn.setOnCheckedChangeListener     { _, v -> prefs.edit().putBoolean("keep_screen_on", v).apply() }
         tvShortcutsSummary  = findViewById(R.id.tv_shortcuts_summary)
         appsGrid            = findViewById(R.id.apps_grid)
 
@@ -277,7 +280,7 @@ class SettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
             intArrayOf(theme.switchThumbOn, theme.switchThumbOff)
         )
-        listOf(R.id.switch_vol_slider, R.id.switch_brightness_slider, R.id.switch_right_pill_channel)
+        listOf(R.id.switch_vol_slider, R.id.switch_brightness_slider, R.id.switch_right_pill_channel, R.id.switch_keep_screen_on)
             .forEach { id ->
                 val sw = findViewById<Switch>(id) ?: return@forEach
                 sw.trackTintList = trackCsl
