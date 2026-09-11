@@ -103,6 +103,66 @@
 
             </LinearLayout>
 
+            <!-- Discovery is subnet-bound (SSDP multicast + /24 scan), so a TV on another
+                 VLAN or wired through a dongle is only reachable by typing its address -->
+            <Button
+                android:id="@+id/btn_manual_ip"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="12dp"
+                android:text="Enter IP address manually"
+                android:textAllCaps="false" />
+
+            <LinearLayout
+                android:id="@+id/manual_ip_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_marginTop="12dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/manual_ip_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="TV IP ADDRESS"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.06"
+                    android:layout_marginBottom="8dp" />
+
+                <EditText
+                    android:id="@+id/edit_manual_ip"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:hint="192.168.1.x"
+                    android:inputType="numberDecimal"
+                    android:digits="0123456789."
+                    android:imeOptions="actionGo"
+                    android:singleLine="true"
+                    android:textSize="18sp"
+                    android:paddingHorizontal="12dp"
+                    android:importantForAutofill="no" />
+
+                <TextView
+                    android:id="@+id/manual_ip_hint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Find it under Settings › General › Network on the TV. The phone must be able to reach the TV on port 3001."
+                    android:textSize="12sp"
+                    android:lineSpacingExtra="2dp"
+                    android:layout_marginTop="8dp" />
+
+                <Button
+                    android:id="@+id/btn_manual_connect"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="14dp"
+                    android:text="Connect"
+                    android:textAllCaps="false" />
+
+            </LinearLayout>
+
         </LinearLayout>
 
         <!-- ── Pairing screen ── -->

@@ -13,6 +13,9 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(36, "1.32.0", "2026-09-11", listOf(
+            "Enter the TV's IP address by hand in setup, for TVs on another VLAN or wired through a dongle",
+        )),
         Release(35, "1.31.2", "2026-09-11", listOf(
             "Touchpad lock grows out of the button, 0.6 s hold",
             "Touchpad overlay follows light themes",
