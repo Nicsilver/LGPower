@@ -48,7 +48,22 @@ class SettingsActivity : AppCompatActivity() {
         switchVolSlider.setOnCheckedChangeListener        { _, v -> prefs.edit().putBoolean("vol_slider", v).apply() }
         switchBrtSlider.setOnCheckedChangeListener        { _, v -> prefs.edit().putBoolean("brightness_slider", v).apply() }
         switchRightPillChannel.setOnCheckedChangeListener { _, v -> prefs.edit().putBoolean("right_pill_channel", v).apply() }
-        switchKeepScreenOn.setOnCheckedChangeListener     { _, v -> prefs.edit().putBoolean("keep_screen_on", v).apply() }
+        switchKeepScreenOn.setOnCheckedChangeListener { sw, v ->
+            if (!v) { prefs.edit().putBoolean("keep_screen_on", false).apply(); return@setOnCheckedChangeListener }
+            if (prefs.getBoolean("keep_screen_on", false)) return@setOnCheckedChangeListener
+            // A static remote left on for hours is exactly what burns in an OLED phone
+            showWarningSheet(
+                chipText = "SCREEN STAYS ON",
+                title = "Careful with OLED screens",
+                body = "The remote will keep the screen awake for as long as it's open, even if you put the phone down. " +
+                    "On an OLED phone that can burn the remote layout into the panel over time, and it drains the battery. " +
+                    "Meant for a spare phone used as a dedicated remote.",
+                buttonText = "Keep screen on",
+                cancelClosesScreen = false,
+                onAccept = { prefs.edit().putBoolean("keep_screen_on", true).apply() },
+                onCancel = { sw.isChecked = false }
+            )
+        }
         tvShortcutsSummary  = findViewById(R.id.tv_shortcuts_summary)
         appsGrid            = findViewById(R.id.apps_grid)
 
