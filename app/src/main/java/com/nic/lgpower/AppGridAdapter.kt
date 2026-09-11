@@ -26,6 +26,9 @@ class AppGridAdapter(
     private val onChanged: (List<WebOsClient.TvApp>) -> Unit = {}
 ) : RecyclerView.Adapter<AppGridAdapter.VH>() {
 
+    /** Set by the activity; a long-press on a selected app hands the holder to ItemTouchHelper. */
+    var onStartDrag: ((VH) -> Unit)? = null
+
     private val selected   = mutableListOf<WebOsClient.TvApp>()
     private val unselected = mutableListOf<WebOsClient.TvApp>()
     private val uiHandler  = Handler(Looper.getMainLooper())
@@ -55,13 +58,16 @@ class AppGridAdapter(
         notifyItemChanged(pos)
     }
 
-    /** Called by ItemTouchHelper during drag. */
+    /** Called by ItemTouchHelper during drag: only the move, badges and saving wait for [commitOrder]. */
     fun moveItem(from: Int, to: Int) {
         val item = selected.removeAt(from)
         selected.add(to, item)
         notifyItemMoved(from, to)
-        val lo = minOf(from, to); val hi = maxOf(from, to)
-        notifyItemRangeChanged(lo, hi - lo + 1)
+    }
+
+    /** Drag finished: renumber the badges and persist. Rebinding mid-drag made the drag stutter. */
+    fun commitOrder() {
+        notifyItemRangeChanged(0, selected.size)
         onChanged(selected.toList())
     }
 
@@ -92,6 +98,12 @@ class AppGridAdapter(
             }
         }.start()
 
+        // Explicit drag start: ItemTouchHelper's own long-press detection is easily lost
+        // to the scroll view this grid lives in
+        holder.itemView.setOnLongClickListener {
+            val pos = holder.bindingAdapterPosition
+            if (pos >= 0 && isSelected(pos)) { onStartDrag?.invoke(holder); true } else false
+        }
         holder.itemView.setOnClickListener {
             val pos = holder.bindingAdapterPosition
             if (pos < 0) return@setOnClickListener

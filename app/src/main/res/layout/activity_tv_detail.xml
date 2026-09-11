@@ -160,7 +160,7 @@
             android:tag="btn_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Filled in when the TV was paired. The MAC address is what wakes the TV from standby; the TV needs Turn on via Wi-Fi enabled (Settings › General › Devices › TV On With Mobile)."
+            android:text="Filled in when the TV was paired. The MAC address is what wakes the TV from standby. On the TV, enable Turn on via Wi-Fi (Settings › General › Devices › External Devices › TV On With Mobile; on 2025 and newer sets Support › IP control settings › Wake on LAN). If waking only works for a few minutes after switching off, also enable Quick Start+ (Always Ready on 2022+ models) so the network stays awake."
             android:textColor="#888888"
             android:textSize="12sp"
             android:lineSpacingExtra="2dp"

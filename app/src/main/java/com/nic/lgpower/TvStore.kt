@@ -17,6 +17,11 @@ object TvStore {
 
     private const val LIST = "tvs"
     private const val ACTIVE = "active_tv"
+    private const val SHORTCUTS = "app_shortcuts"
+
+    /** Shortcuts are saved per TV; the pre-1.35 single list belongs to whichever TV was migrated. */
+    fun shortcutsKey(prefs: SharedPreferences): String =
+        prefs.getString(ACTIVE, null)?.let { "${SHORTCUTS}_$it" } ?: SHORTCUTS
 
     fun list(prefs: SharedPreferences): List<Tv> {
         migrate(prefs)
@@ -102,6 +107,7 @@ object TvStore {
         syncFromLive(prefs)
         val rest = read(prefs).filter { it.id != id }
         write(prefs, rest)
+        prefs.edit().remove("${SHORTCUTS}_$id").apply()
         if (prefs.getString(ACTIVE, null) == id) {
             val next = rest.firstOrNull()
             if (next != null) switchTo(prefs, next.id)
@@ -116,7 +122,9 @@ object TvStore {
         if (ip.isBlank()) { write(prefs, emptyList()); return }
         val tv = Tv(UUID.randomUUID().toString(), "LG TV", ip, prefs.getString("tv_mac", "") ?: "", prefs.getString("client_key", "") ?: "")
         write(prefs, listOf(tv))
-        prefs.edit().putString(ACTIVE, tv.id).apply()
+        val e = prefs.edit().putString(ACTIVE, tv.id)
+        prefs.getString(SHORTCUTS, null)?.let { e.putString("${SHORTCUTS}_${tv.id}", it) }
+        e.apply()
     }
 
     private fun read(prefs: SharedPreferences): List<Tv> = runCatching {

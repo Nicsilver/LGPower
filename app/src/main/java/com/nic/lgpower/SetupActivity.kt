@@ -280,13 +280,30 @@ class SetupActivity : AppCompatActivity() {
         applyButton(done, theme, accent = true)
         group.visibility = View.VISIBLE
 
+        var finishing = false
         val finishSetup = {
-            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
-                .hideSoftInputFromWindow(field.windowToken, 0)
-            TvStore.addFromLive(prefs, field.text.toString())
-            if (!addMode) prefs.edit().putBoolean(MainActivity.PREF_TOUR_PENDING, true).apply()
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
+            if (!finishing) {
+                finishing = true
+                (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                    .hideSoftInputFromWindow(field.windowToken, 0)
+                TvStore.addFromLive(prefs, field.text.toString())
+                if (!addMode) prefs.edit().putBoolean(MainActivity.PREF_TOUR_PENDING, true).apply()
+                done.isEnabled = false
+                done.text = "Setting up…"
+                // The new TV's shortcuts come from its own app list, so the remote opens populated
+                Thread {
+                    val (apps, _) = client.listApps()
+                    val picked = client.pickDefaultShortcuts(apps)
+                    if (picked.isNotEmpty()) {
+                        client.saveShortcuts(picked)
+                        picked.forEach { app -> app.iconUrl?.let { client.cacheIcon(app.id, it) } }
+                    }
+                    runOnUiThread {
+                        startActivity(Intent(this, MainActivity::class.java))
+                        finish()
+                    }
+                }.start()
+            }
         }
         done.setOnClickListener { finishSetup() }
         field.setOnEditorActionListener { _, _, _ -> finishSetup(); true }
