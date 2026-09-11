@@ -50,6 +50,7 @@ class ThemeEditorActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_theme_editor)
+        SystemBars.applyTo(this, findViewById(R.id.editor_root), ThemeManager.getActiveTheme(this).windowBg)
         active = ThemeManager.getActiveTheme(this)
 
         // Seed from either the theme being edited or a base theme to clone.

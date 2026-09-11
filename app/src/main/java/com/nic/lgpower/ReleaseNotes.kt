@@ -13,6 +13,9 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(38, "1.34.0", "2026-09-11", listOf(
+            "Settings gear and status dot no longer hide under the status bar on Android 15",
+        )),
         Release(37, "1.33.0", "2026-09-11", listOf(
             "Keep screen on toggle in Settings, for a phone used as a dedicated remote",
         )),

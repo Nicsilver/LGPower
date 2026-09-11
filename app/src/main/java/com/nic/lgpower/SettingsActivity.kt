@@ -30,6 +30,7 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+        SystemBars.applyTo(this, findViewById(R.id.settings_root), ThemeManager.getActiveTheme(this).windowBg)
         applyTheme()
 
         val editIp          = findViewById<EditText>(R.id.edit_tv_ip)

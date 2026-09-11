@@ -32,6 +32,7 @@ class AppShortcutWidgetConfigActivity : Activity() {
         if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) { finish(); return }
 
         setContentView(R.layout.activity_shortcut_widget_config)
+        SystemBars.applyTo(this, findViewById(android.R.id.content), ThemeManager.getActiveTheme(this).windowBg)
 
         val client = WebOsClient(this)
         val shortcuts = client.loadShortcuts()
