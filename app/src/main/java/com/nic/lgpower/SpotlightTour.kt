@@ -59,11 +59,9 @@ object Tour {
     val settingsSteps = listOf(
         Step(R.id.group_connection, "Saved TVs",
             "Every TV you have paired. Tap one to rename it or change its address, or add another."),
-        Step(R.id.switch_media_on_main, "Media keys",
-            "Swaps the colour keys on the remote for rewind, play, pause and forward. Whichever set is not on the remote sits on the numpad page.", parentOf = true),
         Step(R.id.group_shortcuts, "Pick your shortcuts",
             "Load the app list from the TV, then tap up to eight apps. Long-press one and drag to reorder them."),
-        Step(R.id.row_theme, "Themes",
+        Step(R.id.group_appearance, "Themes",
             "Pick a theme, or create your own with a few colours."),
     )
 }
