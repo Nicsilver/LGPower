@@ -18,6 +18,9 @@ class SetupActivity : AppCompatActivity() {
     // Adding a second TV from the remote, as opposed to first-run setup
     private val addMode by lazy { intent.getBooleanExtra(EXTRA_ADD_TV, false) }
     private var paired = false
+    // Fingerprints from discovery, and the one for the TV being paired (fetched for manual entries)
+    private val udns = HashMap<String, String>()
+    @Volatile private var pairedUdn: String? = null
     private var stopPairing: (() -> Unit)? = null
     private val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var pairingTimeout: Runnable? = null
@@ -51,8 +54,9 @@ class SetupActivity : AppCompatActivity() {
     private fun startDiscovery() {
         showScreen(Screen.SEARCHING)
         Thread {
-            val found = TvDiscovery.discover(this)
-            runOnUiThread { showTvList(found) }
+            val found = TvDiscovery.discoverDetailed(this)
+            found.forEach { f -> f.udn?.let { udns[f.ip] = it } }
+            runOnUiThread { showTvList(found.map { it.ip }) }
         }.start()
     }
 
@@ -69,12 +73,7 @@ class SetupActivity : AppCompatActivity() {
 
         setupManualEntry(theme, d)
 
-        // The MAC is only known after pairing, so "already added" goes by address
-        val known = TvStore.list(prefs).map { it.ip }.toSet()
-        val ips = found.filter { it !in known }
-        findViewById<TextView>(R.id.no_tvs_label).text =
-            if (found.isNotEmpty()) "The only TV found is already added" else "No TVs found on this network"
-
+        val ips = found
         if (ips.isEmpty()) {
             label.text = ""
             noTvs.visibility = View.VISIBLE
@@ -112,26 +111,30 @@ class SetupActivity : AppCompatActivity() {
                     ).also { it.marginStart = (16 * d).toInt() }
                 })
             }
+            // A TV already in the list stays visible but greyed, so a second TV that
+            // happens to share an address on another network can still be told apart
+            val already = TvStore.match(prefs, ip, udns[ip])
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                isClickable = true; isFocusable = true
+                isClickable = already == null; isFocusable = already == null
+                alpha = if (already == null) 1f else 0.45f
                 setPadding((16 * d).toInt(), 0, (16 * d).toInt(), 0)
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, (60 * d).toInt()
                 )
-                setOnClickListener { selectTv(ip) }
+                if (already == null) setOnClickListener { selectTv(ip) }
             }
             row.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 addView(TextView(this@SetupActivity).apply {
-                    text = "LG TV"
+                    text = already?.name ?: "LG TV"
                     textSize = 16f
                     setTextColor(theme.primaryText)
                 })
                 addView(TextView(this@SetupActivity).apply {
-                    text = ip
+                    text = if (already == null) ip else "$ip · already added"
                     textSize = 13f
                     setTextColor(theme.secondaryText)
                 })
@@ -207,10 +210,12 @@ class SetupActivity : AppCompatActivity() {
             onPaired = {
                 pairingTimeout?.let { timeoutHandler.removeCallbacks(it) }
                 client.saveTvIp(ip)
-                // Grab MAC in background while success screen shows
+                pairedUdn = udns[ip]
+                // Grab MAC (and the fingerprint, if discovery did not have it) while the name step shows
                 Thread {
                     val mac = client.getMacFromDevice()
                     if (mac != null) client.saveTvMac(mac)
+                    if (pairedUdn == null) pairedUdn = TvDiscovery.fingerprint(this, ip)
                 }.start()
                 runOnUiThread { showSuccess(ip) }
             }
@@ -292,7 +297,7 @@ class SetupActivity : AppCompatActivity() {
                 finishing = true
                 (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
                     .hideSoftInputFromWindow(field.windowToken, 0)
-                TvStore.addFromLive(prefs, field.text.toString())
+                TvStore.addFromLive(prefs, field.text.toString(), pairedUdn ?: "")
                 if (!addMode) prefs.edit().putBoolean(MainActivity.PREF_TOUR_PENDING, true).apply()
                 done.isEnabled = false
                 done.text = "Setting up…"
