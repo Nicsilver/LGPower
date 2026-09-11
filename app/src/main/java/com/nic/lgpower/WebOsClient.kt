@@ -50,11 +50,21 @@ class WebOsClient(private val context: Context) {
             val packet = ByteArray(6 + 16 * 6)
             for (i in 0..5) packet[i] = 0xFF.toByte()
             for (i in 0..15) for (j in 0..5) packet[6 + i * 6 + j] = macBytes[j]
-            java.net.DatagramSocket().use { socket ->
-                LanNetwork.get(context)?.bindSocket(socket)
-                socket.broadcast = true
-                val addr = java.net.InetAddress.getByName("255.255.255.255")
-                socket.send(java.net.DatagramPacket(packet, packet.size, addr, 9))
+            val ip = tvIp
+            // A TV on another VLAN never sees the limited broadcast, so also try the
+            // directed broadcast of its subnet and a plain unicast (works while the
+            // gateway still has an ARP entry for the sleeping TV).
+            val targets = listOf("255.255.255.255", ip.substringBeforeLast('.') + ".255", ip)
+            val lan = if (LanNetwork.isTethered(context, ip)) null else LanNetwork.get(context)
+            for (target in targets) {
+                try {
+                    java.net.DatagramSocket().use { socket ->
+                        lan?.bindSocket(socket)
+                        socket.broadcast = true
+                        val addr = java.net.InetAddress.getByName(target)
+                        socket.send(java.net.DatagramPacket(packet, packet.size, addr, 9))
+                    }
+                } catch (_: Exception) { }
             }
         } catch (_: Exception) { }
     }
@@ -75,7 +85,10 @@ class WebOsClient(private val context: Context) {
             init(null, arrayOf<TrustManager>(trustAll), SecureRandom())
         }
         return OkHttpClient.Builder()
-            .apply { LanNetwork.get(context)?.let { socketFactory(it.socketFactory) } }
+            .apply {
+                if (!LanNetwork.isTethered(context, tvIp))
+                    LanNetwork.get(context)?.let { socketFactory(it.socketFactory) }
+            }
             .sslSocketFactory(ssl.socketFactory, trustAll)
             .hostnameVerifier { _, _ -> true }
             // Read timeout bounds the TLS/upgrade handshake only; OkHttp lifts it once a
