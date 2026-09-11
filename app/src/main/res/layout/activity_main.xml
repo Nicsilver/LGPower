@@ -27,13 +27,18 @@
         <TextView
             android:id="@+id/tv_main_title"
             android:tag="title"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="LG TV Remote"
             android:textColor="#FFFFFF"
             android:textSize="20sp"
             android:textStyle="bold"
-            android:gravity="center" />
+            android:gravity="center"
+            android:drawableEnd="@drawable/ic_chevron_down"
+            android:drawablePadding="4dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless" />
 
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 

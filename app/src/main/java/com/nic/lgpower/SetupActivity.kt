@@ -284,8 +284,8 @@ class SetupActivity : AppCompatActivity() {
             (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
                 .hideSoftInputFromWindow(field.windowToken, 0)
             TvStore.addFromLive(prefs, field.text.toString())
-            startActivity(Intent(this, MainActivity::class.java)
-                .putExtra(MainActivity.EXTRA_SHOW_TOUR, !addMode))
+            if (!addMode) prefs.edit().putBoolean(MainActivity.PREF_TOUR_PENDING, true).apply()
+            startActivity(Intent(this, MainActivity::class.java))
             finish()
         }
         done.setOnClickListener { finishSetup() }

@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tv_detail_root"
+    android:tag="window_bg"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="56dp">
+
+        <TextView
+            android:id="@+id/tv_detail_title"
+            android:tag="title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="TV"
+            android:textColor="#FFFFFF"
+            android:textSize="30sp"
+            android:textStyle="bold"
+            android:paddingHorizontal="4dp"
+            android:layout_marginBottom="32dp" />
+
+        <TextView
+            android:tag="section_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="TV"
+            android:textColor="#8E8E93"
+            android:textSize="12sp"
+            android:letterSpacing="0.06"
+            android:paddingHorizontal="4dp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:tag="surface_bg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_section_group">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp">
+
+                <TextView
+                    android:tag="row_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Name"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp" />
+
+                <EditText
+                    android:id="@+id/edit_name"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="end|center_vertical"
+                    android:hint="Living room"
+                    android:inputType="textCapSentences"
+                    android:singleLine="true"
+                    android:textColor="#8E8E93"
+                    android:textColorHint="#3A3A3A"
+                    android:background="@null"
+                    android:padding="0dp"
+                    android:layout_marginStart="12dp"
+                    android:textSize="15sp"
+                    android:importantForAutofill="no" />
+
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp">
+
+                <TextView
+                    android:tag="row_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="IP Address"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp" />
+
+                <EditText
+                    android:id="@+id/edit_tv_ip"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="end|center_vertical"
+                    android:hint="192.168.1.x"
+                    android:inputType="textUri"
+                    android:singleLine="true"
+                    android:textColor="#8E8E93"
+                    android:textColorHint="#3A3A3A"
+                    android:background="@null"
+                    android:padding="0dp"
+                    android:layout_marginStart="12dp"
+                    android:textSize="15sp"
+                    android:importantForAutofill="no" />
+
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp">
+
+                <TextView
+                    android:tag="row_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="MAC Address"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp" />
+
+                <EditText
+                    android:id="@+id/edit_tv_mac"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="end|center_vertical"
+                    android:hint="AA:BB:CC:DD:EE:FF"
+                    android:inputType="text"
+                    android:singleLine="true"
+                    android:textColor="#8E8E93"
+                    android:textColorHint="#3A3A3A"
+                    android:background="@null"
+                    android:padding="0dp"
+                    android:layout_marginStart="12dp"
+                    android:textSize="15sp"
+                    android:importantForAutofill="no" />
+
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp">
+
+                <Button
+                    android:id="@+id/btn_detect_mac"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_ghost"
+                    android:text="Auto-detect MAC"
+                    android:textColor="#8E8E93"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <View android:layout_width="10dp" android:layout_height="1dp" />
+
+                <Button
+                    android:id="@+id/btn_discover"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_btn_accent"
+                    android:text="Discover TV"
+                    android:textColor="#000000"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <ProgressBar
+                    android:id="@+id/discover_spinner"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginStart="8dp"
+                    android:visibility="gone"
+                    android:indeterminateTint="#888888" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tv_mac_hint"
+            android:tag="btn_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="The MAC address is what wakes the TV from standby over the network. Turn on the TV's network standby (Quick Start+ or Mobile TV On) for that to work."
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:lineSpacingExtra="2dp"
+            android:paddingHorizontal="4dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="28dp" />
+
+        <Button
+            android:id="@+id/btn_use_tv"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Use this TV"
+            android:textAllCaps="false"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp" />
+
+        <Button
+            android:id="@+id/btn_remove_tv"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Remove this TV"
+            android:textAllCaps="false"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
+</androidx.core.widget.NestedScrollView>

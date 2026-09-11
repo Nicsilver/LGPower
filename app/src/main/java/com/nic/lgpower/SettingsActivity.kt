@@ -33,19 +33,17 @@ class SettingsActivity : AppCompatActivity() {
         SystemBars.applyTo(this, findViewById(R.id.settings_root), ThemeManager.getActiveTheme(this).windowBg)
         applyTheme()
 
-        val editIp          = findViewById<EditText>(R.id.edit_tv_ip)
-        val editMac         = findViewById<EditText>(R.id.edit_tv_mac)
-        val discoverSpinner = findViewById<ProgressBar>(R.id.discover_spinner)
+        findViewById<View>(R.id.row_add_tv).setOnClickListener {
+            startActivity(android.content.Intent(this, SetupActivity::class.java)
+                .putExtra(SetupActivity.EXTRA_ADD_TV, true))
+        }
 
         // Controls toggles
-        val switchVolSlider        = findViewById<Switch>(R.id.switch_vol_slider)
         val switchKeepScreenOn     = findViewById<Switch>(R.id.switch_keep_screen_on)
         val switchMediaOnMain      = findViewById<Switch>(R.id.switch_media_on_main)
         switchMediaOnMain.isChecked = prefs.getBoolean("media_on_main", false)
         switchMediaOnMain.setOnCheckedChangeListener { _, v -> prefs.edit().putBoolean("media_on_main", v).apply() }
-        switchVolSlider.isChecked        = prefs.getBoolean("vol_slider", true)
         switchKeepScreenOn.isChecked     = prefs.getBoolean("keep_screen_on", false)
-        switchVolSlider.setOnCheckedChangeListener        { _, v -> prefs.edit().putBoolean("vol_slider", v).apply() }
         val tvRightPill = findViewById<TextView>(R.id.tv_right_pill)
         tvRightPill.text = RightPill.get(prefs).label
         findViewById<View>(R.id.row_right_pill).setOnClickListener {
@@ -74,28 +72,6 @@ class SettingsActivity : AppCompatActivity() {
         }
         tvShortcutsSummary  = findViewById(R.id.tv_shortcuts_summary)
         appsGrid            = findViewById(R.id.apps_grid)
-
-        val currentIp = prefs.getString("tv_ip", WebOsClient.DEFAULT_TV_IP) ?: WebOsClient.DEFAULT_TV_IP
-        editIp.setText(currentIp)
-        editIp.setSelection(editIp.text.length)
-
-        editMac.setText(client.tvMac)
-        findViewById<Button>(R.id.btn_detect_mac).setOnClickListener {
-            it.isEnabled = false
-            Thread {
-                val found = client.getMacFromDevice()
-                runOnUiThread {
-                    it.isEnabled = true
-                    if (found != null) {
-                        editMac.setText(found)
-                        client.saveTvMac(found)
-                        Toast.makeText(this, "Found $found", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this, "Not found — TV must be on to auto-detect", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }.start()
-        }
 
         // Auto-save on every selection/reorder change
         adapter = AppGridAdapter(this, client) { chosen ->
@@ -147,7 +123,11 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         findViewById<TextView>(R.id.tv_app_version).text = BuildConfig.VERSION_NAME
-        findViewById<View>(R.id.row_tour).setOnClickListener { showTourSheet() }
+        // The tour runs on the remote itself, so hand back to it
+        findViewById<View>(R.id.row_tour).setOnClickListener {
+            prefs.edit().putBoolean("tour_pending", true).apply()
+            finish()
+        }
         findViewById<View>(R.id.row_release_notes).setOnClickListener {
             showReleaseNotesDialog("Release notes", ReleaseNotes.all, "Close", markLatest = true)
         }
@@ -157,32 +137,6 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<View>(R.id.row_theme).setOnClickListener { openThemePicker() }
         findViewById<View>(R.id.row_create_theme).setOnClickListener {
             openThemeEditor(baseId = ThemeManager.getActiveThemeId(this), editId = null)
-        }
-
-        // Discover TV IP
-        findViewById<Button>(R.id.btn_discover).setOnClickListener {
-            discoverSpinner.visibility = View.VISIBLE
-            it.isEnabled = false
-            Thread {
-                val found = TvDiscovery.discover(this)
-                runOnUiThread {
-                    discoverSpinner.visibility = View.GONE
-                    it.isEnabled = true
-                    when {
-                        found.isEmpty() ->
-                            Toast.makeText(this, "No TV found", Toast.LENGTH_SHORT).show()
-                        found.size == 1 -> {
-                            editIp.setText(found[0])
-                            Toast.makeText(this, "Found ${found[0]}", Toast.LENGTH_SHORT).show()
-                        }
-                        else ->
-                            AlertDialog.Builder(this)
-                                .setTitle("Select TV")
-                                .setItems(found.toTypedArray()) { _, i -> editIp.setText(found[i]) }
-                                .show()
-                    }
-                }
-            }.start()
         }
 
         // Load full app list from TV
@@ -280,7 +234,9 @@ class SettingsActivity : AppCompatActivity() {
         if (pendingThemeRefresh) {
             pendingThemeRefresh = false
             recreate()
+            return
         }
+        refreshTvRows()
     }
 
     @Suppress("DEPRECATION")
@@ -304,7 +260,7 @@ class SettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
             intArrayOf(theme.switchThumbOn, theme.switchThumbOff)
         )
-        listOf(R.id.switch_vol_slider, R.id.switch_keep_screen_on, R.id.switch_media_on_main)
+        listOf(R.id.switch_keep_screen_on, R.id.switch_media_on_main)
             .forEach { id ->
                 val sw = findViewById<Switch>(id) ?: return@forEach
                 sw.trackTintList = trackCsl
@@ -322,30 +278,60 @@ class SettingsActivity : AppCompatActivity() {
             cornerRadius = 10f * dp
             setColor(theme.btnAccentBg)
         }
-        findViewById<Button>(R.id.btn_detect_mac)?.apply {
-            background = ghostBg
-            setTextColor(theme.secondaryText)
-        }
-        findViewById<Button>(R.id.btn_discover)?.apply {
-            background = accentBg
-            setTextColor(theme.btnAccentText)
-        }
         val chevronTint = if (theme.statusBarLightIcons) 0xFFAAAAAA.toInt() else 0xFF555555.toInt()
         findViewById<Button>(R.id.btn_load_apps)
             ?.compoundDrawableTintList = ColorStateList.valueOf(chevronTint)
-        listOf(R.id.edit_tv_ip, R.id.edit_tv_mac).forEach { id ->
-            val et = findViewById<EditText>(id) ?: return@forEach
-            et.setTextColor(theme.secondaryText)
-            et.setHintTextColor(Color.argb(120, Color.red(theme.secondaryText), Color.green(theme.secondaryText), Color.blue(theme.secondaryText)))
-        }
     }
 
-    override fun onPause() {
-        super.onPause()
-        val ip = findViewById<EditText>(R.id.edit_tv_ip).text.toString().trim()
-        if (ip.isNotEmpty()) prefs.edit().putString("tv_ip", ip).apply()
-        val mac = findViewById<EditText>(R.id.edit_tv_mac).text.toString().trim()
-        client.saveTvMac(mac)
+    private fun refreshTvRows() {
+        val theme = ThemeManager.getActiveTheme(this)
+        val d = resources.displayMetrics.density
+        val container = findViewById<android.widget.LinearLayout>(R.id.tvs_container)
+        container.removeAllViews()
+        val activeId = TvStore.activeId(prefs)
+        TvStore.list(prefs).forEach { tv ->
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding((16 * d).toInt(), 0, (12 * d).toInt(), 0)
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT, (56 * d).toInt())
+                isClickable = true; isFocusable = true
+                val out = android.util.TypedValue()
+                theme.let { getTheme().resolveAttribute(android.R.attr.selectableItemBackground, out, true) }
+                setBackgroundResource(out.resourceId)
+                setOnClickListener {
+                    startActivity(android.content.Intent(this@SettingsActivity, TvDetailActivity::class.java)
+                        .putExtra(TvDetailActivity.EXTRA_TV_ID, tv.id))
+                }
+            }
+            val text = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(this@SettingsActivity).apply {
+                    this.text = tv.name; textSize = 15f; setTextColor(theme.primaryText)
+                })
+                addView(TextView(this@SettingsActivity).apply {
+                    this.text = tv.ip.ifBlank { "No address" }; textSize = 12f; setTextColor(theme.secondaryText)
+                })
+            }
+            row.addView(text)
+            if (tv.id == activeId) row.addView(TextView(this).apply {
+                this.text = "In use"; textSize = 12f; setTextColor(theme.btnAccentBg)
+                setPadding(0, 0, (8 * d).toInt(), 0)
+            })
+            row.addView(android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.ic_chevron_right)
+                imageTintList = ColorStateList.valueOf(if (theme.statusBarLightIcons) 0xFFAAAAAA.toInt() else 0xFF555555.toInt())
+                layoutParams = android.widget.LinearLayout.LayoutParams((16 * d).toInt(), (16 * d).toInt())
+            })
+            container.addView(row)
+            container.addView(View(this).apply {
+                setBackgroundColor(theme.divider)
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 1).also { it.marginStart = (16 * d).toInt() }
+            })
+        }
     }
 
     private fun updateSummary(chosen: List<WebOsClient.TvApp>) {
