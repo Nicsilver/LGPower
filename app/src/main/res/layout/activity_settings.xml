@@ -86,19 +86,20 @@
 
             </LinearLayout>
 
-        </LinearLayout>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
 
-        <TextView
-            android:tag="btn_label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Tap a TV to rename it or change its address. On the remote, tap the TV's name at the top to switch."
-            android:textColor="#888888"
-            android:textSize="12sp"
-            android:lineSpacingExtra="2dp"
-            android:paddingHorizontal="4dp"
-            android:layout_marginTop="10dp"
-            android:layout_marginBottom="28dp" />
+            <TextView
+                android:tag="row_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Tap a TV to rename it or change its address. On the remote, tap the TV name in the corner to switch."
+                android:textColor="#8E8E93"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="12dp" />
+
+        </LinearLayout>
 
         <!-- ─── CONTROLS ─── -->
         <TextView
@@ -123,42 +124,30 @@
             android:background="@drawable/bg_section_group">
 
             <LinearLayout
-                android:id="@+id/row_right_pill"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingStart="16dp"
-                android:paddingEnd="12dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:background="?attr/selectableItemBackground">
+                android:paddingEnd="12dp">
 
                 <TextView
                     android:tag="row_label"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Right side"
+                    android:text="Channel buttons instead of brightness"
                     android:textColor="#FFFFFF"
                     android:textSize="15sp" />
 
-                <TextView
-                    android:id="@+id/tv_right_pill"
-                    android:tag="row_value"
+                <Switch
+                    android:id="@+id/switch_channel_pill"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Brightness slider"
-                    android:textColor="#8E8E93"
-                    android:textSize="15sp"
-                    android:layout_marginEnd="4dp" />
-
-                <ImageView
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:src="@drawable/ic_chevron_right"
-                    android:scaleType="fitCenter"
-                    android:tint="#555555" />
+                    android:scaleX="1.2"
+                    android:scaleY="1.2"
+                    android:thumbTint="@color/switch_thumb"
+                    android:trackTint="@color/switch_track" />
 
             </LinearLayout>
 
