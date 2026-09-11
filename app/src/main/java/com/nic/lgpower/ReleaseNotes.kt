@@ -13,6 +13,16 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(39, "1.35.0", "2026-09-12", listOf(
+            "Several TVs: tap the name at the top to switch, add, rename or remove",
+            "Media keys (rewind, play, pause, forward) on the numpad page, or on the remote via Settings",
+            "Up to 8 app shortcuts in two rows",
+            "OK key on the numpad",
+            "Right side of the remote is one choice: brightness slider, brightness buttons or channel buttons",
+            "Short tour after setup, replayable from Settings › About",
+            "Finds a TV connected to the phone's own hotspot",
+            "Wake-on-LAN also sent directly to the TV's address, for TVs on another VLAN",
+        )),
         Release(38, "1.34.0", "2026-09-11", listOf(
             "Settings gear and status dot no longer hide under the status bar on Android 15",
         )),

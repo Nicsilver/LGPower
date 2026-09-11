@@ -36,6 +36,10 @@ import kotlin.math.abs
 class MainActivity : AppCompatActivity() {
 
     private val client by lazy { WebOsClient(this) }
+
+    companion object {
+        const val EXTRA_SHOW_TOUR = "show_tour"
+    }
     private var pointerSession: WebOsClient.PointerSession? = null
     private var discovering = false
     private var lastAppliedThemeId = ""
@@ -98,7 +102,11 @@ class MainActivity : AppCompatActivity() {
         lastAppliedThemeId = ThemeManager.getActiveThemeId(this)
         applyTheme()
         applyPressAnimations(findViewById(android.R.id.content))
-        maybeShowWhatsNew()
+        if (intent.getBooleanExtra(EXTRA_SHOW_TOUR, false)) {
+            intent.removeExtra(EXTRA_SHOW_TOUR)
+            showTourSheet()
+        } else maybeShowWhatsNew()
+        setupTitlePicker()
 
         setStatus(TvStatus.CHECKING)
 
@@ -512,6 +520,8 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         applyExtraKeysLayout()
+        TvStore.syncFromLive(appPrefs)
+        findViewById<TextView>(R.id.tv_main_title).text = TvStore.activeName(appPrefs)
         if (BuildConfig.DEBUG && demoReceiver == null) {
             demoReceiver = object : android.content.BroadcastReceiver() {
                 override fun onReceive(c: android.content.Context?, i: android.content.Intent?) {
@@ -810,6 +820,81 @@ class MainActivity : AppCompatActivity() {
         showReleaseNotesDialog("What's new", releases, "Got it") {
             appPrefs.edit().putInt("last_seen_version", BuildConfig.VERSION_CODE).apply()
         }
+    }
+
+    /** The title is the active TV's name and opens the saved-TV picker. */
+    private fun setupTitlePicker() {
+        val title = findViewById<TextView>(R.id.tv_main_title)
+        title.text = TvStore.activeName(appPrefs)
+        title.setOnClickListener {
+            val tvs = TvStore.list(appPrefs)
+            val activeId = TvStore.activeId(appPrefs)
+            val items = tvs.map { Triple(it.id, it.name, it.id == activeId) } + Triple("__add", "Add another TV…", false)
+            showPickerSheet("TVs", items, onLongPress = { id -> if (id != "__add") showTvActions(id) }) { id ->
+                when {
+                    id == "__add" -> startActivity(android.content.Intent(this, SetupActivity::class.java)
+                        .putExtra(SetupActivity.EXTRA_ADD_TV, true))
+                    id != activeId -> { TvStore.switchTo(appPrefs, id); recreate() }
+                }
+            }
+        }
+    }
+
+    private fun showTvActions(id: String) {
+        val tv = TvStore.list(appPrefs).firstOrNull { it.id == id } ?: return
+        showPickerSheet(tv.name, listOf(Triple("rename", "Rename", false), Triple("remove", "Remove", false))) { action ->
+            when (action) {
+                "rename" -> showRenameDialog(tv)
+                "remove" -> showWarningSheet(
+                    chipText = "REMOVE TV",
+                    title = "Remove ${tv.name}?",
+                    body = "The pairing with this TV is forgotten. You can add it again from the TV picker, which asks the TV to pair once more.",
+                    buttonText = "Remove",
+                    cancelClosesScreen = false,
+                    onAccept = {
+                        TvStore.remove(appPrefs, id)
+                        if (client.tvIp.isBlank()) {
+                            startActivity(android.content.Intent(this, SetupActivity::class.java)); finish()
+                        } else recreate()
+                    }
+                )
+            }
+        }
+    }
+
+    private fun showRenameDialog(tv: TvStore.Tv) {
+        val theme = ThemeManager.getActiveTheme(this)
+        val d = resources.displayMetrics.density
+        val field = EditText(this).apply {
+            setText(tv.name); selectAll()
+            setSingleLine()
+            setTextColor(theme.primaryText)
+            background = GradientDrawable().apply {
+                setColor(theme.windowBg); cornerRadius = 10 * d
+                setStroke((1f * d).toInt(), theme.btnGhostBorder)
+            }
+            setPadding((12 * d).toInt(), (10 * d).toInt(), (12 * d).toInt(), (10 * d).toInt())
+        }
+        val wrap = android.widget.FrameLayout(this).apply {
+            setPadding((20 * d).toInt(), (8 * d).toInt(), (20 * d).toInt(), 0)
+            addView(field)
+        }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Rename TV")
+            .setView(wrap)
+            .setPositiveButton("Save") { _, _ ->
+                TvStore.rename(appPrefs, tv.id, field.text.toString())
+                findViewById<TextView>(R.id.tv_main_title).text = TvStore.activeName(appPrefs)
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+        dialog.window?.setBackgroundDrawable(GradientDrawable().apply { setColor(theme.surfaceBg); cornerRadius = 16 * d })
+        dialog.show()
+        dialog.findViewById<TextView>(androidx.appcompat.R.id.alertTitle)?.setTextColor(theme.primaryText)
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.setTextColor(theme.btnAccentBg)
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)?.setTextColor(theme.secondaryText)
+        field.requestFocus()
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
     }
 
     /** Media keys and colour keys swap places between the main remote and the numpad page. */

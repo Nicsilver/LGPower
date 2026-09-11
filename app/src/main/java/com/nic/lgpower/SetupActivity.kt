@@ -14,6 +14,10 @@ import androidx.appcompat.app.AppCompatActivity
 class SetupActivity : AppCompatActivity() {
 
     private val client by lazy { WebOsClient(this) }
+    private val prefs by lazy { getSharedPreferences("webos", MODE_PRIVATE) }
+    // Adding a second TV from the remote, as opposed to first-run setup
+    private val addMode by lazy { intent.getBooleanExtra(EXTRA_ADD_TV, false) }
+    private var paired = false
     private var stopPairing: (() -> Unit)? = null
     private val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var pairingTimeout: Runnable? = null
@@ -23,6 +27,13 @@ class SetupActivity : AppCompatActivity() {
         setContentView(R.layout.activity_setup)
         SystemBars.applyTo(this, findViewById(R.id.setup_root), ThemeManager.getActiveTheme(this).windowBg)
         applyTheme()
+        // Settles the saved-TV list before pairing writes the live prefs, so a fresh
+        // install is not mistaken for an upgrade with an unnamed TV
+        TvStore.list(prefs)
+        if (addMode) {
+            TvStore.beginAdd(prefs)
+            findViewById<TextView>(R.id.setup_subtitle).text = "Add another TV"
+        }
         startDiscovery()
     }
 
@@ -30,7 +41,10 @@ class SetupActivity : AppCompatActivity() {
         super.onDestroy()
         stopPairing?.invoke()
         pairingTimeout?.let { timeoutHandler.removeCallbacks(it) }
+        if (addMode && !paired) TvStore.cancelAdd(prefs)
     }
+
+
 
     // ── Discovery ─────────────────────────────────────────────────────────────
 
@@ -241,7 +255,9 @@ class SetupActivity : AppCompatActivity() {
 
     private fun showSuccess(ip: String) {
         stopPairing = null
+        paired = true
         val theme = ThemeManager.getActiveTheme(this)
+        val d = resources.displayMetrics.density
 
         findViewById<TextView>(R.id.pairing_message).apply {
             text = "Connected!"
@@ -249,18 +265,40 @@ class SetupActivity : AppCompatActivity() {
         }
         findViewById<ProgressBar>(R.id.pairing_spinner).visibility = View.GONE
 
-        window.decorView.postDelayed({
-            startActivity(Intent(this, MainActivity::class.java))
+        val group = findViewById<LinearLayout>(R.id.name_group)
+        val field = findViewById<android.widget.EditText>(R.id.edit_tv_name)
+        val done  = findViewById<android.widget.Button>(R.id.btn_name_done)
+        findViewById<TextView>(R.id.name_label).setTextColor(theme.sectionLabel)
+        field.setTextColor(theme.primaryText)
+        field.setHintTextColor(ColorUtil.withAlpha(theme.secondaryText, 0x78))
+        field.background = GradientDrawable().apply {
+            setColor(theme.windowBg); cornerRadius = 10 * d
+            setStroke((1f * d).toInt(), theme.btnGhostBorder)
+        }
+        field.setText(TvStore.nextDefaultName(prefs))
+        field.selectAll()
+        applyButton(done, theme, accent = true)
+        group.visibility = View.VISIBLE
+
+        val finishSetup = {
+            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                .hideSoftInputFromWindow(field.windowToken, 0)
+            TvStore.addFromLive(prefs, field.text.toString())
+            startActivity(Intent(this, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_SHOW_TOUR, !addMode))
             finish()
-        }, 1200)
+        }
+        done.setOnClickListener { finishSetup() }
+        field.setOnEditorActionListener { _, _, _ -> finishSetup(); true }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private enum class Screen { SEARCHING, TV_LIST, PAIRING }
 
-    private companion object {
-        val IPV4 = Regex("""^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$""")
+    companion object {
+        const val EXTRA_ADD_TV = "add_tv"
+        private val IPV4 = Regex("""^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$""")
     }
 
     private fun showScreen(s: Screen) {

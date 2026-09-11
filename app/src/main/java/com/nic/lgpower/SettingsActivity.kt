@@ -147,6 +147,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         findViewById<TextView>(R.id.tv_app_version).text = BuildConfig.VERSION_NAME
+        findViewById<View>(R.id.row_tour).setOnClickListener { showTourSheet() }
         findViewById<View>(R.id.row_release_notes).setOnClickListener {
             showReleaseNotesDialog("Release notes", ReleaseNotes.all, "Close", markLatest = true)
         }
