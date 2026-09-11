@@ -36,9 +36,14 @@ object Tour {
             this(listOf(targetId), title, body, parentOf)
     }
 
+    // Ordered top to bottom on each screen so the ring only ever travels one way
     val mainSteps = listOf(
+        Step(R.id.tv_main_title, "Your TVs",
+            "The current TV. Tap it to switch to another saved TV or to add one."),
+        Step(R.id.btn_app_settings, "Settings",
+            "Shortcuts, themes and the rest live behind the gear. The tour ends in there."),
         Step(R.id.shortcuts_row, "App shortcuts",
-            "These launch apps on the TV. You pick them in Settings, up to eight; the tour goes there at the end."),
+            "These launch apps on the TV. You pick them in Settings, up to eight."),
         Step(listOf(R.id.btn_power, R.id.status_dot), "Power",
             "Turns the TV on from standby over the network, or with the phone's IR blaster if it has one. The dot in the corner shows whether the TV is on."),
         Step(R.id.btn_touchpad, "Touchpad",
@@ -48,20 +53,16 @@ object Tour {
         Step(R.id.volume_pill, "Volume",
             "Tap the ends to step, or drag anywhere on the pill to slide. The phone's volume keys work here too."),
         Step(R.id.btn_numpad, "Numpad and more keys",
-            "Channel numbers, Guide, Info, subtitles, an OK key and the media keys live here."),
-        Step(R.id.tv_main_title, "Your TVs",
-            "The current TV. Tap it to switch to another saved TV or to add one."),
-        Step(R.id.btn_app_settings, "Settings",
-            "Shortcuts, themes and the rest live behind the gear. Next opens it and shows the important bits."),
+            "Channel numbers, Guide, Info, subtitles, an OK key and the media keys live here. Next opens Settings."),
     )
 
     val settingsSteps = listOf(
         Step(R.id.group_connection, "Saved TVs",
             "Every TV you have paired. Tap one to rename it or change its address, or add another."),
-        Step(R.id.btn_load_apps, "Pick your shortcuts",
-            "Load the app list from the TV, then tap up to eight apps. Long-press one and drag to reorder them.", parentOf = true),
         Step(R.id.switch_media_on_main, "Media keys",
             "Swaps the colour keys on the remote for rewind, play, pause and forward. Whichever set is not on the remote sits on the numpad page.", parentOf = true),
+        Step(R.id.group_shortcuts, "Pick your shortcuts",
+            "Load the app list from the TV, then tap up to eight apps. Long-press one and drag to reorder them."),
         Step(R.id.row_theme, "Themes",
             "Pick a theme, or create your own with a few colours."),
     )

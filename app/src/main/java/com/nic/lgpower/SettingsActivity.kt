@@ -82,6 +82,7 @@ class SettingsActivity : AppCompatActivity() {
 
         appsGrid.adapter = adapter
         appsGrid.layoutManager = GridLayoutManager(this, 4)
+        (appsGrid.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)?.supportsChangeAnimations = false
 
         val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
             ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT, 0
@@ -111,7 +112,8 @@ class SettingsActivity : AppCompatActivity() {
             }
             override fun clearView(rv: RecyclerView, vh: RecyclerView.ViewHolder) {
                 super.clearView(rv, vh)
-                vh.itemView.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(150).start()
+                vh.itemView.animate().cancel()
+                vh.itemView.scaleX = 1f; vh.itemView.scaleY = 1f; vh.itemView.alpha = 1f
                 appsGrid.parent.requestDisallowInterceptTouchEvent(false)
                 adapter.commitOrder()
             }

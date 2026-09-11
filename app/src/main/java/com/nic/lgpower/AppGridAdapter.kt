@@ -67,8 +67,28 @@ class AppGridAdapter(
 
     /** Drag finished: renumber the badges and persist. Rebinding mid-drag made the drag stutter. */
     fun commitOrder() {
-        notifyItemRangeChanged(0, selected.size)
+        // Payload rebind touches only the badge; a full rebind swaps holders through the
+        // change animation, which flickers icons and strands a scaled holder for reuse
+        notifyItemRangeChanged(0, selected.size, PAYLOAD_BADGE)
         onChanged(selected.toList())
+    }
+
+    override fun onBindViewHolder(holder: VH, position: Int, payloads: MutableList<Any>) {
+        if (PAYLOAD_BADGE in payloads) bindBadge(holder, position) else super.onBindViewHolder(holder, position, payloads)
+    }
+
+    private fun bindBadge(holder: VH, position: Int) {
+        val app = getApp(position)
+        if (isSelected(position)) {
+            holder.badge.visibility = View.VISIBLE
+            holder.badge.text = (selected.indexOf(app) + 1).toString()
+        } else {
+            holder.badge.visibility = View.GONE
+        }
+    }
+
+    companion object {
+        private const val PAYLOAD_BADGE = "badge"
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
@@ -80,13 +100,9 @@ class AppGridAdapter(
 
         holder.label.text = app.title
         holder.icon.alpha = if (sel) 1f else 0.5f
-
-        if (sel) {
-            holder.badge.visibility = View.VISIBLE
-            holder.badge.text = (selected.indexOf(app) + 1).toString()
-        } else {
-            holder.badge.visibility = View.GONE
-        }
+        // A holder recycled mid drag-animation would otherwise keep the lifted look
+        holder.itemView.scaleX = 1f; holder.itemView.scaleY = 1f; holder.itemView.alpha = 1f
+        bindBadge(holder, position)
 
         holder.icon.setImageBitmap(makeLetterBitmap(app.title, 160))
 
