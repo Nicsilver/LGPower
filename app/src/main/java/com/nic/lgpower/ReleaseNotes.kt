@@ -14,7 +14,7 @@ object ReleaseNotes {
 
     val all = listOf(
         Release(39, "1.35.0", "2026-09-12", listOf(
-            "Several TVs: tap the name in the corner to switch or add; Settings › TVs to rename or remove",
+            "Several TVs: tap the name at the top to switch or add; Settings › TVs to rename or remove",
             "Media keys: rewind, play, pause and forward behind a new Media button under the d-pad",
             "Up to 8 app shortcuts in two rows",
             "OK and Live TV keys on the numpad page",
