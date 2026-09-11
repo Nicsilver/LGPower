@@ -854,11 +854,11 @@ class WebOsClient(private val context: Context) {
                 if (app.iconUrl != null) put("iconUrl", app.iconUrl)
             })
         }
-        prefs.edit().putString("app_shortcuts", arr.toString()).apply()
+        prefs.edit().putString(TvStore.shortcutsKey(prefs), arr.toString()).apply()
     }
 
     fun loadShortcuts(): List<TvApp> {
-        val json = prefs.getString("app_shortcuts", null) ?: return defaultShortcuts()
+        val json = prefs.getString(TvStore.shortcutsKey(prefs), null) ?: return defaultShortcuts()
         return runCatching {
             val arr = JSONArray(json)
             (0 until arr.length()).map {
@@ -959,4 +959,25 @@ class WebOsClient(private val context: Context) {
         TvApp("youtube.leanback.v4", "YouTube"),
         TvApp("netflix", "Netflix")
     )
+
+    /**
+     * First shortcuts for a freshly paired TV: the well-known streaming apps it actually
+     * has, in a fixed order of popularity, topped up from the TV's own launcher list.
+     * webOS exposes neither usage counts nor the on-screen ribbon order, so this is the
+     * closest thing to "the apps you use".
+     */
+    fun pickDefaultShortcuts(apps: List<TvApp>, count: Int = 4): List<TvApp> {
+        val wanted = listOf("youtube", "netflix", "amazon", "prime", "disney", "hbo", "max", "viaplay",
+            "spotify", "apple", "plex", "twitch", "tv 2", "dr tv", "skyshowtime", "paramount")
+        val picked = mutableListOf<TvApp>()
+        for (w in wanted) {
+            if (picked.size >= count) break
+            apps.firstOrNull { a -> a !in picked && (a.id.lowercase().contains(w) || a.title.lowercase() == w || a.title.lowercase().startsWith("$w ")) }
+                ?.let { picked.add(it) }
+        }
+        val system = listOf("com.webos.", "com.palm.", "com.lge.", "com.lgsmartplatform")
+        apps.filter { a -> a !in picked && system.none { a.id.startsWith(it) } }
+            .takeLast(count - picked.size).forEach { picked.add(it) }
+        return picked.take(count)
+    }
 }

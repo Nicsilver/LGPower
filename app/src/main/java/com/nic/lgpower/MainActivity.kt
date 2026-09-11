@@ -38,7 +38,7 @@ class MainActivity : AppCompatActivity() {
     private val client by lazy { WebOsClient(this) }
 
     companion object {
-        const val PREF_TOUR_PENDING = "tour_pending"
+        const val PREF_TOUR_PENDING = Tour.PREF_MAIN
     }
     private var pointerSession: WebOsClient.PointerSession? = null
     private var discovering = false
@@ -522,7 +522,13 @@ class MainActivity : AppCompatActivity() {
         if (appPrefs.getBoolean(PREF_TOUR_PENDING, false)) {
             appPrefs.edit().putBoolean(PREF_TOUR_PENDING, false).apply()
             // Let the enter transition settle so the highlight lands on laid-out views
-            findViewById<View>(R.id.main_root).postDelayed({ if (!isFinishing) showSpotlightTour() }, 450)
+            findViewById<View>(R.id.main_root).postDelayed({
+                if (isFinishing) return@postDelayed
+                showSpotlightTour(Tour.mainSteps, lastLabel = "Open Settings") {
+                    appPrefs.edit().putBoolean(Tour.PREF_SETTINGS, true).apply()
+                    startActivity(android.content.Intent(this, SettingsActivity::class.java))
+                }
+            }, 450)
         }
         if (BuildConfig.DEBUG && demoReceiver == null) {
             demoReceiver = object : android.content.BroadcastReceiver() {
@@ -827,15 +833,8 @@ class MainActivity : AppCompatActivity() {
     /** The title is the active TV's name and opens the saved-TV picker. */
     private fun setupTitlePicker() {
         val title = findViewById<TextView>(R.id.tv_main_title)
-        val theme = ThemeManager.getActiveTheme(this)
-        val d = resources.displayMetrics.density
         title.text = TvStore.activeName(appPrefs)
-        title.setTextColor(theme.secondaryText)
-        title.compoundDrawableTintList = ColorStateList.valueOf(ColorUtil.withAlpha(theme.secondaryText, 0xB0))
-        title.background = android.graphics.drawable.RippleDrawable(
-            ColorStateList.valueOf(ColorUtil.withAlpha(theme.primaryText, 0x2A)),
-            GradientDrawable().apply { cornerRadius = 18 * d; setColor(ColorUtil.withAlpha(theme.primaryText, 0x14)) },
-            null)
+        title.compoundDrawableTintList = ColorStateList.valueOf(ThemeManager.getActiveTheme(this).secondaryText)
         title.setOnClickListener {
             val tvs = TvStore.list(appPrefs)
             val activeId = TvStore.activeId(appPrefs)

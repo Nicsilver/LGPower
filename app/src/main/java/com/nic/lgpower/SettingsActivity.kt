@@ -83,7 +83,7 @@ class SettingsActivity : AppCompatActivity() {
         appsGrid.adapter = adapter
         appsGrid.layoutManager = GridLayoutManager(this, 4)
 
-        ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+        val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
             ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT, 0
         ) {
             override fun getMovementFlags(rv: RecyclerView, vh: RecyclerView.ViewHolder): Int {
@@ -100,8 +100,26 @@ class SettingsActivity : AppCompatActivity() {
                 adapter.moveItem(f, t)
                 return true
             }
+            override fun onSelectedChanged(vh: RecyclerView.ViewHolder?, actionState: Int) {
+                super.onSelectedChanged(vh, actionState)
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && vh != null) {
+                    vh.itemView.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                    vh.itemView.animate().scaleX(1.12f).scaleY(1.12f).alpha(0.85f).setDuration(120).start()
+                    // The grid sits inside the settings scroll view, which otherwise steals the drag
+                    appsGrid.parent.requestDisallowInterceptTouchEvent(true)
+                }
+            }
+            override fun clearView(rv: RecyclerView, vh: RecyclerView.ViewHolder) {
+                super.clearView(rv, vh)
+                vh.itemView.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(150).start()
+                appsGrid.parent.requestDisallowInterceptTouchEvent(false)
+                adapter.commitOrder()
+            }
+            override fun isLongPressDragEnabled() = false
             override fun onSwiped(vh: RecyclerView.ViewHolder, dir: Int) {}
-        }).attachToRecyclerView(appsGrid)
+        })
+        touchHelper.attachToRecyclerView(appsGrid)
+        adapter.onStartDrag = { vh -> touchHelper.startDrag(vh) }
 
         // Pre-populate grid with current shortcuts so user can reorder without loading all apps
         val current = client.loadShortcuts()
@@ -232,6 +250,12 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
         refreshTvRows()
+        if (prefs.getBoolean(Tour.PREF_SETTINGS, false)) {
+            prefs.edit().putBoolean(Tour.PREF_SETTINGS, false).apply()
+            findViewById<View>(R.id.settings_root).postDelayed({
+                if (!isFinishing) showSpotlightTour(Tour.settingsSteps)
+            }, 450)
+        }
     }
 
     @Suppress("DEPRECATION")
