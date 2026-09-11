@@ -938,6 +938,13 @@
                 android:textSize="26sp"
                 android:text="+"
                 android:contentDescription="Channel Up" />
+            <Button
+                android:id="@+id/btn_np_enter"
+                style="@style/GhostKeyWord"
+                android:layout_height="48dp"
+                android:layout_marginStart="20dp"
+                android:text="OK"
+                android:contentDescription="Enter" />
         </LinearLayout>
 
         <!-- Small keys -->

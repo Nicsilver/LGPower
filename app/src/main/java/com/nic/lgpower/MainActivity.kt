@@ -268,6 +268,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_np_info).setOnClickListener  { sendCommand { client.pressKey("INFO") } }
         findViewById<View>(R.id.btn_np_cc).setOnClickListener    { sendCommand { client.pressKey("CC") } }
         findViewById<View>(R.id.btn_np_exit).setOnClickListener  { sendCommand { client.pressKey("EXIT") } }
+        findViewById<View>(R.id.btn_np_enter).setOnClickListener { sendCommand { client.pressEnter() } }
 
         // App settings
         findViewById<View>(R.id.btn_app_settings).setOnClickListener {
@@ -668,7 +669,7 @@ class MainActivity : AppCompatActivity() {
         listOf(R.id.btn_num_0, R.id.btn_num_1, R.id.btn_num_2, R.id.btn_num_3,
                R.id.btn_num_4, R.id.btn_num_5, R.id.btn_num_6, R.id.btn_num_7,
                R.id.btn_num_8, R.id.btn_num_9, R.id.btn_num_dash,
-               R.id.btn_np_ch_up, R.id.btn_np_ch_down)
+               R.id.btn_np_ch_up, R.id.btn_np_ch_down, R.id.btn_np_enter)
             .forEach { id -> findViewById<Button>(id)?.apply {
                 setTextColor(theme.primaryText)
                 background = ghostKey()
@@ -797,7 +798,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun configureRightPill() {
-        if (appPrefs.getBoolean("right_pill_channel", false)) setupChannelPill()
+        if (RightPill.get(appPrefs) == RightPill.CHANNEL) setupChannelPill()
         else setupBrightnessPill()
     }
 
@@ -828,7 +829,7 @@ class MainActivity : AppCompatActivity() {
                     statusHandler.post(brightnessSendLoop)
                 }
             },
-            sliderEnabled = { appPrefs.getBoolean("brightness_slider", true) },
+            sliderEnabled = { RightPill.get(appPrefs) == RightPill.BRIGHTNESS_SLIDER },
             onActionUp = { scheduleBrightnessRefresh() }
         )
     }
@@ -1067,7 +1068,7 @@ class MainActivity : AppCompatActivity() {
     private fun setBrightnessBar(level: Int) {
         currentBrightness = level
         appPrefs.edit().putInt("last_brightness", level).apply()
-        if (appPrefs.getBoolean("right_pill_channel", false)) return
+        if (RightPill.get(appPrefs) == RightPill.CHANNEL) return
         findViewById<TextView>(R.id.brightness_label)?.text = level.toString()
         val bar = findViewById<View>(R.id.brightness_bar) ?: return
         val pillHeightPx = resources.getDimensionPixelSize(R.dimen.dpad_size)
@@ -1119,9 +1120,9 @@ class MainActivity : AppCompatActivity() {
         val rowHeight = (52 * density).toInt()
         val theme = ThemeManager.getActiveTheme(this)
 
-        // Split into chunks: 2 per row when 4 selected, otherwise one row
-        val chunks = if (shortcuts.size == 4) listOf(shortcuts.take(2), shortcuts.drop(2))
-                     else listOf(shortcuts)
+        // One row up to 2 shortcuts, otherwise two rows split as evenly as possible
+        val perRow = if (shortcuts.size <= 2) shortcuts.size else (shortcuts.size + 1) / 2
+        val chunks = shortcuts.chunked(perRow.coerceAtLeast(1))
 
         chunks.forEachIndexed { rowIndex, chunk ->
             val row = LinearLayout(this).apply {
@@ -1163,7 +1164,7 @@ class MainActivity : AppCompatActivity() {
 
                 val label = TextView(this).apply {
                     text = app.title
-                    textSize = 14f
+                    textSize = if (perRow >= 3) 12f else 14f
                     setTextColor(0xFFFFFFFF.toInt())
                     setTypeface(null, android.graphics.Typeface.BOLD)
                     maxLines = 1
