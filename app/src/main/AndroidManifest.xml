@@ -38,6 +38,12 @@
             android:exported="true"
             android:label="Settings" />
 
+        <activity
+            android:screenOrientation="portrait"
+            android:name=".TvDetailActivity"
+            android:exported="false"
+            android:label="TV" />
+
         <!-- First-time setup / pairing -->
         <activity
             android:screenOrientation="portrait"

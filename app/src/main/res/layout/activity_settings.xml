@@ -28,13 +28,13 @@
             android:paddingHorizontal="4dp"
             android:layout_marginBottom="32dp" />
 
-        <!-- ─── TV CONNECTION ─── -->
+        <!-- ─── TVS ─── -->
         <TextView
             android:id="@+id/tv_section_connection"
             android:tag="section_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="TV CONNECTION"
+            android:text="TVS"
             android:textColor="#8E8E93"
             android:textSize="12sp"
             android:letterSpacing="0.06"
@@ -49,116 +49,56 @@
             android:orientation="vertical"
             android:background="@drawable/bg_section_group">
 
+            <!-- One row per saved TV, built in code -->
             <LinearLayout
+                android:id="@+id/tvs_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <LinearLayout
+                android:id="@+id/row_add_tv"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:paddingHorizontal="16dp">
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground">
 
                 <TextView
                     android:tag="row_label"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="IP Address"
+                    android:layout_weight="1"
+                    android:text="Add a TV"
                     android:textColor="#FFFFFF"
                     android:textSize="15sp" />
 
-                <EditText
-                    android:id="@+id/edit_tv_ip"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:gravity="end|center_vertical"
-                    android:hint="192.168.1.x"
-                    android:inputType="textUri"
-                    android:textColor="#8E8E93"
-                    android:textColorHint="#3A3A3A"
-                    android:background="@null"
-                    android:padding="0dp"
-                    android:layout_marginStart="12dp"
-                    android:textSize="15sp" />
-
-            </LinearLayout>
-
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingHorizontal="16dp">
-
-                <TextView
-                    android:tag="row_label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="MAC Address"
-                    android:textColor="#FFFFFF"
-                    android:textSize="15sp" />
-
-                <EditText
-                    android:id="@+id/edit_tv_mac"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:gravity="end|center_vertical"
-                    android:hint="AA:BB:CC:DD:EE:FF"
-                    android:inputType="text"
-                    android:textColor="#8E8E93"
-                    android:textColorHint="#3A3A3A"
-                    android:background="@null"
-                    android:padding="0dp"
-                    android:layout_marginStart="12dp"
-                    android:textSize="15sp" />
-
-            </LinearLayout>
-
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingHorizontal="12dp">
-
-                <Button
-                    android:id="@+id/btn_detect_mac"
-                    android:layout_width="0dp"
-                    android:layout_height="36dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_btn_ghost"
-                    android:text="Auto-detect MAC"
-                    android:textColor="#8E8E93"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <View android:layout_width="10dp" android:layout_height="1dp" />
-
-                <Button
-                    android:id="@+id/btn_discover"
-                    android:layout_width="0dp"
-                    android:layout_height="36dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_btn_accent"
-                    android:text="Discover TV"
-                    android:textColor="#000000"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <ProgressBar
-                    android:id="@+id/discover_spinner"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_marginStart="8dp"
-                    android:visibility="gone"
-                    android:indeterminateTint="#888888" />
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_chevron_right"
+                    android:scaleType="fitCenter"
+                    android:tint="#555555" />
 
             </LinearLayout>
 
         </LinearLayout>
+
+        <TextView
+            android:tag="btn_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tap a TV to rename it or change its address. On the remote, tap the TV's name at the top to switch."
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:lineSpacingExtra="2dp"
+            android:paddingHorizontal="4dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="28dp" />
 
         <!-- ─── CONTROLS ─── -->
         <TextView
@@ -181,36 +121,6 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="@drawable/bg_section_group">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingStart="16dp"
-                android:paddingEnd="12dp">
-
-                <TextView
-                    android:tag="row_label"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Volume slider"
-                    android:textColor="#FFFFFF"
-                    android:textSize="15sp" />
-
-                <Switch
-                    android:id="@+id/switch_vol_slider"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:scaleX="1.2"
-                    android:scaleY="1.2"
-                    android:thumbTint="@color/switch_thumb"
-                    android:trackTint="@color/switch_track" />
-
-            </LinearLayout>
-
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
 
             <LinearLayout
                 android:id="@+id/row_right_pill"

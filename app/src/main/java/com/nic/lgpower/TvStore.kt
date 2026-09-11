@@ -80,6 +80,18 @@ object TvStore {
         prefs.edit().putString("tv_ip", tv.ip).putString("tv_mac", tv.mac).putString("client_key", tv.clientKey).apply()
     }
 
+    /** Edits from the TV detail screen; the live prefs follow when it is the active TV. */
+    fun update(prefs: SharedPreferences, id: String, name: String, ip: String, mac: String) {
+        write(prefs, read(prefs).map {
+            if (it.id == id) it.copy(name = name.trim().ifBlank { it.name }, ip = ip.ifBlank { it.ip }, mac = mac) else it
+        })
+        if (prefs.getString(ACTIVE, null) == id) {
+            val e = prefs.edit().putString("tv_mac", mac)
+            if (ip.isNotBlank()) e.putString("tv_ip", ip)
+            e.apply()
+        }
+    }
+
     fun rename(prefs: SharedPreferences, id: String, name: String) {
         if (name.isBlank()) return
         write(prefs, read(prefs).map { if (it.id == id) it.copy(name = name.trim()) else it })

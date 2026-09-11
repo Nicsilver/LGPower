@@ -38,7 +38,7 @@ class MainActivity : AppCompatActivity() {
     private val client by lazy { WebOsClient(this) }
 
     companion object {
-        const val EXTRA_SHOW_TOUR = "show_tour"
+        const val PREF_TOUR_PENDING = "tour_pending"
     }
     private var pointerSession: WebOsClient.PointerSession? = null
     private var discovering = false
@@ -102,10 +102,7 @@ class MainActivity : AppCompatActivity() {
         lastAppliedThemeId = ThemeManager.getActiveThemeId(this)
         applyTheme()
         applyPressAnimations(findViewById(android.R.id.content))
-        if (intent.getBooleanExtra(EXTRA_SHOW_TOUR, false)) {
-            intent.removeExtra(EXTRA_SHOW_TOUR)
-            showTourSheet()
-        } else maybeShowWhatsNew()
+        if (!appPrefs.getBoolean("tour_pending", false)) maybeShowWhatsNew()
         setupTitlePicker()
 
         setStatus(TvStatus.CHECKING)
@@ -194,7 +191,7 @@ class MainActivity : AppCompatActivity() {
                     statusHandler.post(volumeSendLoop)
                 }
             },
-            sliderEnabled = { appPrefs.getBoolean("vol_slider", true) }
+            sliderEnabled = { true }
         )
         findViewById<View>(R.id.btn_mute).setOnClickListener {
             currentVolume?.let { v -> runOnUiThread { setVolumeState(v, !currentMuted) } }
@@ -522,6 +519,11 @@ class MainActivity : AppCompatActivity() {
         applyExtraKeysLayout()
         TvStore.syncFromLive(appPrefs)
         findViewById<TextView>(R.id.tv_main_title).text = TvStore.activeName(appPrefs)
+        if (appPrefs.getBoolean(PREF_TOUR_PENDING, false)) {
+            appPrefs.edit().putBoolean(PREF_TOUR_PENDING, false).apply()
+            // Let the enter transition settle so the highlight lands on laid-out views
+            findViewById<View>(R.id.main_root).postDelayed({ if (!isFinishing) showSpotlightTour() }, 450)
+        }
         if (BuildConfig.DEBUG && demoReceiver == null) {
             demoReceiver = object : android.content.BroadcastReceiver() {
                 override fun onReceive(c: android.content.Context?, i: android.content.Intent?) {
@@ -826,6 +828,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupTitlePicker() {
         val title = findViewById<TextView>(R.id.tv_main_title)
         title.text = TvStore.activeName(appPrefs)
+        title.compoundDrawableTintList = ColorStateList.valueOf(ThemeManager.getActiveTheme(this).secondaryText)
         title.setOnClickListener {
             val tvs = TvStore.list(appPrefs)
             val activeId = TvStore.activeId(appPrefs)
@@ -948,7 +951,7 @@ class MainActivity : AppCompatActivity() {
                     statusHandler.post(brightnessSendLoop)
                 }
             },
-            sliderEnabled = { RightPill.get(appPrefs) == RightPill.BRIGHTNESS_SLIDER },
+            sliderEnabled = { true },
             onActionUp = { scheduleBrightnessRefresh() }
         )
     }
