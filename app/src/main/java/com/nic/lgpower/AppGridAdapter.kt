@@ -22,7 +22,7 @@ import androidx.recyclerview.widget.RecyclerView
 class AppGridAdapter(
     private val context: Context,
     private val client: WebOsClient,
-    private val maxSelected: Int = 4,
+    private val maxSelected: Int = 8,
     private val onChanged: (List<WebOsClient.TvApp>) -> Unit = {}
 ) : RecyclerView.Adapter<AppGridAdapter.VH>() {
 

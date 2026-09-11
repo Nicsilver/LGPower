@@ -39,16 +39,20 @@ class SettingsActivity : AppCompatActivity() {
 
         // Controls toggles
         val switchVolSlider        = findViewById<Switch>(R.id.switch_vol_slider)
-        val switchBrtSlider        = findViewById<Switch>(R.id.switch_brightness_slider)
-        val switchRightPillChannel = findViewById<Switch>(R.id.switch_right_pill_channel)
         val switchKeepScreenOn     = findViewById<Switch>(R.id.switch_keep_screen_on)
         switchVolSlider.isChecked        = prefs.getBoolean("vol_slider", true)
-        switchBrtSlider.isChecked        = prefs.getBoolean("brightness_slider", true)
-        switchRightPillChannel.isChecked = prefs.getBoolean("right_pill_channel", false)
         switchKeepScreenOn.isChecked     = prefs.getBoolean("keep_screen_on", false)
         switchVolSlider.setOnCheckedChangeListener        { _, v -> prefs.edit().putBoolean("vol_slider", v).apply() }
-        switchBrtSlider.setOnCheckedChangeListener        { _, v -> prefs.edit().putBoolean("brightness_slider", v).apply() }
-        switchRightPillChannel.setOnCheckedChangeListener { _, v -> prefs.edit().putBoolean("right_pill_channel", v).apply() }
+        val tvRightPill = findViewById<TextView>(R.id.tv_right_pill)
+        tvRightPill.text = RightPill.get(prefs).label
+        findViewById<View>(R.id.row_right_pill).setOnClickListener {
+            val current = RightPill.get(prefs)
+            showPickerSheet("Right side", RightPill.entries.map { Triple(it.key, it.label, it == current) }) { key ->
+                val mode = RightPill.entries.first { it.key == key }
+                RightPill.set(prefs, mode)
+                tvRightPill.text = mode.label
+            }
+        }
         switchKeepScreenOn.setOnCheckedChangeListener { sw, v ->
             if (!v) { prefs.edit().putBoolean("keep_screen_on", false).apply(); return@setOnCheckedChangeListener }
             if (prefs.getBoolean("keep_screen_on", false)) return@setOnCheckedChangeListener
@@ -296,7 +300,7 @@ class SettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
             intArrayOf(theme.switchThumbOn, theme.switchThumbOff)
         )
-        listOf(R.id.switch_vol_slider, R.id.switch_brightness_slider, R.id.switch_right_pill_channel, R.id.switch_keep_screen_on)
+        listOf(R.id.switch_vol_slider, R.id.switch_keep_screen_on)
             .forEach { id ->
                 val sw = findViewById<Switch>(id) ?: return@forEach
                 sw.trackTintList = trackCsl
@@ -341,6 +345,6 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun updateSummary(chosen: List<WebOsClient.TvApp>) {
-        tvShortcutsSummary.text = "Tap to select · Long-press to reorder · ${chosen.size}/4 selected"
+        tvShortcutsSummary.text = "Tap to select · Long-press to reorder · ${chosen.size}/8 selected"
     }
 }
