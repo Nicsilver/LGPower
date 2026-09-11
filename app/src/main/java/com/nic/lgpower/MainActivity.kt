@@ -91,6 +91,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         setContentView(R.layout.activity_main)
+        SystemBars.applyTo(this, findViewById(R.id.main_root), ThemeManager.getActiveTheme(this).windowBg)
         lastAppliedThemeId = ThemeManager.getActiveThemeId(this)
         applyTheme()
         applyPressAnimations(findViewById(android.R.id.content))

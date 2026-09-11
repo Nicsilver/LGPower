@@ -184,11 +184,13 @@ class ServiceRemoteActivity : AppCompatActivity() {
             setPadding(0, dp(14), 0, 0)
         })
 
-        setContentView(ScrollView(this).apply {
+        val scroller = ScrollView(this).apply {
             setBackgroundColor(theme.windowBg)
             isVerticalScrollBarEnabled = false
             addView(root)
-        })
+        }
+        setContentView(scroller)
+        SystemBars.applyTo(this, scroller, theme.windowBg)
 
         @Suppress("DEPRECATION")
         run {

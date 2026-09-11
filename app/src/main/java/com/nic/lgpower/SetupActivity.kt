@@ -21,6 +21,7 @@ class SetupActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_setup)
+        SystemBars.applyTo(this, findViewById(R.id.setup_root), ThemeManager.getActiveTheme(this).windowBg)
         applyTheme()
         startDiscovery()
     }
