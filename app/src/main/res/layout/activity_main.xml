@@ -927,11 +927,12 @@
             android:tag="title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="LG TV Remote"
+            android:text="Numpad"
             android:textColor="#FFFFFF"
             android:textSize="20sp"
             android:textStyle="bold"
-            android:gravity="center" />
+            android:gravity="center"
+            android:paddingVertical="4dp" />
 
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
@@ -1036,6 +1037,16 @@
                 android:contentDescription="Dash" />
         </LinearLayout>
 
+        <Button
+            android:id="@+id/btn_np_enter"
+            style="@style/GhostKeyWord"
+            android:layout_width="280dp"
+            android:layout_height="52dp"
+            android:layout_marginTop="8dp"
+            android:textSize="13sp"
+            android:text="OK"
+            android:contentDescription="Enter" />
+
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
         <!-- Channel rocker -->
@@ -1068,13 +1079,6 @@
                 android:textSize="26sp"
                 android:text="+"
                 android:contentDescription="Channel Up" />
-            <Button
-                android:id="@+id/btn_np_enter"
-                style="@style/GhostKeyWord"
-                android:layout_height="48dp"
-                android:layout_marginStart="20dp"
-                android:text="OK"
-                android:contentDescription="Enter" />
         </LinearLayout>
 
         <!-- Small keys -->
@@ -1103,6 +1107,12 @@
                 style="@style/GhostText"
                 android:layout_marginStart="14dp"
                 android:text="EXIT" />
+            <Button
+                android:id="@+id/btn_np_tv"
+                style="@style/GhostText"
+                android:layout_marginStart="14dp"
+                android:text="LIVE TV"
+                android:contentDescription="Live TV" />
         </LinearLayout>
 
 
