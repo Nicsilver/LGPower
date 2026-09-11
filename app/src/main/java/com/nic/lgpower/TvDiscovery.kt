@@ -33,11 +33,15 @@ object TvDiscovery {
     fun discover(context: Context): List<String> {
         val results  = Collections.synchronizedSet(LinkedHashSet<String>())
         val network  = LanNetwork.get(context)
+        val local    = getLocalIp(context, network)
+        // Only subnets the LAN scan does not already cover; a second /24 sweep of the
+        // same range just competes for the 3 s window
         val tethered = LanNetwork.tetheredAddresses(context)
+            .filter { local == null || !it.address.copyOf(3).contentEquals(local.address.copyOf(3)) }
         val latch    = CountDownLatch(2 + 2 * tethered.size)
 
         Thread { ssdpScan(context, network, results); latch.countDown() }.start()
-        Thread { getLocalIp(context, network)?.let { portScan(it, network, results) }; latch.countDown() }.start()
+        Thread { local?.let { portScan(it, network, results) }; latch.countDown() }.start()
         // A TV joined to the phone's own hotspot lives on a subnet no Network object covers
         for (local in tethered) {
             Thread { ssdpScanFrom(context, local, results); latch.countDown() }.start()
