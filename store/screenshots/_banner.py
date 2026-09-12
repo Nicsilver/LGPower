@@ -1,7 +1,8 @@
 """README banner: the pastel wash from the store set, the app name and pitch on the left,
 the remote in a graphite bezel rising from the bottom edge on the right.
 
-Usage: python _banner.py <raw_main_screenshot.png> <out.png>
+Usage: python _banner.py <raw_main_screenshot.png> <out.png> [feature]
+`feature` renders the Play feature graphic (1024x500, drawn at 2x) in the same look.
 """
 import os, sys
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -53,6 +54,29 @@ def phone(raw_path, screen_w):
     return im
 
 
+def feature(raw, out):
+    """Play feature graphic: same look, tighter, no small type (Play shows it small and as the video poster)."""
+    global W, H
+    W, H = 2048, 1000
+    im = background()
+    d = ImageDraw.Draw(im)
+    ph = phone(raw, 560)
+    im.paste(ph, (W - ph.width - 30, 60), ph)
+    ic = icon(190); x0 = 150
+    fn = font(True, 150); bb = fn.getbbox("LG Power"); ty = 300
+    im.paste(ic, (x0, ty + (bb[1] + bb[3]) // 2 - 95), ic)
+    d.text((x0 + 190 + 44, ty), "LG Power", font=fn, fill=INK)
+    d.text((x0 + 190 + 50, 478), "A remote for LG webOS TVs", font=font(False, 60), fill=MUTED)
+    f = font(False, 40); y = 620; x = x0
+    for label in ["Wi-Fi + IR", "Several TVs", "No ads"]:
+        w = d.textlength(label, font=f) + 56
+        d.rounded_rectangle([x, y, x + w, y + 76], 38, outline=(120, 110, 108), width=3)
+        d.text((x + 28, y + 14), label, font=f, fill=(60, 55, 55))
+        x += w + 20
+    im.resize((1024, 500), Image.LANCZOS).save(out, optimize=True)
+    print("wrote", out, "1024x500")
+
+
 def main(raw, out):
     im = background()
     d = ImageDraw.Draw(im)
@@ -80,4 +104,4 @@ def main(raw, out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    (feature if len(sys.argv) > 3 and sys.argv[3] == "feature" else main)(sys.argv[1], sys.argv[2])
