@@ -6,7 +6,6 @@
   {"out": "05_media",    "image": "media",      "caption": "Media keys a tap away"},
   {"out": "06_numpad",   "image": "numpad",     "caption": "Numpad, guide, info and Live TV"},
   {"out": "07_themes",   "image": "main_light", "caption": "Light, dark and six more themes"},
-  {"out": "08_tour",     "image": "tour",       "caption": "A short tour shows you around"},
-  {"out": "09_settings", "image": "settings",   "caption": "Shortcuts, TVs and themes"},
-  {"out": "10_pickers",  "image": "picture",    "caption": "Picture, sound and input pickers"}
+  {"out": "08_settings", "image": "settings",   "caption": "Shortcuts, TVs and themes"},
+  {"out": "09_pickers",  "image": "picture",    "caption": "Picture, sound and input pickers"}
 ]

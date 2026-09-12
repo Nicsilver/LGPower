@@ -19,7 +19,7 @@ LG Power is a free, open source Android remote for LG webOS TVs. It talks to the
   <img src="screenshots/05_media.png" width="24%" alt="Media keys a tap away">
   <img src="screenshots/06_numpad.png" width="24%" alt="Numpad, guide, info and Live TV">
   <img src="screenshots/07_themes.png" width="24%" alt="Light, dark and six more themes">
-  <img src="screenshots/08_tour.png" width="24%" alt="A short tour shows you around">
+  <img src="screenshots/08_settings.png" width="24%" alt="Shortcuts, TVs and themes">
 </p>
 
 <p align="center">
