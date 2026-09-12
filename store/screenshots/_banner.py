@@ -38,11 +38,12 @@ def icon(size):
 def phone(raw_path, screen_w):
     """Phone with a graphite bezel, screen from the raw capture; returns an RGBA image."""
     sw = screen_w; sh = int(sw * 2400 / 1080); bez = int(sw * 0.026)
-    pad = bez + 40
+    # Room around the phone so the blurred shadow never hits the paste edge
+    pad = bez + 120
     im = Image.new("RGBA", (sw + 2 * pad, sh + 2 * pad), (0, 0, 0, 0))
     shadow = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).rounded_rectangle([pad - bez, pad - bez + 30, pad + sw + bez, pad + sh + bez + 30], int(sw * 0.075), fill=(30, 20, 20, 140))
-    im.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(28)))
+    ImageDraw.Draw(shadow).rounded_rectangle([pad - bez + 6, pad - bez + 26, pad + sw + bez - 6, pad + sh + bez + 26], int(sw * 0.075), fill=(30, 20, 20, 120))
+    im.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(34)))
     d = ImageDraw.Draw(im)
     d.rounded_rectangle([pad - bez, pad - bez, pad + sw + bez, pad + sh + bez], int(sw * 0.072), fill=(28, 28, 31, 255), outline=(96, 96, 102, 255), width=3)
     scr = Image.open(raw_path).convert("RGB").resize((sw, sh), Image.LANCZOS)
@@ -57,12 +58,15 @@ def main(raw, out):
     d = ImageDraw.Draw(im)
     # phone on the right, cut by the bottom edge
     ph = phone(raw, 520)
-    im.paste(ph, (W - ph.width - 150, 90), ph)
-    # text block on the left, vertically centred
+    im.paste(ph, (W - ph.width - 70, 10), ph)
+    # text block on the left; the icon is centred on the name's glyph box
     ic = icon(150)
     x0 = 170
-    im.paste(ic, (x0, 175), ic)
-    d.text((x0 + 150 + 42, 165), "LG Power", font=font(True, 132), fill=INK)
+    fn = font(True, 132)
+    bb = fn.getbbox("LG Power")           # (l, t, r, b) relative to the draw origin
+    ty = 165
+    im.paste(ic, (x0, ty + (bb[1] + bb[3]) // 2 - 75), ic)
+    d.text((x0 + 150 + 42, ty), "LG Power", font=fn, fill=INK)
     d.text((x0 + 150 + 46, 320), "A remote for LG webOS TVs", font=font(False, 54), fill=MUTED)
     f = font(False, 34); y = 452; x = x0
     for label in ["Wi-Fi + Wake-on-LAN", "IR power fallback", "Several TVs", "No ads, open source"]:
