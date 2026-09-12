@@ -1,6 +1,8 @@
 #!/bin/bash
 # Records the app tour with scrcpy and writes section timestamps (marks.txt) and every
 # tap/swipe (taps.txt), both relative to T0, for produce.py.
+# Layout coordinates are for 1.35 on the 1080x2400 pixel_6 AVD with four shortcuts
+# (two rows) and two saved TVs; re-seed with shots_v135.sh first.
 set -u
 ADB=/c/Android/android-sdk/platform-tools/adb.exe; S=${ANDROID_SERIAL:-emulator-5574}
 OUT=${OUT:-$(dirname "$0")}; mkdir -p "$OUT"; cd "$OUT"
@@ -25,39 +27,42 @@ type_word() { for ((i=0;i<${#1};i++)); do c=${1:$i:1}; tap $(kx $c) $(ky $c) 0.0
 $ADB -s $S shell settings put global animator_duration_scale 1.0
 $ADB -s $S shell cmd uimode night yes >/dev/null      # dark Gboard
 $ADB -s $S shell am start -n com.nic.lgpower/.MainActivity >/dev/null; sleep 3
-T0=0; $ADB -s $S shell input tap 539 1394; sleep 1.5; $ADB -s $S shell input tap 539 1394; sleep 1.0   # warm the pointer socket
+T0=0; $ADB -s $S shell input tap 539 1440; sleep 1.5; $ADB -s $S shell input tap 539 1440; sleep 1.0   # warm the pointer socket
 rm -f tour_raw.mp4 marks.txt taps.txt
-scrcpy -s $S --no-playback --record=tour_raw.mp4 --max-fps=60 --video-bit-rate=16M --time-limit=42 > scrcpy.log 2>&1 &
+scrcpy -s $S --no-playback --record=tour_raw.mp4 --max-fps=60 --video-bit-rate=16M --time-limit=56 > scrcpy.log 2>&1 &
 SP=$!
 T0=$(python -c "import time;print(time.time())")
 sleep 2.0
 
 mark "D-pad and OK"
-tap 737 1394 0.35; tap 539 1592 0.35; tap 337 1394 0.35; tap 539 1194 0.35; tap 539 1394 0.6
+tap 738 1440 0.35; tap 539 1641 0.35; tap 342 1440 0.35; tap 539 1239 0.35; tap 539 1440 0.6
 
-mark "Volume and brightness sliders"
+mark "Volume and brightness, drag or tap"
 ddrag volume 18 92 700 0.95; ddrag volume 92 40 700 0.95; ddrag brightness 70 30 700 0.9
 
-mark "Touchpad, hold to lock"
-swipe 539 632 539 632 1250 0.15; swipe 300 1000 800 1300 380 0.1; swipe 800 1300 400 1500 380 0.15; tap 648 2052 0.4; tap 900 252 0.5
+mark "Hold Touchpad to lock a cursor pad"
+swipe 539 723 539 723 1250 0.15; swipe 300 1000 800 1300 380 0.1; swipe 800 1300 400 1500 380 0.15; tap 648 2054 0.4; tap 902 254 0.5
 
 mark "Type with your keyboard"
-tap 802 632 1.1; type_word "planet"; tap 540 2181 0.01 60; type_word "earth"; sleep 0.35; tap 978 1425 0.8
+tap 801 723 1.1; type_word "planet"; tap 540 2181 0.01 60; type_word "earth"; sleep 0.35; tap 978 1425 0.8
 
-mark "Numpad, guide, info and CC"
-tap 539 2086 0.7; tap 540 951 0.25; tap 828 951 0.25; tap 288 783 0.3; tap 540 2086 0.5
+mark "Media keys"
+tap 539 1821 0.7; tap 417 2085 0.35; tap 657 2085 0.35; tap 897 2085 0.5; $ADB -s $S shell input tap 980 640; sleep 0.4
+
+mark "Numpad, guide, info and Live TV"
+tap 539 2085 0.7; tap 288 715 0.25; tap 792 715 0.3; tap 540 1380 0.4; tap 883 1819 0.4; tap 540 2083 0.5
 
 mark "Picture mode"
-tap 348 2086 0.8; tap 540 1500 0.9
+tap 348 2085 0.8; tap 540 1496 0.9
 
-mark "Input source"
-tap 773 961 0.8; tap 540 1911 0.9
+mark "App shortcuts, up to eight"
+tap 294 333 0.5; tap 783 489 0.7
 
-mark "App shortcuts"
-tap 294 474 0.5; tap 828 474 0.7
+mark "Switch between your TVs"
+tap 540 150 0.8; tap 540 2048 1.6
 
 mark "Themes"
-tap 1001 142 0.7; swipe 540 2000 540 800 350 0.5; tap 141 1431 0.7; tap 540 1365 0.25; key BACK 1.4
+tap 1001 150 1.0; tap 540 2253 0.8; tap 540 1364 0.25; key BACK 1.4
 
 mark "montage"
 sleep 0.3
