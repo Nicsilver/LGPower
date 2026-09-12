@@ -1,6 +1,6 @@
 """Compose raw 1080x2400 captures into 1080x1920 Play screenshots: one continuous pastel
 background runs across the whole set, so the right edge of each shot meets the left edge of
-the next; a graphite bezel, one big phone, the app icon and name, and a caption.
+the next; a graphite bezel, one big phone and a caption.
 
 Usage: python _frame.py <raw_dir> <out_dir>   (reads <raw_dir>/captions.json: [{out, image, caption}])
 The bezel and screen mask come from tools/faketv/produce.py so the shots match the video.
@@ -14,11 +14,13 @@ ARGS = sys.argv[1:]
 spec = importlib.util.spec_from_file_location("produce", os.path.join(FAKETV, "produce.py"))
 sys.argv = ["produce.py", os.path.join(FAKETV, "tour_raw.mp4")]
 produce = importlib.util.module_from_spec(spec); spec.loader.exec_module(produce)
-W, H, PW, PH, PX, PY = produce.W, produce.H, produce.PW, produce.PH, produce.PX, produce.PY
+W, H, PW, PH, PX = produce.W, produce.H, produce.PW, produce.PH, produce.PX
 INK, MUTED = (30, 27, 27), (96, 90, 91)
 BASE, EDGE = (238, 234, 231), (218, 212, 209)
-# The four pastels of the video background, cycled along the strip
-PASTELS = [(246, 190, 178), (184, 206, 234), (244, 222, 180), (214, 226, 214)]
+# The four pastels of the video background, a touch stronger so the strip reads as one
+PASTELS = [(246, 176, 160), (168, 198, 236), (246, 214, 158), (196, 222, 198)]
+# Without the header the phone moves up and shows more of its bottom edge
+PY = 178
 
 
 def font(bold, size):
@@ -32,18 +34,19 @@ def panorama(n):
     img = Image.new("RGB", (TW, H), BASE)
     blobs = Image.new("RGB", (TW, H), BASE)
     d = ImageDraw.Draw(blobs)
-    step = int(W * 0.66)
-    x = -300
+    # One blob per ~three quarters of a screen, so every seam has a blob straddling it
+    step = int(W * 0.75)
+    x = -200
     i = 0
-    while x < TW + 300:
-        r = 470 + (i % 3) * 60
-        cy = [280, 1500, 880, 1750, 420][i % 5]
+    while x < TW + 400:
+        r = 560 + (i % 3) * 60
+        cy = [260, 1560, 900, 1760, 380][i % 5]
         c = PASTELS[i % len(PASTELS)]
-        d.ellipse([x - r, cy - r * 0.9, x + r, cy + r * 0.9], fill=c)
+        d.ellipse([x - r, cy - r * 0.95, x + r, cy + r * 0.95], fill=c)
         x += step
         i += 1
-    blobs = blobs.filter(ImageFilter.GaussianBlur(220))
-    img = Image.blend(img, blobs, 0.85)
+    blobs = blobs.filter(ImageFilter.GaussianBlur(200))
+    img = Image.blend(img, blobs, 0.95)
     # Soft top and bottom fall-off only; left/right must stay seamless
     vig = Image.new("L", (TW, H), 255)
     dv = ImageDraw.Draw(vig)
@@ -58,42 +61,38 @@ def panorama(n):
 
 def build_static():
     bz = os.path.join(SC, "prod_bezel.png"); mk = os.path.join(SC, "prod_mask.png")
+    produce.PY = PY
     produce.bezel(bz); produce.screen_mask(mk)
     bezel, mask = Image.open(bz).convert("RGBA"), Image.open(mk).convert("L")
     os.remove(bz); os.remove(mk)
-    icon = Image.open(os.path.join(SC, "..", "play_icon_512.png")).convert("RGBA").resize((64, 64), Image.LANCZOS)
-    m = Image.new("L", (64, 64), 0)
-    ImageDraw.Draw(m).rounded_rectangle([0, 0, 63, 63], 15, fill=255)
-    icon.putalpha(m)
-    return bezel, mask, icon
+    return bezel, mask
 
 
-def frame(raw_path, caption, out_path, base, bezel, mask, icon):
+def frame(raw_path, caption, out_path, base, bezel, mask):
     canvas = base.copy()
     canvas.paste(bezel, (0, 0), bezel)
     scr = Image.open(raw_path).convert("RGB").resize((PW, PH), Image.LANCZOS)
     canvas.paste(scr, (PX, PY), mask)
     d = ImageDraw.Draw(canvas)
-    f_name, f_cap = font(True, 30), font(True, 54)
-    name = "LG POWER"
-    nw = d.textlength(name, font=f_name)
-    total = 64 + 18 + nw
-    x0 = (W - total) / 2
-    canvas.paste(icon, (int(x0), 52), icon)
-    d.text((x0 + 64 + 18, 52 + 32 - 21), name, font=f_name, fill=MUTED)
-    cw = d.textlength(caption, font=f_cap)
-    d.text(((W - cw) / 2, 138), caption, font=f_cap, fill=INK)
+    # Caption never runs wider than the phone screen; long ones shrink to fit
+    size = 54
+    while True:
+        f_cap = font(True, size)
+        cw = d.textlength(caption, font=f_cap)
+        if cw <= PW or size <= 36: break
+        size -= 2
+    d.text(((W - cw) / 2, 52 + (54 - size) // 2), caption, font=f_cap, fill=INK)
     canvas.save(out_path, optimize=True)
 
 
 def main(raw_dir, out_dir):
     os.makedirs(out_dir, exist_ok=True)
     specs = json.load(open(os.path.join(raw_dir, "captions.json"), encoding="utf8"))
-    bezel, mask, icon = build_static()
+    bezel, mask = build_static()
     strip = panorama(len(specs))
     for i, s in enumerate(specs):
         base = strip.crop((i * W, 0, (i + 1) * W, H))
-        frame(os.path.join(raw_dir, s["image"] + ".png"), s["caption"], os.path.join(out_dir, s["out"] + ".png"), base, bezel, mask, icon)
+        frame(os.path.join(raw_dir, s["image"] + ".png"), s["caption"], os.path.join(out_dir, s["out"] + ".png"), base, bezel, mask)
         print("framed", s["out"])
 
 
