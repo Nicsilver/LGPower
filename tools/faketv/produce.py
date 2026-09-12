@@ -14,7 +14,7 @@ SC = os.path.dirname(os.path.abspath(sys.argv[1])) if len(sys.argv) > 1 else os.
 W, H = 1080, 1920
 BW, BH = 1300, 2300               # oversized background so it can drift
 PW, PH = 780, 1734                # phone screen on the canvas (1080x2400 scaled)
-PX, PY = (W - PW) // 2, 236
+PX, PY = (W - PW) // 2, 178   # phone sits high: the caption is the only thing above it
 BEZ = 20
 FPS = 60
 FONT_B = "C\\:/Windows/Fonts/segoeuib.ttf"
@@ -22,7 +22,7 @@ FONT_R = "C\\:/Windows/Fonts/segoeui.ttf"
 INK = "0x1E1B1B"
 MUTED = "0x6B6465"
 RED = "0xD9342B"
-LAG = 0.54  # script clock vs scrcpy capture, measured on the d-pad hold (varies per run)
+LAG = 0.47  # script clock vs scrcpy capture; re-measure per recording (numpad readout onset vs taps.txt)
 PULSE_STEPS, PULSE_DT = 7, 0.05
 XFADE = 0.35
 ZOOM_ENABLED = False
@@ -39,15 +39,16 @@ FOCUS = {
 # ── static art ────────────────────────────────────────────────────────────────
 
 def background(path):
+    # Same pastels and strength as the store screenshots (store/screenshots/_frame.py)
     img = Image.new("RGB", (BW, BH), (238, 234, 231))
     blobs = Image.new("RGB", (BW, BH), (238, 234, 231))
     d = ImageDraw.Draw(blobs)
-    d.ellipse([-250, 150, 650, 1050], fill=(246, 190, 178))     # coral, upper left
-    d.ellipse([700, 1300, 1550, 2250], fill=(184, 206, 234))    # sky, lower right
-    d.ellipse([600, -150, 1350, 550], fill=(244, 222, 180))     # pale gold, top right
-    d.ellipse([-100, 1500, 500, 2300], fill=(214, 226, 214))    # sage, bottom left
+    d.ellipse([-300, 100, 700, 1100], fill=(246, 176, 160))     # coral, upper left
+    d.ellipse([650, 1250, 1600, 2300], fill=(168, 198, 236))    # sky, lower right
+    d.ellipse([550, -200, 1400, 600], fill=(246, 214, 158))     # gold, top right
+    d.ellipse([-150, 1450, 550, 2350], fill=(196, 222, 198))    # sage, bottom left
     blobs = blobs.filter(ImageFilter.GaussianBlur(200))
-    img = Image.blend(img, blobs, 0.85)
+    img = Image.blend(img, blobs, 0.95)
     vig = Image.new("L", (BW, BH), 0)
     ImageDraw.Draw(vig).ellipse([-200, -150, BW + 200, BH + 150], fill=255)
     vig = vig.filter(ImageFilter.GaussianBlur(300))
@@ -105,11 +106,12 @@ def _font(bold, size):
 
 
 def _card_base():
-    im = Image.new("RGB", (PW, PH), (20, 20, 22))
-    glow = Image.new("RGB", (PW, PH), (20, 20, 22))
-    ImageDraw.Draw(glow).ellipse([-200, -300, PW + 200, 700], fill=(120, 30, 28))
-    glow = glow.filter(ImageFilter.GaussianBlur(180))
-    return Image.blend(im, glow, 0.55)
+    # Plain near-black like the app's own dark theme, with a faint cool lift at the top
+    im = Image.new("RGB", (PW, PH), (16, 16, 18))
+    glow = Image.new("RGB", (PW, PH), (16, 16, 18))
+    ImageDraw.Draw(glow).ellipse([-300, -500, PW + 300, 500], fill=(44, 44, 50))
+    glow = glow.filter(ImageFilter.GaussianBlur(220))
+    return Image.blend(im, glow, 0.6)
 
 
 def _center_text(d, y, text, font, fill):
@@ -135,7 +137,7 @@ def title_card(path):
     y = _center_text(d, 760, "LG Power", _font(True, 112), (255, 255, 255))
     y = _center_text(d, y + 22, "A remote for LG webOS TVs", _font(False, 42), (200, 200, 205))
     f = _font(False, 30); y += 70; x = PW / 2
-    labels = ["Wi-Fi control", "IR power fallback", "No ads"]
+    labels = ["Wi-Fi + IR", "Several TVs", "No ads, open source"]
     widths = [d.textlength(s, font=f) + 44 for s in labels]; gap = 18; total = sum(widths) + gap * 2; x0 = (PW - total) / 2
     for s, w in zip(labels, widths):
         d.rounded_rectangle([x0, y, x0 + w, y + 58], 29, outline=(110, 110, 118), width=2)
@@ -154,7 +156,7 @@ def end_card(path):
     y = _center_text(d, y + 8, "github.com/Nicsilver/LGPower", _font(False, 34), (255, 106, 92))
     y += 56; d.line([(90, y), (PW - 90, y)], fill=(60, 60, 66), width=2); y += 44
     f = _font(False, 34)
-    for line in ["Power, d-pad, touchpad, keyboard", "Pickers, numpad, app shortcuts", "Widgets, eight themes, an editor"]:
+    for line in ["Power, d-pad, touchpad, keyboard", "Media keys, numpad, app shortcuts", "Several TVs, widgets, eight themes"]:
         w = d.textlength(line, font=f); x = (PW - w) / 2
         d.ellipse([x - 34, y + 13, x - 18, y + 29], fill=(217, 52, 43)); d.text((x, y), line, font=f, fill=(225, 225, 230)); y += 56
     # QR to the Play listing, in a white tile
@@ -262,9 +264,11 @@ def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, captio
         zoomf = (f",scale={W * 2}:{H * 2}:flags=bicubic,zoompan=z='{z}':x='{2 * cxp:.0f}-(iw/zoom)/2':y='{2 * cyp:.0f}-(ih/zoom)/2':d=1:s={W}x{H}:fps={FPS}")
     txt = ""
     if caption:
-        txt += (f",drawtext=fontfile='{FONT_R}':text='LG POWER':fontsize=22:fontcolor={MUTED}:x=(w-text_w)/2:y=86"
-                f",drawtext=fontfile='{FONT_B}':text='{esc(caption)}':fontsize=54:fontcolor={INK}:x=(w-text_w)/2:y=118"
-                f",drawbox=x=(iw-52)/2:y=194:w=52:h=4:color={RED}@0.95:t=fill")
+        # Caption only, never wider than the phone screen (long ones shrink)
+        size = 54
+        while size > 36 and _font(True, size).getlength(caption) > PW:
+            size -= 2
+        txt += f",drawtext=fontfile='{FONT_B}':text='{esc(caption)}':fontsize={size}:fontcolor={INK}:x=(w-text_w)/2:y={52 + (54 - size) // 2}"
     for text, size, color, font, y in cards:
         txt += f",drawtext=fontfile='{font}':text='{esc(text)}':fontsize={size}:fontcolor={color}:x=(w-text_w)/2:y={y}"
     txt = zoomf + txt
