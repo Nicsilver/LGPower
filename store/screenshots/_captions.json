@@ -1,10 +1,12 @@
 [
   {"out": "01_remote",   "image": "main_dark",  "caption": "The whole remote on one screen"},
-  {"out": "02_keyboard", "image": "keyboard",   "caption": "Type into TV search"},
+  {"out": "02_tvs",      "image": "tvs",        "caption": "All your TVs, one tap apart"},
   {"out": "03_touchpad", "image": "touchpad",   "caption": "Hold Touchpad to lock a cursor pad"},
-  {"out": "04_pickers",  "image": "picture",    "caption": "Picture, sound and input pickers"},
-  {"out": "05_numpad",   "image": "numpad",     "caption": "Numpad, guide, info and subtitles"},
-  {"out": "06_widgets",  "image": "widgets",    "caption": "Widgets for Power, Screen Off and OK"},
+  {"out": "04_keyboard", "image": "keyboard",   "caption": "Type into TV search"},
+  {"out": "05_media",    "image": "media",      "caption": "Media keys a tap away"},
+  {"out": "06_numpad",   "image": "numpad",     "caption": "Numpad, guide, info and Live TV"},
   {"out": "07_themes",   "image": "main_light", "caption": "Light, dark and six more themes"},
-  {"out": "08_service",  "image": "service",    "caption": "Service remote over IR"}
+  {"out": "08_tour",     "image": "tour",       "caption": "A short tour shows you around"},
+  {"out": "09_settings", "image": "settings",   "caption": "Shortcuts, TVs and themes"},
+  {"out": "10_pickers",  "image": "picture",    "caption": "Picture, sound and input pickers"}
 ]
