@@ -28,8 +28,13 @@ def background():
     return Image.blend(img, blobs, 0.95)
 
 
-def icon(size):
-    ic = Image.open(os.path.join(SC, "..", "play_icon_512.png")).convert("RGBA").resize((size, size), Image.LANCZOS)
+def icon(size, zoom=1.4):
+    """The Play icon with the remote glyph enlarged: the launcher icon keeps its own padding,
+    on the banner the glyph reads better filling more of the tile."""
+    src = Image.open(os.path.join(SC, "..", "play_icon_512.png")).convert("RGBA")
+    box = int(512 / zoom); cx, cy = 249, 263            # glyph centre in the 512 source
+    l = max(0, min(512 - box, cx - box // 2)); t = max(0, min(512 - box, cy - box // 2))
+    ic = src.crop((l, t, l + box, t + box)).resize((size, size), Image.LANCZOS)
     m = Image.new("L", (size, size), 0)
     ImageDraw.Draw(m).rounded_rectangle([0, 0, size - 1, size - 1], int(size * 0.23), fill=255)
     ic.putalpha(m)
@@ -62,11 +67,15 @@ def feature(raw, out):
     d = ImageDraw.Draw(im)
     ph = phone(raw, 560)
     im.paste(ph, (W - ph.width - 30, 60), ph)
-    ic = icon(190); x0 = 150
-    fn = font(True, 150); bb = fn.getbbox("LG Power"); ty = 300
-    im.paste(ic, (x0, ty + (bb[1] + bb[3]) // 2 - 95), ic)
-    d.text((x0 + 190 + 44, ty), "LG Power", font=fn, fill=INK)
-    d.text((x0 + 190 + 50, 478), "A remote for LG webOS TVs", font=font(False, 60), fill=MUTED)
+    x0 = 150; ty = 280; tag_y = 458
+    fn, ft = font(True, 150), font(False, 60)
+    top = ty + fn.getbbox("LG Power")[1]; bottom = tag_y + ft.getbbox("A remote for LG webOS TVs")[3]
+    size = bottom - top
+    ic = icon(size)
+    im.paste(ic, (x0, top), ic)
+    tx = x0 + size + 46
+    d.text((tx, ty), "LG Power", font=fn, fill=INK)
+    d.text((tx + 4, tag_y), "A remote for LG webOS TVs", font=ft, fill=MUTED)
     f = font(False, 40); y = 620; x = x0
     for label in ["Wi-Fi + IR", "Several TVs", "No ads"]:
         w = d.textlength(label, font=f) + 56
@@ -84,14 +93,16 @@ def main(raw, out):
     ph = phone(raw, 520)
     im.paste(ph, (W - ph.width - 70, 10), ph)
     # text block on the left; the icon is centred on the name's glyph box
-    ic = icon(150)
-    x0 = 170
-    fn = font(True, 132)
-    bb = fn.getbbox("LG Power")           # (l, t, r, b) relative to the draw origin
-    ty = 165
-    im.paste(ic, (x0, ty + (bb[1] + bb[3]) // 2 - 75), ic)
-    d.text((x0 + 150 + 42, ty), "LG Power", font=fn, fill=INK)
-    d.text((x0 + 150 + 46, 320), "A remote for LG webOS TVs", font=font(False, 54), fill=MUTED)
+    # Icon spans exactly from the top of the name's glyphs to the bottom of the tagline's
+    x0 = 170; ty = 150; tag_y = 306
+    fn, ft = font(True, 132), font(False, 54)
+    top = ty + fn.getbbox("LG Power")[1]; bottom = tag_y + ft.getbbox("A remote for LG webOS TVs")[3]
+    size = bottom - top
+    ic = icon(size)
+    im.paste(ic, (x0, top), ic)
+    tx = x0 + size + 44
+    d.text((tx, ty), "LG Power", font=fn, fill=INK)
+    d.text((tx + 4, tag_y), "A remote for LG webOS TVs", font=ft, fill=MUTED)
     f = font(False, 34); y = 452; x = x0
     for label in ["Wi-Fi + Wake-on-LAN", "IR power fallback", "Several TVs", "No ads, open source"]:
         w = d.textlength(label, font=f) + 52
