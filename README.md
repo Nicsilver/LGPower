@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="store/feature_graphic_1024x500.png" width="640" alt="LG Power. Remote for LG webOS TVs.">
-</p>
+<img src="screenshots/banner.png" width="100%" alt="LG Power. A remote for LG webOS TVs.">
 
 <p align="center">
   <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/Nicsilver/LGPower?label=release&color=e63946" alt="Latest release"></a>
