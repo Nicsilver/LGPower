@@ -11,11 +11,22 @@ import glob, os, subprocess, sys
 from PIL import Image, ImageDraw, ImageFilter
 
 SC = os.path.dirname(os.path.abspath(sys.argv[1])) if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
-W, H = 1080, 1920
-BW, BH = 1300, 2300               # oversized background so it can drift
-PW, PH = 780, 1734                # phone screen on the canvas (1080x2400 scaled)
-PX, PY = (W - PW) // 2, 178   # phone sits high: the caption is the only thing above it
-BEZ = 20
+# PRODUCE_LANDSCAPE=1 renders the same cut as 1920x1080 for Play's video slot: caption on
+# the left half, phone on the right, cards drawn across the whole frame.
+LANDSCAPE = os.environ.get("PRODUCE_LANDSCAPE") == "1"
+if LANDSCAPE:
+    W, H = 1920, 1080
+    BW, BH = 2300, 1300
+    PH = 940; PW = round(PH * 1080 / 2400 / 2) * 2   # even, or yuv420p encodes refuse it
+    PX, PY = 1300, (H - PH) // 2
+    BEZ = 12
+else:
+    W, H = 1080, 1920
+    BW, BH = 1300, 2300               # oversized background so it can drift
+    PW, PH = 780, 1734                # phone screen on the canvas (1080x2400 scaled)
+    PX, PY = (W - PW) // 2, 178   # phone sits high: the caption is the only thing above it
+    BEZ = 20
+K = PH / 1734                          # bezel details scale with the phone
 FPS = 60
 FONT_B = "C\\:/Windows/Fonts/segoeuib.ttf"
 FONT_R = "C\\:/Windows/Fonts/segoeui.ttf"
@@ -43,11 +54,13 @@ def background(path):
     img = Image.new("RGB", (BW, BH), (238, 234, 231))
     blobs = Image.new("RGB", (BW, BH), (238, 234, 231))
     d = ImageDraw.Draw(blobs)
-    d.ellipse([-300, 100, 700, 1100], fill=(246, 176, 160))     # coral, upper left
-    d.ellipse([650, 1250, 1600, 2300], fill=(168, 198, 236))    # sky, lower right
-    d.ellipse([550, -200, 1400, 600], fill=(246, 214, 158))     # gold, top right
-    d.ellipse([-150, 1450, 550, 2350], fill=(196, 222, 198))    # sage, bottom left
-    blobs = blobs.filter(ImageFilter.GaussianBlur(200))
+    def e(x0, y0, x1, y1, c):  # fractions of the oversized canvas, so both shapes get the same wash
+        d.ellipse([x0 * BW, y0 * BH, x1 * BW, y1 * BH], fill=c)
+    e(-0.23, 0.04, 0.54, 0.48, (246, 176, 160))    # coral, upper left
+    e(0.50, 0.54, 1.23, 1.00, (168, 198, 236))     # sky, lower right
+    e(0.42, -0.09, 1.08, 0.26, (246, 214, 158))    # gold, top right
+    e(-0.12, 0.63, 0.42, 1.02, (196, 222, 198))    # sage, bottom left
+    blobs = blobs.filter(ImageFilter.GaussianBlur(int(200 * (BW / 1300 if LANDSCAPE else 1))))
     img = Image.blend(img, blobs, 0.95)
     vig = Image.new("L", (BW, BH), 0)
     ImageDraw.Draw(vig).ellipse([-200, -150, BW + 200, BH + 150], fill=255)
@@ -60,21 +73,22 @@ def background(path):
 def bezel(path):
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).rounded_rectangle([PX - BEZ - 8, PY - BEZ + 60, PX + PW + BEZ + 8, PY + PH + BEZ + 70], 60, fill=(30, 20, 20, 150))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(50))
+    s = lambda v: int(round(v * K))
+    ImageDraw.Draw(shadow).rounded_rectangle([PX - BEZ - s(8), PY - BEZ + s(60), PX + PW + BEZ + s(8), PY + PH + BEZ + s(70)], s(60), fill=(30, 20, 20, 150))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(s(50)))
     im.alpha_composite(shadow)
     d = ImageDraw.Draw(im)
-    d.rounded_rectangle([PX + PW + BEZ - 2, PY + 300, PX + PW + BEZ + 8, PY + 420], 5, fill=(40, 40, 44, 255))
-    d.rounded_rectangle([PX + PW + BEZ - 2, PY + 470, PX + PW + BEZ + 8, PY + 700], 5, fill=(40, 40, 44, 255))
-    d.rounded_rectangle([PX - BEZ - 8, PY + 380, PX - BEZ + 2, PY + 520], 5, fill=(40, 40, 44, 255))
-    d.rounded_rectangle([PX - BEZ, PY - BEZ, PX + PW + BEZ, PY + PH + BEZ], 56, fill=(28, 28, 31, 255), outline=(96, 96, 102, 255), width=3)
-    d.rounded_rectangle([PX - BEZ + 4, PY - BEZ + 4, PX + PW + BEZ - 4, PY + PH + BEZ - 4], 52, outline=(12, 12, 14, 255), width=3)
+    d.rounded_rectangle([PX + PW + BEZ - 2, PY + s(300), PX + PW + BEZ + s(8), PY + s(420)], 5, fill=(40, 40, 44, 255))
+    d.rounded_rectangle([PX + PW + BEZ - 2, PY + s(470), PX + PW + BEZ + s(8), PY + s(700)], 5, fill=(40, 40, 44, 255))
+    d.rounded_rectangle([PX - BEZ - s(8), PY + s(380), PX - BEZ + 2, PY + s(520)], 5, fill=(40, 40, 44, 255))
+    d.rounded_rectangle([PX - BEZ, PY - BEZ, PX + PW + BEZ, PY + PH + BEZ], s(56), fill=(28, 28, 31, 255), outline=(96, 96, 102, 255), width=3)
+    d.rounded_rectangle([PX - BEZ + 4, PY - BEZ + 4, PX + PW + BEZ - 4, PY + PH + BEZ - 4], s(52), outline=(12, 12, 14, 255), width=3)
     im.save(path)
 
 
 def screen_mask(path):
     m = Image.new("L", (PW, PH), 0)
-    ImageDraw.Draw(m).rounded_rectangle([0, 0, PW - 1, PH - 1], 34, fill=255)
+    ImageDraw.Draw(m).rounded_rectangle([0, 0, PW - 1, PH - 1], int(34 * K), fill=255)
     m.save(path)
 
 
@@ -169,6 +183,57 @@ def end_card(path):
     im.save(path)
 
 
+def _wide_base():
+    im = Image.new("RGB", (W, H), (16, 16, 18))
+    glow = Image.new("RGB", (W, H), (16, 16, 18))
+    ImageDraw.Draw(glow).ellipse([-400, -600, W + 400, 520], fill=(44, 44, 50))
+    glow = glow.filter(ImageFilter.GaussianBlur(220))
+    return Image.blend(im, glow, 0.6)
+
+
+def _center_text_w(d, y, text, font, fill, cx=None):
+    cx = W / 2 if cx is None else cx
+    w = d.textlength(text, font=font); d.text((cx - w / 2, y), text, font=font, fill=fill); return y + font.size
+
+
+def title_card_wide(path):
+    im = _wide_base(); d = ImageDraw.Draw(im)
+    ic = _icon(220); im.paste(ic, ((W - 220) // 2, 250), ic)
+    y = _center_text_w(d, 505, "LG Power", _font(True, 104), (255, 255, 255))
+    y = _center_text_w(d, y + 18, "A remote for LG webOS TVs", _font(False, 40), (200, 200, 205))
+    f = _font(False, 30); y += 62
+    labels = ["Wi-Fi + IR", "Several TVs", "No ads, open source"]
+    widths = [d.textlength(s, font=f) + 44 for s in labels]; gap = 18; total = sum(widths) + gap * 2; x0 = (W - total) / 2
+    for s, w in zip(labels, widths):
+        d.rounded_rectangle([x0, y, x0 + w, y + 58], 29, outline=(110, 110, 118), width=2)
+        d.text((x0 + 22, y + 10), s, font=f, fill=(210, 210, 215)); x0 += w + gap
+    im.save(path)
+
+
+def end_card_wide(path):
+    im = _wide_base(); d = ImageDraw.Draw(im)
+    lx = 640   # text column centre; QR column sits to the right
+    ic = _icon(150); im.paste(ic, (lx - 75, 200), ic)
+    y = _center_text_w(d, 380, "LG Power", _font(True, 84), (255, 255, 255), lx)
+    y = _center_text_w(d, y + 10, "Remote for LG webOS TVs", _font(False, 36), (200, 200, 205), lx)
+    y = _pill(d, lx, y + 46, "Free on Google Play", _font(True, 38), (255, 255, 255), (20, 20, 22), pad=40)
+    y += 22
+    y = _center_text_w(d, y, "Open source · AGPL-3.0", _font(False, 32), (170, 170, 178), lx)
+    y = _center_text_w(d, y + 6, "github.com/Nicsilver/LGPower", _font(False, 32), (255, 106, 92), lx)
+    y += 44; d.line([(lx - 320, y), (lx + 320, y)], fill=(60, 60, 66), width=2); y += 34
+    f = _font(False, 32)
+    for line in ["Power, d-pad, touchpad, keyboard", "Media keys, numpad, app shortcuts", "Several TVs, widgets, eight themes"]:
+        w = d.textlength(line, font=f); x = lx - w / 2
+        d.ellipse([x - 32, y + 12, x - 17, y + 27], fill=(217, 52, 43)); d.text((x, y), line, font=f, fill=(225, 225, 230)); y += 50
+    qr = Image.open(os.path.join(SC, "qr_play.png")).convert("RGB").resize((360, 360), Image.NEAREST)
+    tile = Image.new("RGB", (404, 404), (255, 255, 255)); tile.paste(qr, (22, 22))
+    tm = Image.new("L", (404, 404), 0); ImageDraw.Draw(tm).rounded_rectangle([0, 0, 403, 403], 30, fill=255)
+    qx, qy = 1320, (H - 404) // 2 - 30; im.paste(tile, (qx, qy), tm)
+    _center_text_w(d, qy + 404 + 22, "Scan to install", _font(False, 30), (200, 200, 205), qx + 202)
+    _center_text_w(d, H - 64, "Independent app, not affiliated with LG", _font(False, 24), (120, 120, 128))
+    im.save(path)
+
+
 def esc(s):
     return s.replace("\\", "\\\\").replace(":", "\\:").replace("'", "’").replace(",", "\\,")
 
@@ -233,12 +298,18 @@ def marker_filters(events, t_from, t_to, art, first_input, chain_in):
 
 # ── rendering ─────────────────────────────────────────────────────────────────
 
-def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, caption=None, events=(), t_from=0.0, cards=(), focus=None, zoom=1.045, speed=1.0, still=None):
-    """One segment. caption: text shown for the whole segment. focus: raw phone (x, y) the push-in aims at."""
-    inputs = ["-loop", "1", "-framerate", str(FPS), "-i", bg, "-loop", "1", "-framerate", str(FPS), "-i", bz]
-    n = 2
-    fc = (f"[0:v]crop={W}:{H}:x='({BW - W})*(0.5+0.5*sin((t+{t_offset:.1f})/13))':y='({BH - H})*(0.5+0.5*cos((t+{t_offset:.1f})/17))',"
-          f"noise=alls=4:allf=t+u[bgd];[bgd][1:v]overlay=0:0[base];")
+def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, caption=None, events=(), t_from=0.0, cards=(), focus=None, zoom=1.045, speed=1.0, still=None, frame_still=None):
+    """One segment. caption: text shown for the whole segment. focus: raw phone (x, y) the push-in aims at.
+    frame_still: a W x H image used as the whole frame (title / end cards in landscape)."""
+    if frame_still:
+        inputs = ["-loop", "1", "-framerate", str(FPS), "-i", frame_still]
+        n = 1
+        fc = f"[0:v]null[base];"
+    else:
+        inputs = ["-loop", "1", "-framerate", str(FPS), "-i", bg, "-loop", "1", "-framerate", str(FPS), "-i", bz]
+        n = 2
+        fc = (f"[0:v]crop={W}:{H}:x='({BW - W})*(0.5+0.5*sin((t+{t_offset:.1f})/13))':y='({BH - H})*(0.5+0.5*cos((t+{t_offset:.1f})/17))',"
+              f"noise=alls=4:allf=t+u[bgd];[bgd][1:v]overlay=0:0[base];")
     cur = "base"
     if still:
         inputs += ["-loop", "1", "-framerate", str(FPS), "-i", still, "-loop", "1", "-i", mask]
@@ -263,12 +334,33 @@ def render(out, dur, t_offset, bg, bz, mask, art, src=None, src_from=0.0, captio
         z = f"1+({zoom - 1})*min(1,on/{frames})"
         zoomf = (f",scale={W * 2}:{H * 2}:flags=bicubic,zoompan=z='{z}':x='{2 * cxp:.0f}-(iw/zoom)/2':y='{2 * cyp:.0f}-(ih/zoom)/2':d=1:s={W}x{H}:fps={FPS}")
     txt = ""
-    if caption:
+    # Captions fade at both ends so two never sit on top of each other across a dissolve
+    fi0, fi1, fo0, fo1 = XFADE, XFADE + 0.3, dur - 2 * XFADE, dur - XFADE
+    capfade = f"if(lt(t,{fi0:.3f}),0,if(lt(t,{fi1:.3f}),(t-{fi0:.3f})/0.3,if(lt(t,{fo0:.3f}),1,if(lt(t,{fo1:.3f}),({fo1:.3f}-t)/{XFADE},0))))"
+    if caption and LANDSCAPE:
+        # Left half: caption wrapped to at most three lines, block centred on the phone's middle
+        size = 78; maxw = PX - 140 - 110
+        words = caption.split(); lines = []
+        while True:
+            lines, line = [], ""
+            for wd in words:
+                cand = (line + " " + wd).strip()
+                if _font(True, size).getlength(cand) > maxw and line:
+                    lines.append(line); line = wd
+                else:
+                    line = cand
+            lines.append(line)
+            if len(lines) <= 3 or size <= 56: break
+            size -= 4
+        lh = int(size * 1.2); y0 = H // 2 - (lh * len(lines)) // 2 - 10
+        for i, ln in enumerate(lines):
+            txt += f",drawtext=fontfile='{FONT_B}':text='{esc(ln)}':fontsize={size}:fontcolor={INK}:x=110:y={y0 + i * lh}:alpha='{capfade}'"
+    elif caption:
         # Caption only, never wider than the phone screen (long ones shrink)
         size = 54
         while size > 36 and _font(True, size).getlength(caption) > PW:
             size -= 2
-        txt += f",drawtext=fontfile='{FONT_B}':text='{esc(caption)}':fontsize={size}:fontcolor={INK}:x=(w-text_w)/2:y={52 + (54 - size) // 2}"
+        txt += f",drawtext=fontfile='{FONT_B}':text='{esc(caption)}':fontsize={size}:fontcolor={INK}:x=(w-text_w)/2:y={52 + (54 - size) // 2}:alpha='{capfade}'"
     for text, size, color, font, y in cards:
         txt += f",drawtext=fontfile='{font}':text='{esc(text)}':fontsize={size}:fontcolor={color}:x=(w-text_w)/2:y={y}"
     txt = zoomf + txt
@@ -329,8 +421,11 @@ def main(raw, marks_path, out, stills_dir=None):
     def seg(name, **kw):
         p = os.path.join(SC, f"prod_{name}.mp4"); render(p, t_offset=toff, bg=bg, bz=bz, mask=mask, art=art, **kw); parts.append(p); return p
 
-    tc = os.path.join(SC, "prod_title_card.png"); title_card(tc)
-    seg("title", dur=2.6, still=tc)
+    tc = os.path.join(SC, "prod_title_card.png")
+    if LANDSCAPE:
+        title_card_wide(tc); seg("title", dur=2.6, frame_still=tc)
+    else:
+        title_card(tc); seg("title", dur=2.6, still=tc)
     toff += 2.6
     for i, (t, lab) in enumerate(marks[:-1]):
         t_next = marks[i + 1][0]
@@ -347,8 +442,11 @@ def main(raw, marks_path, out, stills_dir=None):
         key = lab.split()[0].rstrip(",:")
         seg(f"s{i:02d}", dur=b - a, src=raw, src_from=a, caption=lab, events=events, t_from=a, focus=FOCUS.get(key), speed=SPEED)
         toff += b - a
-    ec = os.path.join(SC, "prod_end_card.png"); end_card(ec)
-    seg("end", dur=4.2, still=ec)
+    ec = os.path.join(SC, "prod_end_card.png")
+    if LANDSCAPE:
+        end_card_wide(ec); seg("end", dur=4.2, frame_still=ec)
+    else:
+        end_card(ec); seg("end", dur=4.2, still=ec)
     join(parts, out)
     print("wrote", out, round(os.path.getsize(out) / 1e6, 2), "MB", len(parts), "segments")
 
