@@ -62,7 +62,7 @@ object Tour {
         Step(R.id.group_connection, "Saved TVs",
             "Every TV you have paired. Tap one to rename it or change its address, or add another."),
         Step(R.id.group_shortcuts, "Pick your shortcuts",
-            "Load the app list from the TV, then tap up to eight apps. Long-press one and drag to reorder them."),
+            "Load the app list from the TV, then tap apps to add them, up to eight. Tap a numbered one to remove it, long-press and drag to reorder."),
         Step(R.id.group_appearance, "Themes",
             "Pick a theme, or create your own with a few colours."),
     )

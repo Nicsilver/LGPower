@@ -353,6 +353,6 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun updateSummary(chosen: List<WebOsClient.TvApp>) {
-        tvShortcutsSummary.text = "Tap to select · Long-press to reorder · ${chosen.size}/8 selected"
+        tvShortcutsSummary.text = "Tap to add or remove · Long-press to reorder · ${chosen.size}/8 selected"
     }
 }
