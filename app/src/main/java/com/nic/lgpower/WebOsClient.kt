@@ -677,9 +677,23 @@ class WebOsClient(private val context: Context) {
                     val id = d.optString("id").takeIf { it.isNotEmpty() } ?: continue
                     list.add(InputSource(id, d.optString("label").ifEmpty { id }))
                 }
+                if (list.isNotEmpty()) prefs.edit().putString(inputsCacheKey(), JSONArray().also { arr ->
+                    list.forEach { arr.put(JSONObject().put("id", it.id).put("label", it.label)) }
+                }.toString()).apply()
                 Pair(list, if (list.isEmpty()) "No inputs found" else null)
             }
         }
+    }
+
+    private fun inputsCacheKey() = TvStore.activeId(prefs)?.let { "inputs_cache_$it" } ?: "inputs_cache"
+
+    // Last list the TV gave us, so the wake picker still offers inputs while the TV is off
+    fun cachedInputs(): List<InputSource> {
+        val json = prefs.getString(inputsCacheKey(), null) ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { arr.getJSONObject(it).let { o -> InputSource(o.getString("id"), o.getString("label")) } }
+        }.getOrDefault(emptyList())
     }
 
     fun switchInput(inputId: String) = execute(
@@ -763,10 +777,15 @@ class WebOsClient(private val context: Context) {
     // was woken over the network stays on whatever it boots into.
     fun probe() = execute("ssap://system/getSystemInfo", timeoutSecs = 3)
 
-    // Wake-on-LAN brings most sets up on an input rather than where they were, which is
-    // why the Power tap defaults to landing on Home. Off leaves the TV's own choice.
-    fun wakeToHome() = prefs.getBoolean("wake_to_home", true)
-    fun afterWake(): Result = if (wakeToHome()) goHome() else probe()
+    fun afterWake(): Result {
+        val a = WakeAction.get(prefs)
+        return when (a.kind) {
+            WakeAction.STAY  -> probe()
+            WakeAction.INPUT -> execute("ssap://tv/switchInput", JSONObject().put("inputId", a.id), timeoutSecs = 3)
+            WakeAction.APP   -> execute("ssap://system.launcher/launch", JSONObject().put("id", a.id), timeoutSecs = 3)
+            else             -> goHome()
+        }
+    }
     fun launchYouTube() = launchApp("youtube.leanback.v4")
     fun launchStremio() = launchApp("io.strem.tv")
 

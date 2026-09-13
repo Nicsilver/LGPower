@@ -184,30 +184,34 @@
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
 
             <LinearLayout
+                android:id="@+id/row_wake_action"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingStart="16dp"
-                android:paddingEnd="12dp">
+                android:paddingEnd="12dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground">
 
                 <TextView
                     android:tag="row_label"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Home screen after waking the TV"
+                    android:text="After waking the TV"
                     android:textColor="#FFFFFF"
                     android:textSize="15sp" />
 
-                <Switch
-                    android:id="@+id/switch_wake_to_home"
+                <TextView
+                    android:id="@+id/tv_wake_action"
+                    android:tag="row_value"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:scaleX="1.2"
-                    android:scaleY="1.2"
-                    android:thumbTint="@color/switch_thumb"
-                    android:trackTint="@color/switch_track" />
+                    android:text="Home screen"
+                    android:textColor="#8E8E93"
+                    android:textSize="15sp" />
 
             </LinearLayout>
 

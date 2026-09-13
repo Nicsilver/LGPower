@@ -41,9 +41,8 @@ class SettingsActivity : AppCompatActivity() {
         // Controls toggles
         val switchKeepScreenOn     = findViewById<Switch>(R.id.switch_keep_screen_on)
         switchKeepScreenOn.isChecked     = prefs.getBoolean("keep_screen_on", false)
-        val switchWakeToHome = findViewById<Switch>(R.id.switch_wake_to_home)
-        switchWakeToHome.isChecked = prefs.getBoolean("wake_to_home", true)
-        switchWakeToHome.setOnCheckedChangeListener { _, v -> prefs.edit().putBoolean("wake_to_home", v).apply() }
+        refreshWakeActionLabel()
+        findViewById<View>(R.id.row_wake_action).setOnClickListener { openWakeActionPicker() }
         val switchChannelPill = findViewById<Switch>(R.id.switch_channel_pill)
         switchChannelPill.isChecked = RightPill.get(prefs) == RightPill.CHANNEL
         switchChannelPill.setOnCheckedChangeListener { _, v ->
@@ -199,6 +198,39 @@ class SettingsActivity : AppCompatActivity() {
             themes.firstOrNull { it.id == activeId }?.name ?: "Dark"
     }
 
+    private fun refreshWakeActionLabel() {
+        findViewById<TextView>(R.id.tv_wake_action).text = WakeAction.get(prefs).display
+    }
+
+    // Inputs come from the TV when it answers, otherwise from the last list it gave us,
+    // so the picker still works with the TV off. Shortcuts are local.
+    private fun openWakeActionPicker() {
+        Thread {
+            val live = client.getExternalInputList().first
+            val inputs = live.ifEmpty { client.cachedInputs() }
+            val apps = client.loadShortcuts()
+            runOnUiThread { showWakeActionPicker(inputs, apps) }
+        }.start()
+    }
+
+    private fun showWakeActionPicker(inputs: List<WebOsClient.InputSource>, apps: List<WebOsClient.TvApp>) {
+        val current = WakeAction.get(prefs)
+        val options = mutableListOf(
+            WakeAction.Action(WakeAction.HOME),
+            WakeAction.Action(WakeAction.STAY),
+        )
+        inputs.forEach { options.add(WakeAction.Action(WakeAction.INPUT, it.id, it.label)) }
+        apps.forEach { options.add(WakeAction.Action(WakeAction.APP, it.id, it.title)) }
+        val keyOf = { a: WakeAction.Action -> "${a.kind}:${a.id}" }
+        showPickerSheet(
+            "After waking the TV",
+            options.map { Triple(keyOf(it), it.display, keyOf(it) == keyOf(current)) }
+        ) { key ->
+            options.firstOrNull { keyOf(it) == key }?.let { WakeAction.set(prefs, it) }
+            refreshWakeActionLabel()
+        }
+    }
+
     private fun openThemePicker() {
         val themes = ThemeManager.listThemes(this)
         val activeId = ThemeManager.getActiveThemeId(this)
@@ -281,7 +313,7 @@ class SettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
             intArrayOf(theme.switchThumbOn, theme.switchThumbOff)
         )
-        listOf(R.id.switch_channel_pill, R.id.switch_keep_screen_on, R.id.switch_wake_to_home)
+        listOf(R.id.switch_channel_pill, R.id.switch_keep_screen_on)
             .forEach { id ->
                 val sw = findViewById<Switch>(id) ?: return@forEach
                 sw.trackTintList = trackCsl
