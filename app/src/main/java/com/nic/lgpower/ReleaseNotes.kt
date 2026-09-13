@@ -13,6 +13,9 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(41, "1.36.1", "2026-09-13", listOf(
+            "The after-wake picker lists the TV's inputs even while the TV is off, from the last connection",
+        )),
         Release(40, "1.36.0", "2026-09-13", listOf(
             "Choose what the TV shows after waking it: Home, leave as is, an input or one of your shortcuts (Settings › Controls)",
             "Volume slider: the level you let go at is checked against the TV and corrected if a set ignored it",
