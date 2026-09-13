@@ -1,6 +1,7 @@
 package com.nic.lgpower
 
 import android.content.Context
+import kotlin.math.abs
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -589,6 +590,19 @@ class WebOsClient(private val context: Context) {
         JSONObject().put("volume", level)
     )
 
+    // Some sets ignore setVolume (external speakers over ARC/optical, or a burst of
+    // requests during a drag) while the volume keys still work, so read the level back
+    // and step the rest of the way.
+    fun settleVolume(target: Int) {
+        val actual = getVolume()?.volume ?: return
+        val delta = target - actual
+        if (delta == 0 || abs(delta) > 40) return
+        repeat(abs(delta)) {
+            if (delta > 0) volumeUp() else volumeDown()
+            Thread.sleep(60)
+        }
+    }
+
     fun getBrightness(): Int? {
         if (buildWsRequest() == null) return null
         val reply = commandSession().send(
@@ -744,6 +758,15 @@ class WebOsClient(private val context: Context) {
         JSONObject().put("id", appId)
     )
     fun goHome() = execute("ssap://system.launcher/launch", JSONObject().put("id", "com.webos.app.home"), timeoutSecs = 3)
+
+    // Answers as soon as webOS is up without changing what is on screen, so a TV that
+    // was woken over the network stays on whatever it boots into.
+    fun probe() = execute("ssap://system/getSystemInfo", timeoutSecs = 3)
+
+    // Wake-on-LAN brings most sets up on an input rather than where they were, which is
+    // why the Power tap defaults to landing on Home. Off leaves the TV's own choice.
+    fun wakeToHome() = prefs.getBoolean("wake_to_home", true)
+    fun afterWake(): Result = if (wakeToHome()) goHome() else probe()
     fun launchYouTube() = launchApp("youtube.leanback.v4")
     fun launchStremio() = launchApp("io.strem.tv")
 

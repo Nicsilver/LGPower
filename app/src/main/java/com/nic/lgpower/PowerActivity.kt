@@ -44,7 +44,7 @@ class PowerActivity : Activity() {
     private fun wake(client: WebOsClient) {
         client.sendWakeOnLan()
         repeat(25) {
-            if (client.goHome() is WebOsClient.Result.Success) {
+            if (client.afterWake() is WebOsClient.Result.Success) {
                 client.turnOnScreen()
                 return
             }
