@@ -779,6 +779,8 @@ class MainActivity : AppCompatActivity() {
         if (tvConnected && !wasOn) {
             statusHandler.removeCallbacks(levelsRefresh)
             statusHandler.post(levelsRefresh)
+            // Refreshes the cached input list so the after-wake picker has it with the TV off
+            Thread { client.getExternalInputList() }.start()
         } else if (!tvConnected) {
             statusHandler.removeCallbacks(levelsRefresh)
         }

@@ -209,7 +209,10 @@ class SettingsActivity : AppCompatActivity() {
             val live = client.getExternalInputList().first
             val inputs = live.ifEmpty { client.cachedInputs() }
             val apps = client.loadShortcuts()
-            runOnUiThread { showWakeActionPicker(inputs, apps) }
+            runOnUiThread {
+                if (inputs.isEmpty()) Toast.makeText(this, "Turn the TV on once to list its inputs here", Toast.LENGTH_LONG).show()
+                showWakeActionPicker(inputs, apps)
+            }
         }.start()
     }
 
