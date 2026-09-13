@@ -129,7 +129,7 @@ class MainActivity : AppCompatActivity() {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             val gen = ++wakeHomeGen
             Thread {
-                if (tvIsOn()) client.turnOff() else wakeTv(gen) { client.goHome() }
+                if (tvIsOn()) client.turnOff() else wakeTv(gen) { client.afterWake() }
             }.start()
         }
 
@@ -182,7 +182,15 @@ class MainActivity : AppCompatActivity() {
                 statusHandler.removeCallbacks(volumeSendLoop)
                 volumeSendRunnable = null
                 setVolumeState(level, currentMuted)
-                Thread { client.setVolume(level); scheduleVolumeRefresh() }.start()
+                Thread {
+                    // A send from the drag loop may still be in flight; if it lands after
+                    // this one the TV ends up at the older level, so wait it out first.
+                    val until = System.currentTimeMillis() + 1_500
+                    while (volumeSending.get() && System.currentTimeMillis() < until) Thread.sleep(20)
+                    client.setVolume(level)
+                    client.settleVolume(level)
+                    scheduleVolumeRefresh()
+                }.start()
             },
             onDragMove = { level ->
                 volumeDragLevel = level

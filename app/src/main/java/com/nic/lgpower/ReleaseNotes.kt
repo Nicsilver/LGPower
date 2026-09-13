@@ -13,6 +13,10 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(40, "1.36.0", "2026-09-13", listOf(
+            "Setting to leave the TV on its own screen after waking it, instead of going Home (Settings › Controls)",
+            "Volume slider: the level you let go at is checked against the TV and corrected if a set ignored it",
+        )),
         Release(39, "1.35.0", "2026-09-12", listOf(
             "Several TVs: tap the name at the top to switch or add; Settings › TVs to rename or remove",
             "Media keys: rewind, play, pause and forward behind a new Media button under the d-pad",
