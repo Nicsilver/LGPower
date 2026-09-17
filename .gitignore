@@ -11,3 +11,6 @@ CLAUDE.md
 *.keystore.old
 store/screenshots/old_*/
 store/video/old_*/
+store/listing-v2.md
+store/reddit_post_staged.txt
+WISHLIST.md
