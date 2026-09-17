@@ -70,6 +70,9 @@ class TvState:
         # power, not a separate flag — WebOsClient.kt:452 `val screenOff get() = state == "Screen Off"`.
         self.power_state = "Active"
         self.power_processing = None
+        # Standby with the network chip asleep: every command socket is refused until
+        # a Wake-on-LAN packet arrives (only when --wake-delays is given).
+        self.off = False
         self.mac_address = "AA:BB:CC:DD:EE:FF"
         self.ip_address = "192.168.1.50"
 
@@ -280,6 +283,56 @@ async def _simulate_turn_off():
     await asyncio.sleep(1.3)
     STATE.power_processing = None
     await push_subscribers(GET_POWER_STATE_URI)
+    if WAKE_DELAYS:
+        STATE.off = True
+        log("[power] standby, network asleep: refusing sockets until a WoL packet arrives")
+        for conn in list(OPEN_CONNS):
+            try:
+                await conn.close()
+            except Exception:
+                pass
+
+
+# ── Wake-on-LAN (only with --wake-delays) ─────────────────────────────────────
+# The app sends the magic packet to UDP 9 (WebOsClient.kt sendWakeOnLan), three
+# targets per tap, so one wake is scheduled per off-period, not per packet.
+
+WAKE_DELAYS: list[float] = []
+OPEN_CONNS: set = set()
+_wake_idx = 0
+_wake_pending = False
+
+
+async def _wake(delay: float):
+    global _wake_pending
+    log(f"[wol] TV comes back in {delay:g}s")
+    await asyncio.sleep(delay)
+    STATE.off = False
+    STATE.power_state = "Active"
+    STATE.power_processing = None
+    _wake_pending = False
+    log("[wol] TV is on")
+
+
+class _WolProtocol(asyncio.DatagramProtocol):
+    def datagram_received(self, data, addr):
+        global _wake_idx, _wake_pending
+        if len(data) < 102 or data[:6] != b"\xff" * 6:
+            return
+        mac = ":".join(f"{b:02X}" for b in data[6:12])
+        log(f"[wol] magic packet from {addr[0]} for {mac}")
+        if not STATE.off or _wake_pending:
+            return
+        _wake_pending = True
+        delay = WAKE_DELAYS[_wake_idx % len(WAKE_DELAYS)]
+        _wake_idx += 1
+        asyncio.create_task(_wake(delay))
+
+
+async def start_wol_listener():
+    loop = asyncio.get_running_loop()
+    await loop.create_datagram_endpoint(_WolProtocol, local_addr=("0.0.0.0", 9), allow_broadcast=True)
+    log(f"[wol] listening on udp/9, wake delays {WAKE_DELAYS} (cycling)")
 
 
 def h_system_turn_off(payload, ws):
@@ -562,13 +615,19 @@ async def handle_command_message(ws, raw: str):
 
 async def command_connection(ws):
     peer = ws.remote_address
+    if STATE.off:
+        log(f"[cmd] refused {peer} (TV asleep)")
+        await ws.close()
+        return
     log(f"[cmd] connected {peer}")
+    OPEN_CONNS.add(ws)
     try:
         async for raw in ws:
             await handle_command_message(ws, raw)
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
+        OPEN_CONNS.discard(ws)
         cleanup_connection(ws)
         log(f"[cmd] closed {peer}")
 
@@ -633,11 +692,16 @@ def main():
                          help="host baked into icon URLs (emulator reaches the host machine at 10.0.2.2)")
     parser.add_argument("--port", type=int, default=TV_PORT, help="WSS port for SSAP (default 3001)")
     parser.add_argument("--icon-port", type=int, default=3002, help="HTTP port for app icons (default 3002)")
+    parser.add_argument("--wake-delays", default="",
+                         help="comma-separated seconds; after turnOff the TV refuses sockets until a WoL "
+                              "packet arrives, then comes back after the next delay in the list (cycles)")
     args = parser.parse_args()
 
     CONFIG.host = args.host
     CONFIG.port = args.port
     CONFIG.icon_port = args.icon_port
+    if args.wake_delays:
+        WAKE_DELAYS.extend(float(x) for x in args.wake_delays.split(","))
     global LAUNCH_POINTS
     LAUNCH_POINTS = build_launch_points()
 
@@ -650,6 +714,8 @@ def main():
 
     async def run():
         async with websockets.serve(router, "0.0.0.0", CONFIG.port, ssl=ssl_ctx):
+            if WAKE_DELAYS:
+                await start_wol_listener()
             log(f"faketv listening wss://0.0.0.0:{CONFIG.port} "
                 f"(icons at http://{CONFIG.host}:{CONFIG.icon_port}/icon/<id>.png)")
             await asyncio.Future()

@@ -13,6 +13,9 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(42, "1.37.0", "2026-09-17", listOf(
+            "Power: when the TV doesn't answer a wake, a hint names the two TV settings it needs",
+        )),
         Release(41, "1.36.1", "2026-09-13", listOf(
             "The after-wake picker lists the TV's inputs even while the TV is off, from the last connection",
         )),

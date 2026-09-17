@@ -809,16 +809,50 @@ class MainActivity : AppCompatActivity() {
     // dark, so the screen is forced on afterwards.
     private fun wakeTv(gen: Int, action: () -> WebOsClient.Result) {
         client.sendWakeOnLan()
-        repeat(25) {
+        val hintAfter = appPrefs.getInt("wake_hint_after_s", WAKE_HINT_FIRST_S)
+        repeat(maxOf(WAKE_RETRIES, hintAfter + 1)) { i ->
             if (wakeHomeGen != gen) return
+            if (i == hintAfter) runOnUiThread { showWakeHint() }
             Thread {
                 if (wakeHomeGen == gen && action() is WebOsClient.Result.Success) {
                     ++wakeHomeGen
                     client.turnOnScreen()
+                    runOnUiThread { wakeHint?.dismiss() }
                 }
             }.start()
             Thread.sleep(1_000)
         }
+    }
+
+    private val WAKE_RETRIES = 25
+    private val WAKE_HINT_FIRST_S = 10
+    private val WAKE_HINT_STEP_S = 5
+    private val WAKE_HINT_MAX_S = 60
+    private var wakeHint: android.app.Dialog? = null
+
+    // Every "the power button doesn't turn the TV on" report so far was one of two TV
+    // settings. The hint waits a little longer each time it has been shown, so a TV that
+    // is merely slow to boot doesn't keep triggering it.
+    private fun showWakeHint() {
+        if (isFinishing || wakeHint?.isShowing == true) return
+        val shownAfter = appPrefs.getInt("wake_hint_after_s", WAKE_HINT_FIRST_S)
+        appPrefs.edit().putInt("wake_hint_after_s", minOf(shownAfter + WAKE_HINT_STEP_S, WAKE_HINT_MAX_S)).apply()
+        val hasIr = (getSystemService(CONSUMER_IR_SERVICE) as? ConsumerIrManager)?.hasIrEmitter() == true
+        val body = "The TV hasn't answered yet. If it is still dark, check these two settings on the TV:" +
+            "\n\n• Turn on via Wi-Fi (TV On With Mobile): Settings › General › Devices › External Devices. " +
+            "On 2025 and newer sets it is Support › IP control settings › Wake on LAN." +
+            "\n\n• Quick Start+ (Always Ready on 2022 and newer sets): Settings › General. " +
+            "Without it the TV's network goes to sleep a few minutes after switching off, so waking only works right after." +
+            (if (hasIr) "\n\nThis phone has an infrared blaster: hold Power to turn the TV on with that instead." else "")
+        wakeHint = showWarningSheet(
+            chipText = "NO ANSWER FROM TV",
+            title = "Is the TV not turning on?",
+            body = body,
+            buttonText = "Got it",
+            cancelClosesScreen = false,
+            onAccept = { wakeHint = null },
+            onCancel = { wakeHint = null }
+        )
     }
 
     private val appPrefs by lazy { getSharedPreferences("webos", MODE_PRIVATE) }

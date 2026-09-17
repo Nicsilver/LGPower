@@ -22,7 +22,7 @@ fun android.app.Activity.showWarningSheet(
     cancelClosesScreen: Boolean,
     onAccept: (() -> Unit)? = null,
     onCancel: (() -> Unit)? = null
-) {
+): Dialog {
     val theme = ThemeManager.getActiveTheme(this)
     val d = resources.displayMetrics.density
     fun dp(v: Int) = (v * d).toInt()
@@ -96,4 +96,5 @@ fun android.app.Activity.showWarningSheet(
     }
     dialog.setOnCancelListener { onCancel?.invoke(); if (cancelClosesScreen) finish() }
     dialog.show()
+    return dialog
 }

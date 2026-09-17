@@ -50,7 +50,7 @@ class PowerActivity : Activity() {
             }
             Thread.sleep(1_000)
         }
-        toast("TV didn't wake up. Is network standby on?")
+        toast("TV didn't answer. On the TV, check Turn on via Wi-Fi and Quick Start+ (Always Ready)")
     }
 
     private fun toast(msg: String) = runOnUiThread { Toast.makeText(this, msg, Toast.LENGTH_LONG).show() }
