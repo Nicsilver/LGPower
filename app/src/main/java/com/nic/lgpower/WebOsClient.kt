@@ -558,11 +558,24 @@ class WebOsClient(private val context: Context) {
 
     data class VolumeState(val volume: Int, val muted: Boolean)
 
+    // An AV receiver or soundbar on ARC/optical often ignores setVolume (the TV only
+    // relays volume keys to it over CEC), so callers step with the keys instead.
+    @Volatile var volumeNeedsKeys = false
+        private set
+
+    private fun noteSoundOutput(status: JSONObject?) {
+        status ?: return
+        val output = status.optString("soundOutput")
+        volumeNeedsKeys = !status.optBoolean("adjustVolume", true) ||
+            (output.isNotEmpty() && output !in TV_OWN_OUTPUTS)
+    }
+
     fun getVolume(): VolumeState? {
         if (buildWsRequest() == null) return null
         val reply = commandSession().send("ssap://audio/getVolume", JSONObject())
         val payload = (reply as? CmdReply.Ok)?.payload ?: return null
         val nested = payload.optJSONObject("volumeStatus")
+        noteSoundOutput(nested)
         val src = nested ?: payload
         val vol = src.optInt("volume", -1).takeIf { it >= 0 } ?: return null
         val muted = if (nested != null) nested.optBoolean("muteStatus", false)
@@ -649,6 +662,7 @@ class WebOsClient(private val context: Context) {
             if (r is CmdReply.Ok) {
                 val p = r.payload
                 val nested = p?.optJSONObject("volumeStatus")
+                noteSoundOutput(nested)
                 val src = nested ?: p
                 volume = src?.optInt("volume", -1)?.takeIf { it >= 0 }
                 muted = if (nested != null) nested.optBoolean("muteStatus", false)
@@ -957,6 +971,7 @@ class WebOsClient(private val context: Context) {
         // within 50 ms, then "Request/Prepare Active Standby", and lands on "Active Standby" ~3 s later
         private val OFF_STATES = setOf("Active Standby", "Suspend", "Power Off")
         private val OFF_TRANSITIONS = listOf("Power Off", "Standby", "Suspend")
+        private val TV_OWN_OUTPUTS = setOf("tv_speaker", "tv_external_speaker", "headphone", "tv_speaker_headphone")
 
         private val BRAND_COLORS = mapOf(
             "youtube.leanback.v4"           to 0xFFCC0000.toInt(),

@@ -13,6 +13,9 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(43, "1.37.1", "2026-09-18", listOf(
+            "Volume slider works with a receiver or soundbar on HDMI ARC or optical, by stepping the volume keys",
+        )),
         Release(42, "1.37.0", "2026-09-17", listOf(
             "Power: when the TV doesn't answer a wake, a hint names the two TV settings it needs",
         )),
