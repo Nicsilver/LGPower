@@ -60,6 +60,7 @@ class TvState:
     def __init__(self):
         self.volume = 18
         self.muted = False
+        self.sound_output = "tv_speaker"
         self.brightness = 70
         # WebOsClient.kt:1191 shows "expert1" ("Expert (Bright Room)") is a
         # real picture-mode id the app's picker offers, used as the initial value.
@@ -357,7 +358,8 @@ def _volume_payload():
         "volumeStatus": {
             "volume": STATE.volume,
             "muteStatus": STATE.muted,
-            "soundOutput": "tv_speaker",
+            "soundOutput": STATE.sound_output,
+            "adjustVolume": STATE.sound_output == "tv_speaker",
         },
         "volume": STATE.volume,
         "muted": STATE.muted,
@@ -370,6 +372,10 @@ def h_get_volume(payload, ws):
 
 def h_set_volume(payload, ws):
     # WebOsClient.kt:574-577 `execute("ssap://audio/setVolume", {"volume": level})`
+    if STATE.sound_output != "tv_speaker":
+        # A receiver on ARC acks setVolume but only follows the volume keys
+        log(f"setVolume ignored (soundOutput={STATE.sound_output})")
+        return {}
     try:
         STATE.volume = max(0, min(100, int(payload.get("volume", STATE.volume))))
     except (TypeError, ValueError):
@@ -695,7 +701,11 @@ def main():
     parser.add_argument("--wake-delays", default="",
                          help="comma-separated seconds; after turnOff the TV refuses sockets until a WoL "
                               "packet arrives, then comes back after the next delay in the list (cycles)")
+    parser.add_argument("--sound-output", default="tv_speaker",
+                         help="soundOutput reported by getVolume; anything but tv_speaker (e.g. external_arc) "
+                              "makes setVolume a no-op while the volume keys still work, like a receiver on ARC")
     args = parser.parse_args()
+    STATE.sound_output = args.sound_output
 
     CONFIG.host = args.host
     CONFIG.port = args.port

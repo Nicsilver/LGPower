@@ -160,14 +160,32 @@ class MainActivity : AppCompatActivity() {
         var volumeSentLevel = -1
         val volumeSending = AtomicBoolean(false)
         var volumeSendRunnable: Runnable? = null
+        // With a receiver on ARC the drag is replayed as volume key presses, one step per
+        // level, and the loop keeps going after release until it has caught up.
+        var volumeStepping = false
+        var volumeDragging = false
         val volumeSendLoop: Runnable = object : Runnable {
             override fun run() {
                 if (volumeDragLevel != volumeSentLevel && volumeSending.compareAndSet(false, true)) {
-                    val level = volumeDragLevel
-                    volumeSentLevel = level
-                    Thread { try { client.setVolume(level) } finally { volumeSending.set(false) } }.start()
+                    if (volumeStepping) {
+                        val up = volumeDragLevel > volumeSentLevel
+                        volumeSentLevel += if (up) 1 else -1
+                        Thread {
+                            try { if (up) client.volumeUp() else client.volumeDown() }
+                            finally { volumeSending.set(false) }
+                        }.start()
+                    } else {
+                        val level = volumeDragLevel
+                        volumeSentLevel = level
+                        Thread { try { client.setVolume(level) } finally { volumeSending.set(false) } }.start()
+                    }
                 }
-                statusHandler.postDelayed(this, 50)
+                if (volumeStepping && !volumeDragging && volumeDragLevel == volumeSentLevel) {
+                    volumeSendRunnable = null
+                    scheduleVolumeRefresh()
+                    return
+                }
+                statusHandler.postDelayed(this, if (volumeStepping) 80 else 50)
             }
         }
         setupPillDrag(
@@ -179,9 +197,18 @@ class MainActivity : AppCompatActivity() {
             onTapDown = { currentVolume?.let { setVolumeState((it - 1).coerceIn(0, 100), currentMuted) }
                           Thread { client.volumeDown(); scheduleVolumeRefresh() }.start() },
             onDragEnd = { level ->
+                volumeDragging = false
+                setVolumeState(level, currentMuted)
+                if (volumeStepping) {
+                    volumeDragLevel = level
+                    if (volumeSendRunnable == null) {
+                        volumeSendRunnable = volumeSendLoop
+                        statusHandler.post(volumeSendLoop)
+                    }
+                    return@setupPillDrag
+                }
                 statusHandler.removeCallbacks(volumeSendLoop)
                 volumeSendRunnable = null
-                setVolumeState(level, currentMuted)
                 Thread {
                     // A send from the drag loop may still be in flight; if it lands after
                     // this one the TV ends up at the older level, so wait it out first.
@@ -193,6 +220,13 @@ class MainActivity : AppCompatActivity() {
                 }.start()
             },
             onDragMove = { level ->
+                if (!volumeDragging) {
+                    volumeDragging = true
+                    if (volumeSendRunnable == null) {
+                        volumeStepping = client.volumeNeedsKeys
+                        if (volumeStepping) volumeSentLevel = currentVolume ?: level
+                    }
+                }
                 volumeDragLevel = level
                 if (volumeSendRunnable == null) {
                     volumeSendRunnable = volumeSendLoop
