@@ -1,4 +1,4 @@
-<img src="screenshots/banner_v3.png" width="100%" alt="LG Power. A remote for LG webOS TVs.">
+<img src="screenshots/v6/banner.png" width="100%" alt="LG Power. A remote for LG webOS TVs.">
 
 <p align="center">
   <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/Nicsilver/LGPower?label=release&color=e63946" alt="Latest release"></a>
@@ -21,7 +21,8 @@ LG Power is a free, open source Android remote for LG webOS TVs. It talks to the
 </p>
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=PsDJb3oJZoY">Watch the 30 second promo</a>
+  <a href="https://www.youtube.com/watch?v=PsDJb3oJZoY"><img src="screenshots/v6/teaser.webp" width="80%" alt="LG Power in action"></a><br>
+  <a href="https://www.youtube.com/watch?v=PsDJb3oJZoY">Watch the 30 second promo with sound</a>
 </p>
 
 ## Features
