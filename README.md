@@ -8,20 +8,20 @@
 LG Power is a free, open source Android remote for LG webOS TVs. It talks to the TV over your local network, wakes it from standby with Wake-on-LAN, and falls back to the phone's IR blaster when the network can't reach it. No ads, no accounts, nothing tracked.
 
 <p align="center">
-  <img src="screenshots/01_remote.png" width="24%" alt="The whole remote on one screen">
-  <img src="screenshots/02_tvs.png" width="24%" alt="All your TVs, one tap apart">
-  <img src="screenshots/03_touchpad.png" width="24%" alt="Hold Touchpad to lock a cursor pad">
-  <img src="screenshots/04_keyboard.png" width="24%" alt="Type into TV search">
+  <img src="screenshots/v6/01_main_dark.png" width="24%" alt="The whole remote. One screen.">
+  <img src="screenshots/v6/02_tvs.png" width="24%" alt="Every TV in the house.">
+  <img src="screenshots/v6/03_touchpad.png" width="24%" alt="Swipe like a trackpad.">
+  <img src="screenshots/v6/04_keyboard.png" width="24%" alt="Type with your phone.">
 </p>
 <p align="center">
-  <img src="screenshots/05_media.png" width="24%" alt="Media keys a tap away">
-  <img src="screenshots/06_numpad.png" width="24%" alt="Numpad, guide, info and Live TV">
-  <img src="screenshots/07_themes.png" width="24%" alt="Light, dark and six more themes">
-  <img src="screenshots/08_settings.png" width="24%" alt="Shortcuts, TVs and themes">
+  <img src="screenshots/v6/05_media.png" width="24%" alt="Play, pause, skip. Right there.">
+  <img src="screenshots/v6/06_numpad.png" width="24%" alt="Numbers, guide and Live TV.">
+  <img src="screenshots/v6/07_main_light.png" width="24%" alt="Eight themes. Or make your own.">
+  <img src="screenshots/v6/08_settings.png" width="24%" alt="Your apps, one tap away.">
 </p>
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=FgNqmYwph4A">Watch a 45 second tour of the app</a>
+  <a href="https://www.youtube.com/watch?v=PsDJb3oJZoY">Watch the 30 second promo</a>
 </p>
 
 ## Features
