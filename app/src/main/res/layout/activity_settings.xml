@@ -474,6 +474,113 @@
             android:background="@drawable/bg_section_group">
 
             <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="16dp">
+
+                <ImageView
+                    android:id="@+id/img_app_mark"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:src="@drawable/ic_app_mark"
+                    android:background="@drawable/bg_app_mark"
+                    android:importantForAccessibility="no" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="14dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:tag="row_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="LG Power"
+                        android:textColor="#FFFFFF"
+                        android:textSize="17sp"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <ProgressBar
+                            android:id="@+id/tip_pending_spinner"
+                            android:layout_width="12dp"
+                            android:layout_height="12dp"
+                            android:layout_marginEnd="6dp"
+                            android:visibility="gone"
+                            android:indeterminateTint="#888888" />
+
+                        <ImageView
+                            android:id="@+id/img_tip_heart"
+                            android:layout_width="12dp"
+                            android:layout_height="12dp"
+                            android:layout_marginEnd="4dp"
+                            android:src="@drawable/ic_heart_filled"
+                            android:visibility="gone"
+                            android:importantForAccessibility="no" />
+
+                        <TextView
+                            android:id="@+id/tv_app_status"
+                            android:tag="row_value"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="#8E8E93"
+                            android:textSize="12sp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <FrameLayout
+                android:id="@+id/tip_button_wrap"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="16dp"
+                android:paddingBottom="16dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/btn_tip"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:id="@+id/btn_tip_icon"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_marginEnd="8dp"
+                        android:src="@drawable/ic_heart"
+                        android:importantForAccessibility="no" />
+
+                    <TextView
+                        android:id="@+id/btn_tip_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Leave a tip"
+                        android:textSize="15sp" />
+
+                </LinearLayout>
+
+            </FrameLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
+
+            <LinearLayout
                 android:id="@+id/row_tour"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
@@ -525,15 +632,6 @@
                     android:text="Release notes"
                     android:textColor="#FFFFFF"
                     android:textSize="15sp" />
-
-                <TextView
-                    android:id="@+id/tv_app_version"
-                    android:tag="row_value"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="#8E8E93"
-                    android:textSize="15sp"
-                    android:layout_marginEnd="4dp" />
 
                 <ImageView
                     android:layout_width="16dp"

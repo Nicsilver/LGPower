@@ -3,6 +3,7 @@ package com.nic.lgpower
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -20,12 +21,21 @@ import androidx.recyclerview.widget.RecyclerView
 
 class SettingsActivity : AppCompatActivity() {
 
+    companion object {
+        const val PREF_HAS_TIPPED = "has_tipped"
+        const val EXTRA_FAKE_TIP = "fake_tip"
+    }
+
     private val prefs  by lazy { getSharedPreferences("webos", MODE_PRIVATE) }
     private val client by lazy { WebOsClient(this) }
 
     private lateinit var tvShortcutsSummary: TextView
     private lateinit var appsGrid:           RecyclerView
     private lateinit var adapter:            AppGridAdapter
+
+    private var tipJar: TipSource? = null
+    private var tipOptions: List<TipOption> = emptyList()
+    private var tipPending = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -136,7 +146,7 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(android.content.Intent(this, ServiceRemoteActivity::class.java))
         }
 
-        findViewById<TextView>(R.id.tv_app_version).text = BuildConfig.VERSION_NAME
+        setupTipJar()
         // The tour runs on the remote itself, so hand back to it
         findViewById<View>(R.id.row_tour).setOnClickListener {
             prefs.edit().putBoolean("tour_pending", true).apply()
@@ -287,6 +297,7 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
         refreshTvRows()
+        tipJar?.refreshPurchases()
         if (prefs.getBoolean(Tour.PREF_SETTINGS, false)) {
             prefs.edit().putBoolean(Tour.PREF_SETTINGS, false).apply()
             findViewById<View>(R.id.settings_root).postDelayed({
@@ -388,6 +399,90 @@ class SettingsActivity : AppCompatActivity() {
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 1).also { it.marginStart = (16 * d).toInt() }
             })
         }
+    }
+
+    private val tipListener = object : TipListener {
+        override fun onOptionsReady(options: List<TipOption>) {
+            tipOptions = options
+            refreshTipUi()
+        }
+        override fun onPending(pending: Boolean) {
+            tipPending = pending
+            refreshTipUi()
+        }
+        override fun onTipped() {
+            prefs.edit().putBoolean(PREF_HAS_TIPPED, true).apply()
+            tipPending = false
+            refreshTipUi()
+            val anchor = findViewById<View>(R.id.btn_tip)
+            anchor.performHapticFeedback(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) android.view.HapticFeedbackConstants.CONFIRM
+                else android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+        }
+        override fun onError() {
+            Toast.makeText(this@SettingsActivity, "Couldn't complete the tip. Please try again.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun setupTipJar() {
+        val jar: TipSource = if (BuildConfig.DEBUG && intent.getBooleanExtra(EXTRA_FAKE_TIP, false))
+            FakeTipJar(tipListener) else PlayTipJar(this, tipListener)
+        tipJar = jar
+        findViewById<View>(R.id.btn_tip).setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            showTipSheet(tipOptions) { option -> jar.launch(this, option.productId) }
+        }
+        refreshTipUi()
+        jar.start()
+    }
+
+    private fun refreshTipUi() {
+        val theme = ThemeManager.getActiveTheme(this)
+        val d = resources.displayMetrics.density
+        val tipped = prefs.getBoolean(PREF_HAS_TIPPED, false)
+        findViewById<View>(R.id.tip_button_wrap).visibility =
+            if (tipOptions.isEmpty()) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.tip_pending_spinner).visibility = if (tipPending) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.img_tip_heart).visibility = if (tipped && !tipPending) View.VISIBLE else View.GONE
+        findViewById<TextView>(R.id.tv_app_status).text = when {
+            tipPending -> "Waiting for your tip to go through"
+            tipped -> "Thanks for the tip!"
+            else -> "Version ${BuildConfig.VERSION_NAME} · free, no ads"
+        }
+        findViewById<android.widget.ImageView>(R.id.img_tip_heart).imageTintList = ColorStateList.valueOf(theme.secondaryText)
+
+        val button = findViewById<View>(R.id.btn_tip)
+        val label = findViewById<TextView>(R.id.btn_tip_label)
+        val icon = findViewById<android.widget.ImageView>(R.id.btn_tip_icon)
+        button.isEnabled = !tipPending
+        button.alpha = if (tipPending) 0.5f else 1f
+        if (tipped) {
+            label.text = "Tip again"
+            label.setTextColor(theme.secondaryText)
+            label.typeface = android.graphics.Typeface.DEFAULT
+            icon.visibility = View.GONE
+            button.background = RippleDrawable(
+                ColorStateList.valueOf(ColorUtil.withAlpha(theme.primaryText, 0x2A)),
+                GradientDrawable().apply {
+                    cornerRadius = 10f * d; setColor(0); setStroke((1f * d).toInt(), theme.btnGhostBorder)
+                },
+                GradientDrawable().apply { cornerRadius = 10f * d; setColor(Color.WHITE) })
+        } else {
+            label.text = "Leave a tip"
+            label.setTextColor(theme.btnAccentText)
+            label.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            icon.visibility = View.VISIBLE
+            icon.imageTintList = ColorStateList.valueOf(theme.btnAccentText)
+            button.background = RippleDrawable(
+                ColorStateList.valueOf(ColorUtil.withAlpha(theme.btnAccentText, 0x2A)),
+                GradientDrawable().apply { cornerRadius = 10f * d; setColor(theme.btnAccentBg) },
+                GradientDrawable().apply { cornerRadius = 10f * d; setColor(Color.WHITE) })
+        }
+    }
+
+    override fun onDestroy() {
+        tipJar?.close()
+        super.onDestroy()
     }
 
     private fun updateSummary(chosen: List<WebOsClient.TvApp>) {
