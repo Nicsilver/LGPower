@@ -53,13 +53,15 @@ the TV's active text field and is not stored. The Power button, the OK widget an
 the service remote can additionally use your phone's infrared (IR) blaster to reach
 the TV; IR codes go from the phone to the TV and nowhere else. The app makes no
 connections to the internet or to any external service, other than the store's
-own purchase service (Google Play or the App Store) if you choose to leave a tip.</p>
+own purchase service (Google Play or the App Store). The Settings screen asks it for
+the tip prices, and it handles the payment if you choose to leave a tip.</p>
 
 <h2>Permissions</h2>
 <ul>
   <li><code>TRANSMIT_IR</code> — send infrared codes (power, OK, service remote) to the TV.</li>
   <li><code>INTERNET</code> — open a local WebSocket connection to your TV (LAN only).</li>
   <li><code>ACCESS_WIFI_STATE</code> / <code>ACCESS_NETWORK_STATE</code> / <code>CHANGE_WIFI_MULTICAST_STATE</code> — discover the TV on your network and keep TV traffic on Wi-Fi rather than mobile data.</li>
+  <li><code>com.android.vending.BILLING</code>: show tip prices and let Google Play handle a tip.</li>
   <li><code>VIBRATE</code> — provide haptic feedback on button presses.</li>
 </ul>
 
