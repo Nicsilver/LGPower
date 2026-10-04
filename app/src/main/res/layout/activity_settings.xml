@@ -519,15 +519,6 @@
                             android:visibility="gone"
                             android:indeterminateTint="#888888" />
 
-                        <ImageView
-                            android:id="@+id/img_tip_heart"
-                            android:layout_width="12dp"
-                            android:layout_height="12dp"
-                            android:layout_marginEnd="4dp"
-                            android:src="@drawable/ic_heart_filled"
-                            android:visibility="gone"
-                            android:importantForAccessibility="no" />
-
                         <TextView
                             android:id="@+id/tv_app_status"
                             android:tag="row_value"

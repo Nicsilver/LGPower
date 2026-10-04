@@ -443,13 +443,11 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<View>(R.id.tip_button_wrap).visibility =
             if (tipOptions.isEmpty()) View.GONE else View.VISIBLE
         findViewById<View>(R.id.tip_pending_spinner).visibility = if (tipPending) View.VISIBLE else View.GONE
-        findViewById<View>(R.id.img_tip_heart).visibility = if (tipped && !tipPending) View.VISIBLE else View.GONE
         findViewById<TextView>(R.id.tv_app_status).text = when {
             tipPending -> "Waiting for your tip to go through"
-            tipped -> "Thanks for the tip!"
+            tipped -> "Version ${BuildConfig.VERSION_NAME} · thanks for the tip!"
             else -> "Version ${BuildConfig.VERSION_NAME} · free, no ads"
         }
-        findViewById<android.widget.ImageView>(R.id.img_tip_heart).imageTintList = ColorStateList.valueOf(theme.secondaryText)
 
         val button = findViewById<View>(R.id.btn_tip)
         val label = findViewById<TextView>(R.id.btn_tip_label)
