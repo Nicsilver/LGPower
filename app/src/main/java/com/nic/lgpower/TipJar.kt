@@ -65,6 +65,10 @@ class PlayTipJar(context: Context, private val listener: TipListener) : TipSourc
 
     private val main = Handler(Looper.getMainLooper())
     private val details = HashMap<String, ProductDetails>()
+    // Tokens already sent to consume: onPurchasesUpdated and the onResume query can both report the same
+    // purchase, and a second consume would fail and surface an error toast for a tip that went through
+    private val consuming = HashSet<String>()
+    @Volatile private var closed = false
     private val client: BillingClient = BillingClient.newBuilder(context.applicationContext)
         .setListener(this)
         .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
@@ -99,7 +103,7 @@ class PlayTipJar(context: Context, private val listener: TipListener) : TipSourc
                 val price = details[id]?.oneTimePurchaseOfferDetails?.formattedPrice ?: return@mapNotNull null
                 TipOption(id, TipRules.labels.getValue(id), price)
             }
-            main.post { listener.onOptionsReady(options) }
+            post { listener.onOptionsReady(options) }
         }
     }
 
@@ -116,13 +120,17 @@ class PlayTipJar(context: Context, private val listener: TipListener) : TipSourc
     override fun refreshPurchases() {
         if (!client.isReady) return
         client.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(ProductType.INAPP).build()) { result, purchases ->
-            if (result.responseCode == BillingResponseCode.OK) handle(purchases, userStarted = false)
+            if (result.responseCode == BillingResponseCode.OK) handle(purchases, userStarted = false, complete = true)
         }
     }
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: MutableList<Purchase>?) {
         when (result.responseCode) {
-            BillingResponseCode.OK -> handle(purchases.orEmpty(), userStarted = true)
+            BillingResponseCode.OK -> {
+                // An update lists only the purchases that changed, so it can't say nothing else is still pending
+                handle(purchases.orEmpty(), userStarted = true, complete = false)
+                refreshPurchases()
+            }
             else -> handleFailure(result.responseCode)
         }
     }
@@ -132,11 +140,11 @@ class PlayTipJar(context: Context, private val listener: TipListener) : TipSourc
             BillingResponseCode.USER_CANCELED -> {}
             // A tip left over from an interrupted run: collect it instead of failing
             BillingResponseCode.ITEM_ALREADY_OWNED -> refreshPurchases()
-            else -> main.post { listener.onError() }
+            else -> post { listener.onError() }
         }
     }
 
-    private fun handle(purchases: List<Purchase>, userStarted: Boolean) {
+    private fun handle(purchases: List<Purchase>, userStarted: Boolean, complete: Boolean) {
         var anyPending = false
         purchases.forEach { p ->
             when (TipRules.actionFor(p.purchaseState, p.products)) {
@@ -145,20 +153,26 @@ class PlayTipJar(context: Context, private val listener: TipListener) : TipSourc
                 TipAction.IGNORE -> {}
             }
         }
-        main.post { listener.onPending(anyPending) }
+        if (complete || anyPending) post { listener.onPending(anyPending) }
     }
 
     // A failed background consume stays owned and is retried on the next connect, so it needs no toast
     private fun consume(p: Purchase, userStarted: Boolean) {
+        if (!synchronized(consuming) { consuming.add(p.purchaseToken) }) return
         val params = ConsumeParams.newBuilder().setPurchaseToken(p.purchaseToken).build()
         client.consumeAsync(params) { result, _ ->
-            if (result.responseCode == BillingResponseCode.OK) main.post { listener.onTipped() }
-            else if (userStarted) main.post { listener.onError() }
+            if (result.responseCode == BillingResponseCode.OK) { post { listener.onTipped() }; return@consumeAsync }
+            synchronized(consuming) { consuming.remove(p.purchaseToken) }
+            if (userStarted) post { listener.onError() }
         }
     }
 
+    private fun post(block: () -> Unit) = main.post { if (!closed) block() }
+
+    // Ended even while still connecting, otherwise the connection and the Activity listener outlive the screen
     override fun close() {
-        if (client.isReady) client.endConnection()
+        closed = true
+        client.endConnection()
     }
 }
 

@@ -412,7 +412,6 @@ class SettingsActivity : AppCompatActivity() {
         }
         override fun onTipped() {
             prefs.edit().putBoolean(PREF_HAS_TIPPED, true).apply()
-            tipPending = false
             refreshTipUi()
             val anchor = findViewById<View>(R.id.btn_tip)
             anchor.performHapticFeedback(
