@@ -49,6 +49,7 @@ class MainActivity : AppCompatActivity() {
     ) { r -> Thread(r, "key-send").apply { isDaemon = true } }.apply { allowCoreThreadTimeOut(true) }
     private val keyBacklog = java.util.concurrent.atomic.AtomicInteger(0)
     private val keyGate = KeyFailGate()
+    private val holds = HoldTracker()
     private fun runKey(queuedAt: Long, block: () -> WebOsClient.Result): WebOsClient.Result? =
         keyGate.run(queuedAt, { it !is WebOsClient.Result.Success }, block)
     private var dragCarryX = 0f
@@ -692,15 +693,22 @@ class MainActivity : AppCompatActivity() {
     private fun setDpadRepeatListener(view: View, sector: Int, hl: DpadHighlightView, block: () -> WebOsClient.Result) {
         val repeatHandler = Handler(Looper.getMainLooper())
         val vibrator = getSystemService(Vibrator::class.java)
+        var hold = 0L
         val repeatRunnable = object : Runnable {
             override fun run() {
                 vibrator?.vibrate(VibrationEffect.createOneShot(24, 48))
                 // While the TV is slow to answer, ticks would otherwise stack up and replay
-                // for seconds after the finger lifts
-                if (keyBacklog.get() < MAX_KEY_BACKLOG) {
+                // for seconds after the finger lifts; a tick that has been overtaken or whose
+                // hold has ended is dropped when its turn comes
+                val id = hold
+                val tick = if (keyBacklog.get() < MAX_KEY_BACKLOG) holds.tick(id) else null
+                if (tick != null) {
                     keyBacklog.incrementAndGet()
                     val queuedAt = keyGate.now()
-                    keyExecutor.execute { try { runKey(queuedAt, block) } finally { keyBacklog.decrementAndGet() } }
+                    keyExecutor.execute {
+                        try { if (holds.shouldRun(id, tick)) runKey(queuedAt, block) }
+                        finally { keyBacklog.decrementAndGet() }
+                    }
                 }
                 repeatHandler.postDelayed(this, 120L)
             }
@@ -709,12 +717,14 @@ class MainActivity : AppCompatActivity() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     hl.sector = sector; hl.invalidate()
+                    hold = holds.begin()
                     v.isPressed = true; sendKeyCommand(block)
                     repeatHandler.postDelayed(repeatRunnable, 400L); true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     hl.sector = -1; hl.invalidate()
                     v.isPressed = false
+                    holds.end(hold)
                     repeatHandler.removeCallbacks(repeatRunnable); true
                 }
                 else -> false

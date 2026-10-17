@@ -158,8 +158,9 @@ class WebOsClient(appContext: Context) {
         })
     }.toString()
 
+    // A hand-edited address that is not a valid host would make the builder throw
     private fun buildWsRequest(): Request? =
-        if (tvIp.isBlank()) null else Request.Builder().url("wss://$tvIp:$TV_PORT").build()
+        if (tvIp.isBlank()) null else runCatching { Request.Builder().url("wss://$tvIp:$TV_PORT").build() }.getOrNull()
 
     // ── Persistent command session ────────────────────────────────────────────
     // One shared WebSocket connection for all SSAP commands. Requests are multiplexed
@@ -183,6 +184,10 @@ class WebOsClient(appContext: Context) {
             private set
         @Volatile private var deadReason: String? = null
         private val createdAt = System.currentTimeMillis()
+        @Volatile private var lastActiveAt = createdAt
+        // The TV answered the registration with an error after showing its prompt (denied or timed out)
+        @Volatile var pairingRejected = false
+            private set
         private val readyLatch = CountDownLatch(1)
         private val deathLatch = CountDownLatch(1)
         private val pending = ConcurrentHashMap<String, Pair<AtomicReference<CmdReply>, CountDownLatch>>()
@@ -192,6 +197,13 @@ class WebOsClient(appContext: Context) {
         // Builds the client and opens the socket on the creating thread, outside the
         // shared-state lock, so a main-thread resetConnection() never waits on it
         fun connect() {
+            try { open() } catch (e: Exception) {
+                deadReason = e.message
+                die(CmdReply.Err(e.message ?: "Connection failed"))
+            }
+        }
+
+        private fun open() {
             if (state == CmdState.DEAD) return
             val req = buildWsRequest()
             if (req == null) {
@@ -210,6 +222,7 @@ class WebOsClient(appContext: Context) {
                         ws.send(buildRegistration(savedKey))
                     }
                     override fun onMessage(ws: WebSocket, text: String) {
+                        lastActiveAt = System.currentTimeMillis()
                         val json = runCatching { JSONObject(text) }.getOrNull() ?: return
                         val type = json.optString("type")
                         val id   = json.optString("id")
@@ -237,6 +250,13 @@ class WebOsClient(appContext: Context) {
                                 state = CmdState.NEEDS_PAIRING
                                 readyLatch.countDown()
                                 failAll(CmdReply.NeedsPairing)
+                            }
+                            type == "error" && id == "reg_0" -> {
+                                // The prompt was denied or timed out; the socket is no use any more
+                                pairingRejected = state == CmdState.NEEDS_PAIRING
+                                deadReason = json.optString("error").ifEmpty { null }
+                                die(CmdReply.Err(deadReason ?: "Pairing failed"))
+                                ws.close(1000, null)
                             }
                             type == "response" && id == "s_mac" -> {
                                 if (ip == tvIp) mergeMacs(macsFrom(json.optJSONObject("payload")))
@@ -302,6 +322,7 @@ class WebOsClient(appContext: Context) {
                 CmdState.DEAD -> CmdReply.Err("Can't connect to TV" + (deadReason?.let { " ($it)" } ?: ""))
                 else -> CmdReply.Err("Timeout. Is the TV on and reachable?")
             }
+            lastActiveAt = System.currentTimeMillis()
             val id = "c${seq.incrementAndGet()}"
             val resultRef = AtomicReference<CmdReply>(CmdReply.Err("Timeout. Is the TV on and reachable?"))
             val latch = CountDownLatch(1)
@@ -318,7 +339,6 @@ class WebOsClient(appContext: Context) {
             return resultRef.get()
         }
 
-        fun awaitReady(timeoutSecs: Long = 5) { readyLatch.await(timeoutSecs, TimeUnit.SECONDS) }
         fun awaitDeath() { deathLatch.await() }
 
         fun subscribe(uri: String, listener: (JSONObject?) -> Unit): String? {
@@ -344,6 +364,22 @@ class WebOsClient(appContext: Context) {
             CmdState.CONNECTING -> System.currentTimeMillis() - createdAt < CONNECT_GRACE_MS
             CmdState.DEAD -> false
         } && ip == tvIp
+
+        /** The TV is showing its pairing prompt for this session. */
+        val pairingPromptShowing get() = state == CmdState.NEEDS_PAIRING && ip == tvIp
+
+        /** Connecting or registered: the TV is at least answering. */
+        val maybeUp get() = (state == CmdState.READY || (state == CmdState.CONNECTING && isUsable)) && ip == tvIp
+
+        /** Recent traffic or a request in flight: replacing it now would abort live work. */
+        fun inUse() = state != CmdState.DEAD && ip == tvIp &&
+            (pending.isNotEmpty() || System.currentTimeMillis() - lastActiveAt < RESET_KEEP_MS)
+
+        /** Waits for the handshake to settle, for as long as the session may still count as connecting. */
+        fun awaitSettled() {
+            val left = createdAt + CONNECT_GRACE_MS - System.currentTimeMillis()
+            if (left > 0) readyLatch.await(left, TimeUnit.MILLISECONDS)
+        }
 
         fun close() {
             val open = ws
@@ -393,8 +429,6 @@ class WebOsClient(appContext: Context) {
 
     private enum class PtrState { CONNECTING, READY, DEAD }
 
-    private class PtrFrame(val text: String, val discrete: Boolean, val at: Long = System.currentTimeMillis())
-
     inner class PointerSession {
         @Volatile private var httpClient: OkHttpClient? = null
         @Volatile private var regSocket: WebSocket? = null
@@ -407,18 +441,23 @@ class WebOsClient(appContext: Context) {
         @Volatile private var handedOff = false
         val ip = tvIp
         private val createdAt = System.currentTimeMillis()
+        @Volatile private var lastActiveAt = createdAt
+        private val waiters = AtomicInteger(0)
         private val readyLatch = CountDownLatch(1)
+
+        /** Closed on purpose (replaced or reset) rather than failed, so it carries no retry pause. */
+        @Volatile var retired = false
+            private set
 
         // Registering without a valid key makes the TV show a pairing prompt, so this session
         // never retries that: it stays dead until the command session has stored a new key
         @Volatile private var needsPairing = false
+        @Volatile private var pairingAt = 0L
         @Volatile private var keyUsed: String? = null
 
-        // Input sent before the socket is open waits here and goes out on open; moves
-        // merge into one so a slow connect doesn't replay a burst of tiny steps
+        // Input sent before the socket is open waits here and goes out on open
         private val lock = Any()
-        private val queued = ArrayList<PtrFrame>()
-        private var tailMove: IntArray? = null
+        private val queue = PointerQueue(System::currentTimeMillis, MAX_QUEUED_FRAMES, STALE_FRAME_MS)
 
         // Same sharing rule as the command session: a session that is still connecting
         // is kept, not replaced, so a held key can't keep killing every attempt
@@ -433,19 +472,30 @@ class WebOsClient(appContext: Context) {
             System.currentTimeMillis() - createdAt < POINTER_CONNECT_MS && ip == tvIp
         val shouldRetire get() = ip != tvIp || (state != PtrState.DEAD && !isUsable)
 
+        /** Recent traffic or a key waiting on it: replacing it now would abort live work. */
+        fun inUse() = state != PtrState.DEAD && ip == tvIp &&
+            (waiters.get() > 0 || System.currentTimeMillis() - lastActiveAt < RESET_KEEP_MS)
+
         fun pairingDone() { needsPairing = false }
 
-        /** True while a retry would only ask the TV for pairing again. */
-        fun pairingStillMissing() =
-            needsPairing && prefs.getString("client_key", null).orEmpty() == keyUsed.orEmpty()
+        private fun markPairingMissing() { needsPairing = true; pairingAt = System.currentTimeMillis() }
+
+        /** True while a retry would only ask the TV for pairing again. The block lapses so a lost reply can't pin it. */
+        fun pairingStillMissing() = needsPairing &&
+            System.currentTimeMillis() - pairingAt < PAIRING_BLOCK_MS &&
+            prefs.getString("client_key", null).orEmpty() == keyUsed.orEmpty()
 
         fun connect() {
+            try { open() } catch (e: Exception) { fail() }
+        }
+
+        private fun open() {
             if (state == PtrState.DEAD) return
             val req = buildWsRequest()
             if (req == null) { fail(); return }
             val savedKey = prefs.getString("client_key", null)
             keyUsed = savedKey
-            if (savedKey.isNullOrEmpty()) { needsPairing = true; fail(); return }
+            if (savedKey.isNullOrEmpty()) { markPairingMissing(); fail(); return }
             val client = buildClient()
             httpClient = client
             if (state == PtrState.DEAD) { client.dispatcher.executorService.shutdown(); return }
@@ -479,13 +529,13 @@ class WebOsClient(appContext: Context) {
                                 }
                                 // The TV is asking the user to accept a pairing prompt
                                 "reg_0" -> {
-                                    needsPairing = true
+                                    markPairingMissing()
                                     ws.close(1000, null)
                                     fail()
                                 }
                             }
+                            // Any other error is an ordinary failure: only the prompt itself blocks retries
                             "error" -> {
-                                if (json.optString("id") == "reg_0") needsPairing = true
                                 ws.close(1000, null)
                                 fail()
                             }
@@ -512,12 +562,8 @@ class WebOsClient(appContext: Context) {
                             if (state == PtrState.DEAD) { pws.close(1000, null); return }
                             pointerWs = pws
                             state = PtrState.READY
-                            // A button that waited out a slow handshake is stale: replaying it
-                            // would fire a held key's whole backlog at once
-                            val now = System.currentTimeMillis()
-                            queued.forEach { if (!it.discrete || now - it.at <= STALE_FRAME_MS) pws.send(it.text) }
-                            queued.clear()
-                            tailMove = null
+                            lastActiveAt = System.currentTimeMillis()
+                            queue.drain().forEach { pws.send(it) }
                         }
                         readyLatch.countDown()
                     }
@@ -534,61 +580,56 @@ class WebOsClient(appContext: Context) {
         private fun fail(deliberate: Boolean = false) {
             synchronized(lock) {
                 if (!deliberate && state != PtrState.DEAD) failedAt = System.currentTimeMillis()
+                if (deliberate) retired = true
                 state = PtrState.DEAD
                 pointerWs = null
-                queued.clear()
-                tailMove = null
+                queue.clear()
             }
             readyLatch.countDown()
         }
 
         // Same length as the connect deadline in isUsable, so a caller that gave up with a
         // timeout can not have its key sent by a handshake that finishes later
-        fun waitUntilReady() =
-            readyLatch.await(POINTER_CONNECT_MS, TimeUnit.MILLISECONDS) && state == PtrState.READY
-
-        private fun post(frame: String, discrete: Boolean) {
-            synchronized(lock) {
-                val ws = pointerWs
-                when {
-                    ws != null -> ws.send(frame)
-                    state == PtrState.DEAD -> {}
-                    else -> {
-                        if (queued.size >= MAX_QUEUED_FRAMES) queued.removeAt(0)
-                        queued.add(PtrFrame(frame, discrete))
-                        tailMove = null
-                    }
-                }
+        fun waitUntilReady(): Boolean {
+            waiters.incrementAndGet()
+            try {
+                return readyLatch.await(POINTER_CONNECT_MS, TimeUnit.MILLISECONDS) && state == PtrState.READY
+            } finally {
+                waiters.decrementAndGet()
             }
         }
 
-        fun sendKey(keyCode: String) = post("type:button\nname:$keyCode\n\n", discrete = true)
-        fun scroll(dx: Int, dy: Int) = post("type:scroll\ndx:$dx\ndy:$dy\n\n", discrete = false)
-        fun click() = post("type:click\n\n", discrete = true)
+        // A socket that refuses a frame is gone, and with no ping of its own nothing else would say so
+        private fun deliver(ok: Boolean): Boolean {
+            if (ok) lastActiveAt = System.currentTimeMillis() else fail()
+            return ok
+        }
+
+        /** True when a live socket took the frame or it is queued for the one still opening. */
+        private fun post(frame: String, kind: PointerQueue.Kind): Boolean = synchronized(lock) {
+            val ws = pointerWs
+            when {
+                ws != null -> deliver(ws.send(frame))
+                state == PtrState.DEAD -> false
+                else -> { queue.add(kind, frame); true }
+            }
+        }
+
+        fun sendKey(keyCode: String) = post("type:button\nname:$keyCode\n\n", PointerQueue.Kind.KEY)
+        fun scroll(dx: Int, dy: Int) = post("type:scroll\ndx:$dx\ndy:$dy\n\n", PointerQueue.Kind.SCROLL)
+        fun click() = post("type:click\n\n", PointerQueue.Kind.CLICK)
 
         fun move(dx: Int, dy: Int) {
             if (dx == 0 && dy == 0) return
             synchronized(lock) {
                 val ws = pointerWs
                 when {
-                    ws != null -> ws.send(moveFrame(dx, dy))
+                    ws != null -> deliver(ws.send(PointerQueue.moveFrame(dx, dy)))
                     state == PtrState.DEAD -> {}
-                    else -> {
-                        val tail = tailMove
-                        if (tail != null) {
-                            tail[0] += dx; tail[1] += dy
-                            queued[queued.lastIndex] = PtrFrame(moveFrame(tail[0], tail[1]), false)
-                        } else {
-                            if (queued.size >= MAX_QUEUED_FRAMES) queued.removeAt(0)
-                            queued.add(PtrFrame(moveFrame(dx, dy), false))
-                            tailMove = intArrayOf(dx, dy)
-                        }
-                    }
+                    else -> queue.addMove(dx, dy)
                 }
             }
         }
-
-        private fun moveFrame(dx: Int, dy: Int) = "type:move\ndx:$dx\ndy:$dy\n\n"
 
         fun close() {
             val open = pointerWs
@@ -599,12 +640,15 @@ class WebOsClient(appContext: Context) {
         }
     }
 
-    private fun pointerSession(): PointerSession {
+    // Null while the TV is showing a pairing prompt for the command session: registering a
+    // second time with the same stale key could replace that prompt
+    private fun pointerSession(): PointerSession? {
         val fresh: PointerSession
         val old: PointerSession?
         synchronized(stateLock) {
             val ex = sharedPointerSession
             if (ex != null && ex.isUsable) return ex
+            if (sharedCommandSession?.pairingPromptShowing == true) return null
             // A TV in standby closes every socket it accepts; without this pause each
             // touchpad frame would open another connection
             if (ex != null && ex.ip == tvIp) {
@@ -625,32 +669,61 @@ class WebOsClient(appContext: Context) {
         if (tvIp.isNotBlank()) pointerSession()
     }
 
+    // A key press, unlike touchpad frames, is worth waiting out the retry pause for: the pause
+    // only exists to stop a stream of frames from opening a connection each
+    private fun keySession(): PointerSession? {
+        var session = pointerSession() ?: return null
+        if (session.isDead && !session.retired && session.ip == tvIp && !session.pairingStillMissing()) {
+            val wait = POINTER_RETRY_MS - (System.currentTimeMillis() - session.failedAt)
+            if (wait > 0) Thread.sleep(wait)
+            session = pointerSession() ?: return null
+        }
+        return session
+    }
+
     fun pressKey(keyCode: String): Result {
         if (buildWsRequest() == null) return Result.Error("No TV IP configured")
-        val session = pointerSession()
-        return when {
-            session.waitUntilReady() -> {
-                session.sendKey(keyCode)
-                Result.Success
+        var session = keySession() ?: return Result.NeedsPairing
+        var replaced = false
+        var resent = false
+        while (true) {
+            when {
+                session.waitUntilReady() -> {
+                    if (session.sendKey(keyCode)) return Result.Success
+                    if (resent) return Result.Error("Lost the connection to the TV. Try again")
+                    resent = true
+                    session = keySession() ?: return Result.NeedsPairing
+                }
+                session.pairingStillMissing() -> return Result.NeedsPairing
+                // Another caller replaced the session at its deadline; the new one gets its own wait
+                session.retired && !replaced -> {
+                    replaced = true
+                    session = keySession() ?: return Result.NeedsPairing
+                }
+                else -> return Result.Error("Timeout. Is the TV on and reachable?")
             }
-            session.pairingStillMissing() -> Result.NeedsPairing
-            else -> Result.Error("Timeout. Is the TV on and reachable?")
         }
     }
 
     // Touchpad input: never blocks, safe from the UI thread
-    fun pointerMove(dx: Int, dy: Int) { if (tvIp.isNotBlank()) pointerSession().move(dx, dy) }
-    fun pointerScroll(dx: Int, dy: Int) { if (tvIp.isNotBlank()) pointerSession().scroll(dx, dy) }
-    fun pointerClick() { if (tvIp.isNotBlank()) pointerSession().click() }
-    fun pointerKey(keyCode: String) { if (tvIp.isNotBlank()) pointerSession().sendKey(keyCode) }
+    fun pointerMove(dx: Int, dy: Int) { if (tvIp.isNotBlank()) pointerSession()?.move(dx, dy) }
+    fun pointerScroll(dx: Int, dy: Int) { if (tvIp.isNotBlank()) pointerSession()?.scroll(dx, dy) }
+    fun pointerClick() { if (tvIp.isNotBlank()) pointerSession()?.click() }
+    fun pointerKey(keyCode: String) { if (tvIp.isNotBlank()) pointerSession()?.sendKey(keyCode) }
 
-    /** Drops both connections so the next use opens fresh ones; recovers sockets gone stale while the phone slept. */
+    /**
+     * Drops both connections so the next use opens fresh ones; recovers sockets gone stale while
+     * the phone slept. A connection that carried traffic moments ago, or has work in flight, is
+     * kept: a second widget tap or an app resume must not abort the first one's command.
+     */
     fun resetConnection() {
         val pointer: PointerSession?
         val command: CommandSession?
         synchronized(stateLock) {
-            pointer = sharedPointerSession; sharedPointerSession = null
-            command = sharedCommandSession; sharedCommandSession = null
+            pointer = sharedPointerSession?.takeUnless { it.inUse() }
+            if (pointer != null) sharedPointerSession = null
+            command = sharedCommandSession?.takeUnless { it.inUse() }
+            if (command != null) sharedCommandSession = null
         }
         pointer?.close()
         command?.close()
@@ -681,18 +754,30 @@ class WebOsClient(appContext: Context) {
         listener(p)
     }
 
-    /** Blocks until the watcher has reported something, or [timeoutMs] elapses. */
-    fun awaitPresence(timeoutMs: Long): Presence {
-        val deadline = System.currentTimeMillis() + timeoutMs
+    /**
+     * Blocks until the watcher has reported something, or [timeoutMs] elapses. While the shared
+     * command session is still mid-handshake the wait runs on to [whileConnectingMs], since on a
+     * slow Wi-Fi an answer is still on its way.
+     */
+    fun awaitPresence(timeoutMs: Long, whileConnectingMs: Long = timeoutMs): Presence {
+        val start = System.currentTimeMillis()
         presenceLock.withLock {
             while (presence is Presence.Unknown) {
-                val left = deadline - System.currentTimeMillis()
+                val limit = if (commandSessionConnecting()) whileConnectingMs else timeoutMs
+                val left = start + limit - System.currentTimeMillis()
                 if (left <= 0) break
-                presenceChanged.await(left, TimeUnit.MILLISECONDS)
+                // The session leaving the connecting state does not signal the condition
+                presenceChanged.await(minOf(left, 250L), TimeUnit.MILLISECONDS)
             }
         }
         return presence
     }
+
+    private fun commandSessionConnecting() =
+        sharedCommandSession?.let { it.state == CmdState.CONNECTING && it.isUsable } == true
+
+    /** The TV is registered or still registering on the shared command session. */
+    fun commandMaybeUp() = sharedCommandSession?.maybeUp == true
 
     /**
      * Keeps the shared command session open and subscribed to the TV's power state,
@@ -710,14 +795,19 @@ class WebOsClient(appContext: Context) {
                 while (true) {
                     if (delayMs > 0) Thread.sleep(delayMs)
                     val session = commandSession()
-                    session.awaitReady()
+                    // A slow Wi-Fi can take longer than a few seconds to register; only a
+                    // session that outlives its grace period counts as unreachable
+                    session.awaitSettled()
                     when (session.state) {
                         CmdState.READY -> {
                             val sub = session.subscribe(POWER_STATE_URI) { p ->
-                                publish(Presence.Reported(
-                                    p?.optString("state").orEmpty(),
-                                    p?.optString("processing")?.ifEmpty { null }
-                                ), listener)
+                                val state = p?.optString("state").orEmpty()
+                                when {
+                                    p == null -> publish(Presence.Unknown, listener)
+                                    // A payload without a state says nothing about the TV, so it must not read as "on"
+                                    state.isEmpty() -> {}
+                                    else -> publish(Presence.Reported(state, p.optString("processing").ifEmpty { null }), listener)
+                                }
                             }
                             val since = System.currentTimeMillis()
                             try { session.awaitDeath() } finally { sub?.let(session::unsubscribe) }
@@ -727,7 +817,12 @@ class WebOsClient(appContext: Context) {
                             publish(Presence.NeedsPairing, listener)
                             // The TV answers on this same socket once the prompt is accepted
                             while (session.state == CmdState.NEEDS_PAIRING) Thread.sleep(250)
-                            delayMs = if (session.state == CmdState.READY) 0 else WATCH_RETRY_MS
+                            // A refused or timed-out prompt would come straight back if retried at once
+                            delayMs = when {
+                                session.state == CmdState.READY -> 0
+                                session.pairingRejected -> PAIRING_RETRY_MS
+                                else -> WATCH_RETRY_MS
+                            }
                         }
                         else -> {
                             publish(Presence.Unreachable, listener)
@@ -1055,6 +1150,10 @@ class WebOsClient(appContext: Context) {
         onPaired: () -> Unit
     ): () -> Unit {
         val flags = intArrayOf(1, 0) // [0] = running (1=true), [1] = promptShown (1=true)
+        // Held while a key is stored and while stopping, so a pairing the user already backed
+        // out of can't land its key afterwards
+        val stopLock = Any()
+        val current = AtomicReference<WebSocket?>()
 
         Thread {
             fun running() = flags[0] == 1
@@ -1067,7 +1166,7 @@ class WebOsClient(appContext: Context) {
                 val http = buildClient()
                 val latch = CountDownLatch(1)
 
-                http.newWebSocket(req, object : WebSocketListener() {
+                current.set(http.newWebSocket(req, object : WebSocketListener() {
                     override fun onOpen(ws: WebSocket, response: Response) {
                         if (!running()) { ws.close(1000, null); latch.countDown(); return }
                         ws.send(buildRegistration(savedKey))
@@ -1078,11 +1177,17 @@ class WebOsClient(appContext: Context) {
                         when {
                             json.optString("type") == "registered" -> {
                                 val key = json.optJSONObject("payload")?.optString("client-key")
-                                if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
-                                flags[0] = 0
+                                val stillWanted = synchronized(stopLock) {
+                                    running().also { wanted ->
+                                        if (wanted) {
+                                            if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                                            flags[0] = 0
+                                        }
+                                    }
+                                }
                                 ws.close(1000, null)
                                 latch.countDown()
-                                onPaired()
+                                if (stillWanted) onPaired()
                             }
                             json.optString("type") == "response" && json.optString("id") == "reg_0" -> {
                                 if (!promptShown()) { flags[1] = 1; onPromptShown() }
@@ -1093,7 +1198,7 @@ class WebOsClient(appContext: Context) {
                     }
                     override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) { latch.countDown() }
                     override fun onClosed(ws: WebSocket, code: Int, reason: String) { latch.countDown() }
-                })
+                }))
 
                 latch.await(30, TimeUnit.SECONDS)
                 http.dispatcher.executorService.shutdown()
@@ -1101,7 +1206,11 @@ class WebOsClient(appContext: Context) {
             }
         }.start()
 
-        return { flags[0] = 0 }
+        return {
+            synchronized(stopLock) { flags[0] = 0 }
+            // Closing the socket also takes the pairing prompt off the TV
+            current.get()?.cancel()
+        }
     }
 
     fun saveShortcuts(apps: List<TvApp>) {
@@ -1172,6 +1281,9 @@ class WebOsClient(appContext: Context) {
         private const val POWER_STATE_URI = "ssap://com.webos.service.tvpower/power/getPowerState"
         private const val WATCH_RETRY_MS = 5_000L
         private const val CONNECT_GRACE_MS = 10_000L
+        private const val RESET_KEEP_MS = 5_000L
+        private const val PAIRING_BLOCK_MS = 30_000L
+        private const val PAIRING_RETRY_MS = 15_000L
         private const val MAX_QUEUED_FRAMES = 64
         private const val POINTER_CONNECT_MS = 6_000L
         private const val POINTER_RETRY_MS = 1_000L

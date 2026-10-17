@@ -27,7 +27,16 @@ class PowerActivity : Activity() {
             // would report no power state in time and send a wake to a TV that is already on
             client.resetConnection()
             val stop = client.watchPower { }
-            val presence = try { client.awaitPresence(3_000) } finally { stop() }
+            // A slow Wi-Fi can take longer than 3 s to register, and silence in that time would
+            // otherwise read as "off" and send a wake to a TV that is already on
+            val presence = try { client.awaitPresence(3_000, whileConnectingMs = 8_000) } finally { stop() }
+            val wakeOrIr = {
+                when {
+                    macList(client.tvMac).isNotEmpty() -> wake(client)
+                    hasIr -> runCatching { irManager!!.transmit(38000, LGPowerWidget.LG_POWER_PATTERN) }
+                    else -> toast("Can't reach the TV. Set its MAC address in Settings to wake it over the network")
+                }
+            }
             when {
                 presence is WebOsClient.Presence.NeedsPairing ->
                     toast("Accept pairing on your TV, then tap again")
@@ -35,9 +44,11 @@ class PowerActivity : Activity() {
                     val r = client.turnOff()
                     if (r is WebOsClient.Result.Error) toast("Error: ${r.message}")
                 }
-                macList(client.tvMac).isNotEmpty() -> wake(client)
-                hasIr -> runCatching { irManager!!.transmit(38000, LGPowerWidget.LG_POWER_PATTERN) }
-                else -> toast("Can't reach the TV. Set its MAC address in Settings to wake it over the network")
+                // No answer yet but the session is still registering or registered: the TV is
+                // most likely on. If turning it off fails after all, fall back to waking it.
+                presence is WebOsClient.Presence.Unknown && client.commandMaybeUp() ->
+                    if (client.turnOff() is WebOsClient.Result.Error) wakeOrIr()
+                else -> wakeOrIr()
             }
             runOnUiThread { finish() }
         }.start()
