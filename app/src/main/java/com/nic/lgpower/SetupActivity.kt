@@ -17,7 +17,10 @@ class SetupActivity : AppCompatActivity() {
     private val prefs by lazy { getSharedPreferences("webos", MODE_PRIVATE) }
     // Adding a second TV from the remote, as opposed to first-run setup
     private val addMode by lazy { intent.getBooleanExtra(EXTRA_ADD_TV, false) }
-    private var paired = false
+    // Set once the new TV is saved; until then backing out must restore the TV that was active,
+    // even after pairing has already overwritten the live connection prefs
+    private var added = false
+    private var addCancelled = false
     // Fingerprints from discovery, and the one for the TV being paired (fetched for manual entries)
     private val udns = HashMap<String, String>()
     @Volatile private var pairedUdn: String? = null
@@ -34,17 +37,32 @@ class SetupActivity : AppCompatActivity() {
         // install is not mistaken for an upgrade with an unnamed TV
         TvStore.list(prefs)
         if (addMode) {
-            TvStore.beginAdd(prefs)
+            // A recreated activity (rotation) must not run this again: by then the live prefs may
+            // already hold the new TV, and beginAdd would copy them into the active entry
+            if (savedInstanceState == null) TvStore.beginAdd(prefs)
             findViewById<TextView>(R.id.setup_subtitle).text = "Add another TV"
         }
         startDiscovery()
+    }
+
+    // The remote below resumes before this activity is destroyed and copies the live prefs into
+    // the active TV, so leaving has to restore them from onPause
+    override fun onPause() {
+        super.onPause()
+        cancelAddIfAbandoned()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         stopPairing?.invoke()
         pairingTimeout?.let { timeoutHandler.removeCallbacks(it) }
-        if (addMode && !paired) TvStore.cancelAdd(prefs)
+        cancelAddIfAbandoned()
+    }
+
+    private fun cancelAddIfAbandoned() {
+        if (!addMode || added || addCancelled || !isFinishing) return
+        addCancelled = true
+        TvStore.cancelAdd(prefs)
     }
 
 
@@ -266,7 +284,6 @@ class SetupActivity : AppCompatActivity() {
 
     private fun showSuccess(ip: String) {
         stopPairing = null
-        paired = true
         val theme = ThemeManager.getActiveTheme(this)
         val d = resources.displayMetrics.density
 
@@ -298,6 +315,7 @@ class SetupActivity : AppCompatActivity() {
                 (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
                     .hideSoftInputFromWindow(field.windowToken, 0)
                 TvStore.addFromLive(prefs, field.text.toString(), pairedUdn ?: "")
+                added = true
                 if (!addMode) prefs.edit().putBoolean(MainActivity.PREF_TOUR_PENDING, true).apply()
                 done.isEnabled = false
                 done.text = "Setting up…"
