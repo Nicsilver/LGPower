@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import javax.net.SocketFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
@@ -25,7 +26,10 @@ import javax.net.ssl.X509TrustManager
 /** The `tv_mac` pref is a list; older installs hold a single address. Newlines count as separators because the detail screen's field wraps. */
 fun macList(s: String): List<String> = s.split(Regex("[,;\\s]+")).filter { it.isNotEmpty() }
 
-class WebOsClient(private val context: Context) {
+class WebOsClient(appContext: Context) {
+
+    // Sessions outlive the Activity that opened them, so nothing here may hold an Activity
+    private val context: Context = appContext.applicationContext
 
     private val prefs = context.getSharedPreferences("webos", Context.MODE_PRIVATE)
 
@@ -101,10 +105,10 @@ class WebOsClient(private val context: Context) {
             init(null, arrayOf<TrustManager>(trustAll), SecureRandom())
         }
         return OkHttpClient.Builder()
-            .apply {
-                if (!LanNetwork.isTethered(context, tvIp))
-                    LanNetwork.get(context)?.let { socketFactory(it.socketFactory) }
-            }
+            .socketFactory(NoDelaySocketFactory(
+                (if (LanNetwork.isTethered(context, tvIp)) null else LanNetwork.get(context))
+                    ?.socketFactory ?: SocketFactory.getDefault()
+            ))
             .sslSocketFactory(ssl.socketFactory, trustAll)
             .hostnameVerifier { _, _ -> true }
             // Read timeout bounds the TLS/upgrade handshake only; OkHttp lifts it once a
@@ -171,9 +175,8 @@ class WebOsClient(private val context: Context) {
 
     private inner class CommandSession {
 
-        // Pings surface a dead TV (unplugged, Wi-Fi dropped) within a couple of intervals
-        // instead of leaving a silent socket that only fails once a command times out
-        private val http = buildClient(pingIntervalSecs = 15)
+        @Volatile private var http: OkHttpClient? = null
+        private val ip = tvIp
         @Volatile private var ws: WebSocket? = null
         @Volatile var state = CmdState.CONNECTING
             private set
@@ -185,13 +188,21 @@ class WebOsClient(private val context: Context) {
         private val subscriptions = ConcurrentHashMap<String, (JSONObject?) -> Unit>()
         private val seq = AtomicInteger(0)
 
-        init {
+        // Builds the client and opens the socket on the creating thread, outside the
+        // shared-state lock, so a main-thread resetConnection() never waits on it
+        fun connect() {
+            if (state == CmdState.DEAD) return
             val req = buildWsRequest()
             if (req == null) {
                 state = CmdState.DEAD; readyLatch.countDown()
             } else {
                 val savedKey = prefs.getString("client_key", null)
-                http.newWebSocket(req, object : WebSocketListener() {
+                // Pings surface a dead TV (unplugged, Wi-Fi dropped) within a couple of intervals
+                // instead of leaving a silent socket that only fails once a command times out
+                val client = buildClient(pingIntervalSecs = 15)
+                http = client
+                if (state == CmdState.DEAD) { client.dispatcher.executorService.shutdown(); return }
+                client.newWebSocket(req, object : WebSocketListener() {
                     override fun onOpen(ws: WebSocket, response: Response) {
                         this@CommandSession.ws = ws
                         ws.send(buildRegistration(savedKey))
@@ -319,22 +330,31 @@ class WebOsClient(private val context: Context) {
             CmdState.READY, CmdState.NEEDS_PAIRING -> ws != null
             CmdState.CONNECTING -> System.currentTimeMillis() - createdAt < CONNECT_GRACE_MS
             CmdState.DEAD -> false
-        }
+        } && ip == tvIp
 
         fun close() {
             val open = ws
             die(CmdReply.Err("Session closed"))
             open?.close(1000, null)
-            http.dispatcher.executorService.shutdown()
+            http?.dispatcher?.executorService?.shutdown()
         }
     }
 
-    @Volatile private var sharedCommandSession: CommandSession? = null
-
-    private fun commandSession(): CommandSession = synchronized(this) {
-        val ex = sharedCommandSession
-        if (ex?.isUsable == true) ex
-        else { ex?.close(); CommandSession().also { sharedCommandSession = it } }
+    // The sessions are process-wide: every WebOsClient (remote, settings, widgets,
+    // trampolines) shares one command and one pointer connection instead of opening its own
+    private fun commandSession(): CommandSession {
+        val fresh: CommandSession
+        val old: CommandSession?
+        synchronized(stateLock) {
+            val ex = sharedCommandSession
+            if (ex != null && ex.isUsable) return ex
+            old = ex
+            fresh = CommandSession()
+            sharedCommandSession = fresh
+        }
+        old?.close()
+        fresh.connect()
+        return fresh
     }
 
     private fun execute(uri: String, payload: JSONObject = JSONObject(), timeoutSecs: Long = 6): Result =
@@ -345,20 +365,45 @@ class WebOsClient(private val context: Context) {
         }
 
     // ── Pointer socket session ────────────────────────────────────────────────
-    // Separate persistent connection for pointer/navigation input — uses a different
-    // WebSocket URL obtained at runtime, not the SSAP command socket.
+    // Separate persistent connection for d-pad keys and touchpad input — uses a different
+    // WebSocket URL obtained at runtime, not the SSAP command socket. One instance is shared
+    // by everything; it is created cheaply and connects on a background thread, so it is safe
+    // to ask for it from the UI thread.
+
+    private enum class PtrState { CONNECTING, READY, DEAD }
 
     inner class PointerSession {
-        private val httpClient = buildClient()
+        @Volatile private var httpClient: OkHttpClient? = null
         @Volatile private var pointerWs: WebSocket? = null
-        @Volatile private var alive = false
+        @Volatile private var state = PtrState.CONNECTING
+        @Volatile private var handedOff = false
+        private val ip = tvIp
+        private val createdAt = System.currentTimeMillis()
         private val readyLatch = CountDownLatch(1)
 
-        init {
+        // Input sent before the socket is open waits here and goes out on open; moves
+        // merge into one so a slow connect doesn't replay a burst of tiny steps
+        private val lock = Any()
+        private val queued = ArrayList<String>()
+        private var tailMove: IntArray? = null
+
+        // Same sharing rule as the command session: a session that is still connecting
+        // is kept, not replaced, so a held key can't keep killing every attempt
+        val isUsable get() = when (state) {
+            PtrState.READY -> pointerWs != null
+            PtrState.CONNECTING -> System.currentTimeMillis() - createdAt < CONNECT_GRACE_MS
+            PtrState.DEAD -> false
+        } && ip == tvIp
+
+        fun connect() {
+            if (state == PtrState.DEAD) return
             val req = buildWsRequest()
-            if (req == null) { readyLatch.countDown() } else {
+            if (req == null) { fail(); return }
             val savedKey = prefs.getString("client_key", null)
-            httpClient.newWebSocket(req,
+            val client = buildClient()
+            httpClient = client
+            if (state == PtrState.DEAD) { client.dispatcher.executorService.shutdown(); return }
+            client.newWebSocket(req,
                 object : WebSocketListener() {
                     override fun onOpen(ws: WebSocket, response: Response) {
                         ws.send(buildRegistration(savedKey))
@@ -378,92 +423,164 @@ class WebOsClient(private val context: Context) {
                             }
                             "response" -> if (json.optString("id") == "ptr_req") {
                                 val socketPath = json.optJSONObject("payload")?.optString("socketPath")
+                                handedOff = true
                                 ws.close(1000, null)
-                                if (!socketPath.isNullOrEmpty()) {
-                                    httpClient.newWebSocket(
-                                        Request.Builder().url(socketPath).build(),
-                                        object : WebSocketListener() {
-                                            override fun onOpen(pws: WebSocket, response: Response) {
-                                                pointerWs = pws
-                                                alive = true
-                                                readyLatch.countDown()
-                                            }
-                                            override fun onClosed(pws: WebSocket, code: Int, reason: String) {
-                                                alive = false
-                                                pointerWs = null
-                                            }
-                                            override fun onFailure(pws: WebSocket, t: Throwable, response: Response?) {
-                                                alive = false
-                                                pointerWs = null
-                                                readyLatch.countDown()
-                                            }
-                                        }
-                                    )
-                                } else {
-                                    readyLatch.countDown()
-                                }
+                                if (!socketPath.isNullOrEmpty()) openPointerSocket(client, socketPath)
+                                else fail()
                             }
                             "error" -> {
                                 ws.close(1000, null)
-                                readyLatch.countDown()
+                                fail()
                             }
                         }
                     }
+                    override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+                        ws.close(1000, null)
+                        if (!handedOff) fail()
+                    }
                     override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                        readyLatch.countDown()
+                        if (!handedOff) fail()
                     }
                 }
             )
-            } // end else
+        }
+
+        private fun openPointerSocket(client: OkHttpClient, socketPath: String) {
+            client.newWebSocket(
+                Request.Builder().url(socketPath).build(),
+                object : WebSocketListener() {
+                    override fun onOpen(pws: WebSocket, response: Response) {
+                        synchronized(lock) {
+                            if (state == PtrState.DEAD) { pws.close(1000, null); return }
+                            pointerWs = pws
+                            state = PtrState.READY
+                            queued.forEach { pws.send(it) }
+                            queued.clear()
+                            tailMove = null
+                        }
+                        readyLatch.countDown()
+                    }
+                    override fun onClosing(pws: WebSocket, code: Int, reason: String) {
+                        pws.close(1000, null)
+                        fail()
+                    }
+                    override fun onClosed(pws: WebSocket, code: Int, reason: String) { fail() }
+                    override fun onFailure(pws: WebSocket, t: Throwable, response: Response?) { fail() }
+                }
+            )
+        }
+
+        private fun fail() {
+            synchronized(lock) {
+                state = PtrState.DEAD
+                pointerWs = null
+                queued.clear()
+                tailMove = null
+            }
+            readyLatch.countDown()
         }
 
         fun waitUntilReady(timeoutSecs: Long = 6) =
-            readyLatch.await(timeoutSecs, TimeUnit.SECONDS) && alive
+            readyLatch.await(timeoutSecs, TimeUnit.SECONDS) && state == PtrState.READY
 
-        val isAlive get() = alive && pointerWs != null
+        private fun post(frame: String) {
+            synchronized(lock) {
+                val ws = pointerWs
+                when {
+                    ws != null -> ws.send(frame)
+                    state == PtrState.DEAD -> {}
+                    else -> {
+                        if (queued.size >= MAX_QUEUED_FRAMES) queued.removeAt(0)
+                        queued.add(frame)
+                        tailMove = null
+                    }
+                }
+            }
+        }
 
-        fun sendKey(keyCode: String) { pointerWs?.send("type:button\nname:$keyCode\n\n") }
-        fun move(dx: Float, dy: Float) { pointerWs?.send("type:move\ndx:${dx.toInt()}\ndy:${dy.toInt()}\n\n") }
-        fun scroll(dx: Float, dy: Float) { pointerWs?.send("type:scroll\ndx:${dx.toInt()}\ndy:${dy.toInt()}\n\n") }
-        fun click() { pointerWs?.send("type:click\n\n") }
+        fun sendKey(keyCode: String) = post("type:button\nname:$keyCode\n\n")
+        fun scroll(dx: Int, dy: Int) = post("type:scroll\ndx:$dx\ndy:$dy\n\n")
+        fun click() = post("type:click\n\n")
+
+        fun move(dx: Int, dy: Int) {
+            if (dx == 0 && dy == 0) return
+            synchronized(lock) {
+                val ws = pointerWs
+                when {
+                    ws != null -> ws.send(moveFrame(dx, dy))
+                    state == PtrState.DEAD -> {}
+                    else -> {
+                        val tail = tailMove
+                        if (tail != null) {
+                            tail[0] += dx; tail[1] += dy
+                            queued[queued.lastIndex] = moveFrame(tail[0], tail[1])
+                        } else {
+                            if (queued.size >= MAX_QUEUED_FRAMES) queued.removeAt(0)
+                            queued.add(moveFrame(dx, dy))
+                            tailMove = intArrayOf(dx, dy)
+                        }
+                    }
+                }
+            }
+        }
+
+        private fun moveFrame(dx: Int, dy: Int) = "type:move\ndx:$dx\ndy:$dy\n\n"
 
         fun close() {
-            alive = false
-            pointerWs?.close(1000, null)
-            httpClient.dispatcher.executorService.shutdown()
+            val open = pointerWs
+            fail()
+            open?.close(1000, null)
+            httpClient?.dispatcher?.executorService?.shutdown()
         }
     }
 
-    @Volatile private var sharedPointerSession: PointerSession? = null
+    private fun pointerSession(): PointerSession {
+        val fresh: PointerSession
+        val old: PointerSession?
+        synchronized(stateLock) {
+            val ex = sharedPointerSession
+            if (ex != null && ex.isUsable) return ex
+            old = ex
+            fresh = PointerSession()
+            sharedPointerSession = fresh
+        }
+        old?.close()
+        connectExecutor.execute { fresh.connect() }
+        return fresh
+    }
+
+    /** Opens the shared pointer connection if there isn't a usable one. Never blocks. */
+    fun warmPointerSession() {
+        if (tvIp.isNotBlank()) pointerSession()
+    }
 
     fun pressKey(keyCode: String): Result {
         if (buildWsRequest() == null) return Result.Error("No TV IP configured")
-        val session = synchronized(this) {
-            val existing = sharedPointerSession
-            if (existing?.isAlive == true) existing
-            else {
-                existing?.close()
-                PointerSession().also { sharedPointerSession = it }
-            }
-        }
+        val session = pointerSession()
         return if (session.waitUntilReady()) {
             session.sendKey(keyCode)
             Result.Success
         } else {
-            synchronized(this) { if (sharedPointerSession === session) sharedPointerSession = null }
             Result.Error("Timeout. Is the TV on and reachable?")
         }
     }
 
-    fun openPointerSession() = PointerSession()
+    // Touchpad input: never blocks, safe from the UI thread
+    fun pointerMove(dx: Int, dy: Int) { if (tvIp.isNotBlank()) pointerSession().move(dx, dy) }
+    fun pointerScroll(dx: Int, dy: Int) { if (tvIp.isNotBlank()) pointerSession().scroll(dx, dy) }
+    fun pointerClick() { if (tvIp.isNotBlank()) pointerSession().click() }
+    fun pointerKey(keyCode: String) { if (tvIp.isNotBlank()) pointerSession().sendKey(keyCode) }
 
+    /** Drops both connections so the next use opens fresh ones; recovers sockets gone stale while the phone slept. */
     fun resetConnection() {
-        synchronized(this) {
-            sharedPointerSession?.close()
-            sharedPointerSession = null
-            sharedCommandSession?.close()
-            sharedCommandSession = null
+        val pointer: PointerSession?
+        val command: CommandSession?
+        synchronized(stateLock) {
+            pointer = sharedPointerSession; sharedPointerSession = null
+            command = sharedCommandSession; sharedCommandSession = null
         }
+        pointer?.close()
+        command?.close()
     }
 
     // ── Power state ───────────────────────────────────────────────────────────
@@ -937,8 +1054,10 @@ class WebOsClient(private val context: Context) {
         }.getOrElse { defaultShortcuts() }
     }
 
+    private val iconHttp by lazy { buildClient() }
+
     fun fetchIcon(url: String): android.graphics.Bitmap? = runCatching {
-        val response = buildClient().newCall(Request.Builder().url(url).build()).execute()
+        val response = iconHttp.newCall(Request.Builder().url(url).build()).execute()
         response.body?.byteStream()?.use { android.graphics.BitmapFactory.decodeStream(it) }
     }.getOrNull()
 
@@ -980,6 +1099,17 @@ class WebOsClient(private val context: Context) {
         private const val POWER_STATE_URI = "ssap://com.webos.service.tvpower/power/getPowerState"
         private const val WATCH_RETRY_MS = 5_000L
         private const val CONNECT_GRACE_MS = 10_000L
+        private const val MAX_QUEUED_FRAMES = 64
+
+        // Guards only the swap of the two shared sessions, never any network work
+        private val stateLock = Any()
+        @Volatile private var sharedCommandSession: WebOsClient.CommandSession? = null
+        @Volatile private var sharedPointerSession: WebOsClient.PointerSession? = null
+
+        // Builds the OkHttp client and opens the pointer socket off the caller's thread
+        private val connectExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "pointer-connect").apply { isDaemon = true }
+        }
         // Observed on a C4: turnOff pushes state "Active" with processing "Request Power Off"
         // within 50 ms, then "Request/Prepare Active Standby", and lands on "Active Standby" ~3 s later
         private val OFF_STATES = setOf("Active Standby", "Suspend", "Power Off")

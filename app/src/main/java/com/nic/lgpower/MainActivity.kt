@@ -39,8 +39,15 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val PREF_TOUR_PENDING = Tour.PREF_MAIN
+        private const val MAX_KEY_BACKLOG = 2
     }
-    private var pointerSession: WebOsClient.PointerSession? = null
+    // Key presses go through one thread so they reach the TV in the order they were tapped
+    private val keyExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "key-send").apply { isDaemon = true }
+    }
+    private val keyBacklog = java.util.concurrent.atomic.AtomicInteger(0)
+    private var dragCarryX = 0f
+    private var dragCarryY = 0f
     private var discovering = false
     private var lastAppliedThemeId = ""
     private val statusHandler = Handler(Looper.getMainLooper())
@@ -146,14 +153,14 @@ class MainActivity : AppCompatActivity() {
         setDpadRepeatListener(findViewById(R.id.btn_right), 1, dpadHl) { client.pressRight() }
         setDpadRepeatListener(findViewById(R.id.btn_down),  2, dpadHl) { client.pressDown() }
         setDpadRepeatListener(findViewById(R.id.btn_left),  3, dpadHl) { client.pressLeft() }
-        findViewById<View>(R.id.btn_ok).setOnClickListener { sendCommand { client.pressEnter() } }
+        findViewById<View>(R.id.btn_ok).setOnClickListener { sendKeyCommand { client.pressEnter() } }
 
         // Home / Back / Settings
-        findViewById<View>(R.id.btn_home).setOnClickListener     { sendCommand { client.pressKey("HOME") } }
-        findViewById<View>(R.id.btn_back).setOnClickListener     { sendCommand { client.pressKey("BACK") } }
-        findViewById<View>(R.id.btn_back).setOnLongClickListener { sendCommand { client.pressKey("EXIT") }; true }
-        findViewById<View>(R.id.btn_settings).setOnClickListener     { sendCommand { client.pressKey("MENU") } }
-        findViewById<View>(R.id.btn_settings).setOnLongClickListener { sendCommand { client.pressKey("HOME") }; true }
+        findViewById<View>(R.id.btn_home).setOnClickListener     { sendKeyCommand { client.pressKey("HOME") } }
+        findViewById<View>(R.id.btn_back).setOnClickListener     { sendKeyCommand { client.pressKey("BACK") } }
+        findViewById<View>(R.id.btn_back).setOnLongClickListener { sendKeyCommand { client.pressKey("EXIT") }; true }
+        findViewById<View>(R.id.btn_settings).setOnClickListener     { sendKeyCommand { client.pressKey("MENU") } }
+        findViewById<View>(R.id.btn_settings).setOnLongClickListener { sendKeyCommand { client.pressKey("HOME") }; true }
 
         // Volume + Mute
         var volumeDragLevel = 0
@@ -170,10 +177,10 @@ class MainActivity : AppCompatActivity() {
                     if (volumeStepping) {
                         val up = volumeDragLevel > volumeSentLevel
                         volumeSentLevel += if (up) 1 else -1
-                        Thread {
+                        keyExecutor.execute {
                             try { if (up) client.volumeUp() else client.volumeDown() }
                             finally { volumeSending.set(false) }
-                        }.start()
+                        }
                     } else {
                         val level = volumeDragLevel
                         volumeSentLevel = level
@@ -193,9 +200,9 @@ class MainActivity : AppCompatActivity() {
             barId  = R.id.volume_bar,
             getLevel = { currentVolume },
             onTapUp   = { currentVolume?.let { setVolumeState((it + 1).coerceIn(0, 100), currentMuted) }
-                          Thread { client.volumeUp();   scheduleVolumeRefresh() }.start() },
+                          keyExecutor.execute { client.volumeUp();   scheduleVolumeRefresh() } },
             onTapDown = { currentVolume?.let { setVolumeState((it - 1).coerceIn(0, 100), currentMuted) }
-                          Thread { client.volumeDown(); scheduleVolumeRefresh() }.start() },
+                          keyExecutor.execute { client.volumeDown(); scheduleVolumeRefresh() } },
             onDragEnd = { level ->
                 volumeDragging = false
                 setVolumeState(level, currentMuted)
@@ -237,7 +244,7 @@ class MainActivity : AppCompatActivity() {
         )
         findViewById<View>(R.id.btn_mute).setOnClickListener {
             currentVolume?.let { v -> runOnUiThread { setVolumeState(v, !currentMuted) } }
-            sendCommand {
+            sendKeyCommand {
                 val r = client.muteToggle()
                 statusHandler.removeCallbacks(volumeRefreshRunnable)
                 statusHandler.postDelayed(volumeRefreshRunnable, 1500)
@@ -298,7 +305,7 @@ class MainActivity : AppCompatActivity() {
                R.id.btn_color_yellow to "YELLOW", R.id.btn_color_blue to "BLUE",
                R.id.btn_media_rew to "REWIND", R.id.btn_media_play to "PLAY",
                R.id.btn_media_pause to "PAUSE", R.id.btn_media_ff to "FASTFORWARD")
-            .forEach { (id, key) -> findViewById<View>(id).setOnClickListener { sendCommand { client.pressKey(key) } } }
+            .forEach { (id, key) -> findViewById<View>(id).setOnClickListener { sendKeyCommand { client.pressKey(key) } } }
 
         // Numpad mode — full-screen swap with the normal remote
         findViewById<View>(R.id.btn_numpad).setOnClickListener {
@@ -315,21 +322,21 @@ class MainActivity : AppCompatActivity() {
             .forEachIndexed { digit, id ->
                 findViewById<View>(id).setOnClickListener {
                     echoReadout("$digit")
-                    sendCommand { client.pressKey("$digit") }
+                    sendKeyCommand { client.pressKey("$digit") }
                 }
             }
-        findViewById<View>(R.id.btn_num_list).setOnClickListener { sendCommand { client.pressKey("LIST") } }
+        findViewById<View>(R.id.btn_num_list).setOnClickListener { sendKeyCommand { client.pressKey("LIST") } }
         findViewById<View>(R.id.btn_num_dash).setOnClickListener {
             echoReadout("–")
-            sendCommand { client.pressKey("DASH") }
+            sendKeyCommand { client.pressKey("DASH") }
         }
-        findViewById<View>(R.id.btn_np_ch_up).setOnClickListener   { sendCommand { client.channelUp() } }
-        findViewById<View>(R.id.btn_np_ch_down).setOnClickListener { sendCommand { client.channelDown() } }
-        findViewById<View>(R.id.btn_np_guide).setOnClickListener { sendCommand { client.pressKey("GUIDE") } }
-        findViewById<View>(R.id.btn_np_info).setOnClickListener  { sendCommand { client.pressKey("INFO") } }
-        findViewById<View>(R.id.btn_np_cc).setOnClickListener    { sendCommand { client.pressKey("CC") } }
-        findViewById<View>(R.id.btn_np_exit).setOnClickListener  { sendCommand { client.pressKey("EXIT") } }
-        findViewById<View>(R.id.btn_np_enter).setOnClickListener { sendCommand { client.pressEnter() } }
+        findViewById<View>(R.id.btn_np_ch_up).setOnClickListener   { sendKeyCommand { client.channelUp() } }
+        findViewById<View>(R.id.btn_np_ch_down).setOnClickListener { sendKeyCommand { client.channelDown() } }
+        findViewById<View>(R.id.btn_np_guide).setOnClickListener { sendKeyCommand { client.pressKey("GUIDE") } }
+        findViewById<View>(R.id.btn_np_info).setOnClickListener  { sendKeyCommand { client.pressKey("INFO") } }
+        findViewById<View>(R.id.btn_np_cc).setOnClickListener    { sendKeyCommand { client.pressKey("CC") } }
+        findViewById<View>(R.id.btn_np_exit).setOnClickListener  { sendKeyCommand { client.pressKey("EXIT") } }
+        findViewById<View>(R.id.btn_np_enter).setOnClickListener { sendKeyCommand { client.pressEnter() } }
         findViewById<View>(R.id.btn_np_tv).setOnClickListener { sendCommand { client.launchApp("com.webos.app.livetv") } }
 
         // App settings
@@ -373,8 +380,6 @@ class MainActivity : AppCompatActivity() {
             resetBorder()
             isLocked = false
             hasMoved = false
-            pointerSession?.close()
-            pointerSession = null
             touchpadOverlay.visibility = View.GONE
             btnExit.visibility = View.GONE
             touchpadHint.visibility = View.GONE
@@ -424,7 +429,7 @@ class MainActivity : AppCompatActivity() {
                         val total = rawDy + scrollCarry
                         val units = (total / scrollSensitivity).toInt()
                         scrollCarry = total - units * scrollSensitivity
-                        if (units != 0) pointerSession?.scroll(0f, -units.toFloat())
+                        if (units != 0) client.pointerScroll(0, -units)
                     } else if (!isScrolling) {
                         val dx = event.rawX - lastTouchX
                         val dy = event.rawY - lastTouchY
@@ -450,8 +455,7 @@ class MainActivity : AppCompatActivity() {
                                 v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                                 moveAccumulator = 0f
                             }
-                            if (sendDx != 0 || sendDy != 0)
-                                pointerSession?.move(sendDx.toFloat(), sendDy.toFloat())
+                            if (sendDx != 0 || sendDy != 0) client.pointerMove(sendDx, sendDy)
                         }
                     }
                     true
@@ -469,7 +473,7 @@ class MainActivity : AppCompatActivity() {
                 MotionEvent.ACTION_UP -> {
                     if (!overlayDragging && !isScrolling) {
                         v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        pointerSession?.click()
+                        client.pointerClick()
                     }
                     isScrolling = false
                     true
@@ -480,12 +484,12 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<View>(R.id.btn_touchpad_back).setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            pointerSession?.sendKey("BACK")
+            client.pointerKey("BACK")
         }
 
         findViewById<View>(R.id.btn_touchpad_click).setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            pointerSession?.click()
+            client.pointerClick()
         }
 
         btnExit.setOnClickListener { exitTouchpad() }
@@ -505,7 +509,9 @@ class MainActivity : AppCompatActivity() {
                     val ov = IntArray(2); touchpadOverlay.getLocationInWindow(ov)
                     lockReveal.setCenter(loc[0] - ov[0] + v.width / 2f, loc[1] - ov[1] + v.height / 2f)
                     touchpadOverlay.visibility = View.VISIBLE
-                    pointerSession = client.openPointerSession()
+                    client.warmPointerSession()
+                    dragCarryX = 0f
+                    dragCarryY = 0f
                     // The scrim grows out of the button over the 1 s hold; full screen = locked
                     resetBorder()
                     lockAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
@@ -549,7 +555,13 @@ class MainActivity : AppCompatActivity() {
                         v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         moveAccumulator = 0f
                     }
-                    pointerSession?.move(dx, dy)
+                    val totalDx = dx + dragCarryX
+                    val totalDy = dy + dragCarryY
+                    val sendDx = totalDx.toInt()
+                    val sendDy = totalDy.toInt()
+                    dragCarryX = totalDx - sendDx
+                    dragCarryY = totalDy - sendDy
+                    client.pointerMove(sendDx, sendDy)
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -675,7 +687,12 @@ class MainActivity : AppCompatActivity() {
         val repeatRunnable = object : Runnable {
             override fun run() {
                 vibrator?.vibrate(VibrationEffect.createOneShot(24, 48))
-                Thread { block() }.start()
+                // While the TV is slow to answer, ticks would otherwise stack up and replay
+                // for seconds after the finger lifts
+                if (keyBacklog.get() < MAX_KEY_BACKLOG) {
+                    keyBacklog.incrementAndGet()
+                    keyExecutor.execute { try { block() } finally { keyBacklog.decrementAndGet() } }
+                }
                 repeatHandler.postDelayed(this, 120L)
             }
         }
@@ -683,7 +700,7 @@ class MainActivity : AppCompatActivity() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     hl.sector = sector; hl.invalidate()
-                    v.isPressed = true; sendCommand(block)
+                    v.isPressed = true; sendKeyCommand(block)
                     repeatHandler.postDelayed(repeatRunnable, 400L); true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -807,6 +824,7 @@ class MainActivity : AppCompatActivity() {
             WebOsClient.Presence.NeedsPairing -> setStatus(TvStatus.PAIRING)
             is WebOsClient.Presence.Reported -> {
                 setStatus(if (p.isOn) TvStatus.CONNECTED else TvStatus.DISCONNECTED)
+                if (p.isOn) client.warmPointerSession()
                 setScreenOffButton(p.isOn && p.screenOff)
             }
         }
@@ -1066,8 +1084,8 @@ class MainActivity : AppCompatActivity() {
                 MotionEvent.ACTION_UP -> {
                     topHl.visibility = View.INVISIBLE; botHl.visibility = View.INVISIBLE
                     v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    if (event.y < v.height / 2f) sendCommand { client.channelUp() }
-                    else sendCommand { client.channelDown() }
+                    if (event.y < v.height / 2f) sendKeyCommand { client.channelUp() }
+                    else sendKeyCommand { client.channelDown() }
                 }
                 MotionEvent.ACTION_CANCEL -> { topHl.visibility = View.INVISIBLE; botHl.visibility = View.INVISIBLE }
             }
@@ -1382,13 +1400,13 @@ class MainActivity : AppCompatActivity() {
         return when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> {
                 currentVolume?.let { setVolumeState((it + 1).coerceIn(0, 100), currentMuted) }
-                sendCommand { client.volumeUp() }
+                sendKeyCommand { client.volumeUp() }
                 scheduleVolumeRefresh()
                 true
             }
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
                 currentVolume?.let { setVolumeState((it - 1).coerceIn(0, 100), currentMuted) }
-                sendCommand { client.volumeDown() }
+                sendKeyCommand { client.volumeDown() }
                 scheduleVolumeRefresh()
                 true
             }
@@ -1583,9 +1601,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun sendCommand(block: () -> WebOsClient.Result) {
+    private fun sendCommand(block: () -> WebOsClient.Result) = runCommand(block) { Thread(it).start() }
+
+    private fun sendKeyCommand(block: () -> WebOsClient.Result) {
+        keyBacklog.incrementAndGet()
+        runCommand({ try { block() } finally { keyBacklog.decrementAndGet() } }) { keyExecutor.execute(it) }
+    }
+
+    private fun runCommand(block: () -> WebOsClient.Result, launch: (Runnable) -> Unit) {
         window.decorView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-        Thread {
+        launch(Runnable {
             val result = block()
             runOnUiThread {
                 when (result) {
@@ -1596,6 +1621,6 @@ class MainActivity : AppCompatActivity() {
                     else -> {}
                 }
             }
-        }.start()
+        })
     }
 }
