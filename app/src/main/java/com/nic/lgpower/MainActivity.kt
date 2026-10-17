@@ -48,6 +48,9 @@ class MainActivity : AppCompatActivity() {
         1, 1, 10L, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.LinkedBlockingQueue()
     ) { r -> Thread(r, "key-send").apply { isDaemon = true } }.apply { allowCoreThreadTimeOut(true) }
     private val keyBacklog = java.util.concurrent.atomic.AtomicInteger(0)
+    private val keyGate = KeyFailGate()
+    private fun runKey(queuedAt: Long, block: () -> WebOsClient.Result): WebOsClient.Result? =
+        keyGate.run(queuedAt, { it !is WebOsClient.Result.Success }, block)
     private var dragCarryX = 0f
     private var dragCarryY = 0f
     private var discovering = false
@@ -179,8 +182,9 @@ class MainActivity : AppCompatActivity() {
                     if (volumeStepping) {
                         val up = volumeDragLevel > volumeSentLevel
                         volumeSentLevel += if (up) 1 else -1
+                        val queuedAt = keyGate.now()
                         keyExecutor.execute {
-                            try { if (up) client.volumeUp() else client.volumeDown() }
+                            try { runKey(queuedAt) { if (up) client.volumeUp() else client.volumeDown() } }
                             finally { volumeSending.set(false) }
                         }
                     } else {
@@ -202,9 +206,11 @@ class MainActivity : AppCompatActivity() {
             barId  = R.id.volume_bar,
             getLevel = { currentVolume },
             onTapUp   = { currentVolume?.let { setVolumeState((it + 1).coerceIn(0, 100), currentMuted) }
-                          keyExecutor.execute { client.volumeUp();   scheduleVolumeRefresh() } },
+                          val queuedAt = keyGate.now()
+                          keyExecutor.execute { runKey(queuedAt) { client.volumeUp() };   scheduleVolumeRefresh() } },
             onTapDown = { currentVolume?.let { setVolumeState((it - 1).coerceIn(0, 100), currentMuted) }
-                          keyExecutor.execute { client.volumeDown(); scheduleVolumeRefresh() } },
+                          val queuedAt = keyGate.now()
+                          keyExecutor.execute { runKey(queuedAt) { client.volumeDown() }; scheduleVolumeRefresh() } },
             onDragEnd = { level ->
                 volumeDragging = false
                 setVolumeState(level, currentMuted)
@@ -693,7 +699,8 @@ class MainActivity : AppCompatActivity() {
                 // for seconds after the finger lifts
                 if (keyBacklog.get() < MAX_KEY_BACKLOG) {
                     keyBacklog.incrementAndGet()
-                    keyExecutor.execute { try { block() } finally { keyBacklog.decrementAndGet() } }
+                    val queuedAt = keyGate.now()
+                    keyExecutor.execute { try { runKey(queuedAt, block) } finally { keyBacklog.decrementAndGet() } }
                 }
                 repeatHandler.postDelayed(this, 120L)
             }
@@ -1607,10 +1614,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendKeyCommand(block: () -> WebOsClient.Result) {
         keyBacklog.incrementAndGet()
-        runCommand({ try { block() } finally { keyBacklog.decrementAndGet() } }) { keyExecutor.execute(it) }
+        val queuedAt = keyGate.now()
+        runCommand({ try { runKey(queuedAt, block) } finally { keyBacklog.decrementAndGet() } }) { keyExecutor.execute(it) }
     }
 
-    private fun runCommand(block: () -> WebOsClient.Result, launch: (Runnable) -> Unit) {
+    // A null result is a press skipped behind a failed one, which already toasted
+    private fun runCommand(block: () -> WebOsClient.Result?, launch: (Runnable) -> Unit) {
         window.decorView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         launch(Runnable {
             val result = block()

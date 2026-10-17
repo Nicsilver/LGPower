@@ -215,10 +215,15 @@ class WebOsClient(appContext: Context) {
                         val id   = json.optString("id")
                         when {
                             type == "registered" -> {
+                                // A reply that outlives a TV switch belongs to the old TV and must
+                                // not overwrite the new one's key or MACs
+                                val current = ip == tvIp
                                 val key = json.optJSONObject("payload")?.optString("client-key")
-                                if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                                if (current && !key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                                // The TV can hand back the key the pointer already failed with
+                                if (current) sharedPointerSession?.pairingDone()
                                 // Fewer than two means a pairing from before both MACs were kept
-                                if (macList(tvMac).size < 2) {
+                                if (current && macList(tvMac).size < 2) {
                                     ws.send(JSONObject().apply {
                                         put("id", "s_mac"); put("type", "request")
                                         put("uri", "ssap://com.webos.service.connectionmanager/getinfo")
@@ -234,7 +239,7 @@ class WebOsClient(appContext: Context) {
                                 failAll(CmdReply.NeedsPairing)
                             }
                             type == "response" && id == "s_mac" -> {
-                                mergeMacs(macsFrom(json.optJSONObject("payload")))
+                                if (ip == tvIp) mergeMacs(macsFrom(json.optJSONObject("payload")))
                             }
                             type == "response" && subscriptions.containsKey(id) ->
                                 subscriptions[id]?.invoke(json.optJSONObject("payload"))
@@ -280,7 +285,9 @@ class WebOsClient(appContext: Context) {
             failAll(reply)
             // The pointer socket has no ping of its own, so it can sit half-open after the
             // TV drops; the pinging command socket is the one that notices
-            if (sharedCommandSession === this) dropPointerSession()
+            // A pointer still inside its connect deadline is left to finish: the power watcher
+            // loses sessions every few seconds while the TV wakes
+            if (sharedCommandSession === this) dropPointerSession { !it.isDead && !it.isConnecting }
         }
 
         private fun failAll(reply: CmdReply) {
@@ -358,13 +365,16 @@ class WebOsClient(appContext: Context) {
             fresh = CommandSession()
             sharedCommandSession = fresh
         }
-        if (old != null) { old.close(); dropPointerSession() }
+        if (old != null) { old.close(); dropPointerSession { it.shouldRetire } }
         fresh.connect()
         return fresh
     }
 
-    private fun dropPointerSession() {
-        val pointer = synchronized(stateLock) { sharedPointerSession.also { sharedPointerSession = null } }
+    // A dead session stays put on purpose: it carries the retry pause and the pairing backoff
+    private fun dropPointerSession(where: (PointerSession) -> Boolean) {
+        val pointer = synchronized(stateLock) {
+            sharedPointerSession?.takeIf(where)?.also { sharedPointerSession = null }
+        }
         pointer?.close()
     }
 
@@ -395,9 +405,14 @@ class WebOsClient(appContext: Context) {
             private set
         @Volatile private var state = PtrState.CONNECTING
         @Volatile private var handedOff = false
-        private val ip = tvIp
+        val ip = tvIp
         private val createdAt = System.currentTimeMillis()
         private val readyLatch = CountDownLatch(1)
+
+        // Registering without a valid key makes the TV show a pairing prompt, so this session
+        // never retries that: it stays dead until the command session has stored a new key
+        @Volatile private var needsPairing = false
+        @Volatile private var keyUsed: String? = null
 
         // Input sent before the socket is open waits here and goes out on open; moves
         // merge into one so a slow connect doesn't replay a burst of tiny steps
@@ -413,11 +428,24 @@ class WebOsClient(appContext: Context) {
             PtrState.DEAD -> false
         } && ip == tvIp
 
+        val isDead get() = state == PtrState.DEAD
+        val isConnecting get() = state == PtrState.CONNECTING &&
+            System.currentTimeMillis() - createdAt < POINTER_CONNECT_MS && ip == tvIp
+        val shouldRetire get() = ip != tvIp || (state != PtrState.DEAD && !isUsable)
+
+        fun pairingDone() { needsPairing = false }
+
+        /** True while a retry would only ask the TV for pairing again. */
+        fun pairingStillMissing() =
+            needsPairing && prefs.getString("client_key", null).orEmpty() == keyUsed.orEmpty()
+
         fun connect() {
             if (state == PtrState.DEAD) return
             val req = buildWsRequest()
             if (req == null) { fail(); return }
             val savedKey = prefs.getString("client_key", null)
+            keyUsed = savedKey
+            if (savedKey.isNullOrEmpty()) { needsPairing = true; fail(); return }
             val client = buildClient()
             httpClient = client
             if (state == PtrState.DEAD) { client.dispatcher.executorService.shutdown(); return }
@@ -433,7 +461,7 @@ class WebOsClient(appContext: Context) {
                         when (json.optString("type")) {
                             "registered" -> {
                                 val key = json.optJSONObject("payload")?.optString("client-key")
-                                if (!key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
+                                if (ip == tvIp && !key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
                                 ws.send(JSONObject().apply {
                                     put("id", "ptr_req")
                                     put("type", "request")
@@ -441,14 +469,23 @@ class WebOsClient(appContext: Context) {
                                     put("payload", JSONObject())
                                 }.toString())
                             }
-                            "response" -> if (json.optString("id") == "ptr_req") {
-                                val socketPath = json.optJSONObject("payload")?.optString("socketPath")
-                                handedOff = true
-                                ws.close(1000, null)
-                                if (!socketPath.isNullOrEmpty()) openPointerSocket(client, socketPath)
-                                else fail()
+                            "response" -> when (json.optString("id")) {
+                                "ptr_req" -> {
+                                    val socketPath = json.optJSONObject("payload")?.optString("socketPath")
+                                    handedOff = true
+                                    ws.close(1000, null)
+                                    if (!socketPath.isNullOrEmpty()) openPointerSocket(client, socketPath)
+                                    else fail()
+                                }
+                                // The TV is asking the user to accept a pairing prompt
+                                "reg_0" -> {
+                                    needsPairing = true
+                                    ws.close(1000, null)
+                                    fail()
+                                }
                             }
                             "error" -> {
+                                if (json.optString("id") == "reg_0") needsPairing = true
                                 ws.close(1000, null)
                                 fail()
                             }
@@ -570,7 +607,10 @@ class WebOsClient(appContext: Context) {
             if (ex != null && ex.isUsable) return ex
             // A TV in standby closes every socket it accepts; without this pause each
             // touchpad frame would open another connection
-            if (ex != null && System.currentTimeMillis() - ex.failedAt < POINTER_RETRY_MS) return ex
+            if (ex != null && ex.ip == tvIp) {
+                if (ex.pairingStillMissing()) return ex
+                if (System.currentTimeMillis() - ex.failedAt < POINTER_RETRY_MS) return ex
+            }
             old = ex
             fresh = PointerSession()
             sharedPointerSession = fresh
@@ -588,11 +628,13 @@ class WebOsClient(appContext: Context) {
     fun pressKey(keyCode: String): Result {
         if (buildWsRequest() == null) return Result.Error("No TV IP configured")
         val session = pointerSession()
-        return if (session.waitUntilReady()) {
-            session.sendKey(keyCode)
-            Result.Success
-        } else {
-            Result.Error("Timeout. Is the TV on and reachable?")
+        return when {
+            session.waitUntilReady() -> {
+                session.sendKey(keyCode)
+                Result.Success
+            }
+            session.pairingStillMissing() -> Result.NeedsPairing
+            else -> Result.Error("Timeout. Is the TV on and reachable?")
         }
     }
 
