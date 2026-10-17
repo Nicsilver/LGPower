@@ -1283,7 +1283,7 @@ class WebOsClient(appContext: Context) {
         private const val CONNECT_GRACE_MS = 10_000L
         private const val RESET_KEEP_MS = 5_000L
         private const val PAIRING_BLOCK_MS = 30_000L
-        private const val PAIRING_RETRY_MS = 15_000L
+        private const val PAIRING_RETRY_MS = 30_000L
         private const val MAX_QUEUED_FRAMES = 64
         private const val POINTER_CONNECT_MS = 6_000L
         private const val POINTER_RETRY_MS = 1_000L
