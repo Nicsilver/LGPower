@@ -41,10 +41,24 @@ class PointerQueueTest {
         assertTrue(queue.drain().isEmpty())
     }
 
-    @Test fun aClickWithNoMovesBeforeItSurvivesAnyDelay() {
+    @Test fun aStaleClickWithNoMovesBeforeItIsDropped() {
         queue.add(Kind.CLICK, click)
-        now += 5_000
+        now += 1_501
+        assertTrue(queue.drain().isEmpty())
+    }
+
+    @Test fun aFreshClickWithNoMovesBeforeItSurvives() {
+        queue.add(Kind.CLICK, click)
+        now += 1_500
         assertEquals(listOf(click), queue.drain())
+    }
+
+    @Test fun aStaleClickDoesNotDropAKeyOrALaterFreshClick() {
+        queue.add(Kind.CLICK, click)
+        queue.add(Kind.KEY, key)
+        now += 1_501
+        queue.add(Kind.CLICK, click)
+        assertEquals(listOf(key, click), queue.drain())
     }
 
     @Test fun aClickAfterFreshMovesSurvives() {

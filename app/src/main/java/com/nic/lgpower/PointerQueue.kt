@@ -5,8 +5,9 @@ package com.nic.lgpower
  * Not thread-safe: the owner guards it.
  *
  * Moves and scrolls describe where the cursor was a moment ago, so they are dropped once
- * stale. A click is only meaningful at the cursor position the user saw, so it is dropped
- * with them; a button press stands alone and always survives.
+ * stale. A click is only meaningful at the cursor position the user saw, so it follows the
+ * same age limit and is also dropped behind any dropped move; a button press stands alone
+ * and always survives.
  */
 internal class PointerQueue(
     private val clock: () -> Long,
@@ -50,7 +51,8 @@ internal class PointerQueue(
                 Kind.KEY -> out.add(f.text)
                 Kind.MOVE, Kind.SCROLL ->
                     if (now - f.at > staleMs) movesLost = true else out.add(f.text)
-                Kind.CLICK -> if (!movesLost) out.add(f.text)
+                // A late click lands wherever the cursor is by then, not where the user tapped
+                Kind.CLICK -> if (!movesLost && now - f.at <= staleMs) out.add(f.text)
             }
         }
         clear()
