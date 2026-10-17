@@ -23,6 +23,9 @@ class PowerActivity : Activity() {
         val irManager = getSystemService(CONSUMER_IR_SERVICE) as? ConsumerIrManager
         val hasIr = irManager?.hasIrEmitter() == true
         Thread {
+            // The shared session may be a socket left half-open while the phone slept; a dead one
+            // would report no power state in time and send a wake to a TV that is already on
+            client.resetConnection()
             val stop = client.watchPower { }
             val presence = try { client.awaitPresence(3_000) } finally { stop() }
             when {

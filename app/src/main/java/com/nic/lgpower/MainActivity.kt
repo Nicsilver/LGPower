@@ -41,10 +41,12 @@ class MainActivity : AppCompatActivity() {
         const val PREF_TOUR_PENDING = Tour.PREF_MAIN
         private const val MAX_KEY_BACKLOG = 2
     }
-    // Key presses go through one thread so they reach the TV in the order they were tapped
-    private val keyExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
-        Thread(r, "key-send").apply { isDaemon = true }
-    }
+    // Key presses go through one thread so they reach the TV in the order they were tapped.
+    // The idle thread times out because recreate() (theme, TV switch) builds a new executor
+    // and never shuts the old one down; shutting it down instead could reject a late repeat tick.
+    private val keyExecutor = java.util.concurrent.ThreadPoolExecutor(
+        1, 1, 10L, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.LinkedBlockingQueue()
+    ) { r -> Thread(r, "key-send").apply { isDaemon = true } }.apply { allowCoreThreadTimeOut(true) }
     private val keyBacklog = java.util.concurrent.atomic.AtomicInteger(0)
     private var dragCarryX = 0f
     private var dragCarryY = 0f

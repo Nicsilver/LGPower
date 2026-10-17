@@ -17,7 +17,10 @@ class AppShortcutActivity : Activity() {
             ?.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
 
         Thread {
-            val result = WebOsClient(this).launchApp(appId)
+            val client = WebOsClient(this)
+            // The shared session may be a socket left half-open while the phone slept
+            client.resetConnection()
+            val result = client.launchApp(appId)
             runOnUiThread {
                 when (result) {
                     is WebOsClient.Result.NeedsPairing ->

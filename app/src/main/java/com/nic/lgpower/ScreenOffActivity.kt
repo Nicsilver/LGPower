@@ -13,7 +13,10 @@ class ScreenOffActivity : Activity() {
         getSystemService(Vibrator::class.java)
             ?.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
         Thread {
-            val result = WebOsClient(this).turnOffScreen()
+            val client = WebOsClient(this)
+            // The shared session may be a socket left half-open while the phone slept
+            client.resetConnection()
+            val result = client.turnOffScreen()
             runOnUiThread {
                 // Only surface actionable feedback — silent on success
                 when (result) {
