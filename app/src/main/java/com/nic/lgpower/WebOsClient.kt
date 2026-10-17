@@ -690,13 +690,14 @@ class WebOsClient(appContext: Context) {
             when {
                 session.waitUntilReady() -> {
                     if (session.sendKey(keyCode)) return Result.Success
-                    if (resent) return Result.Error("Lost the connection to the TV. Try again")
+                    // A press meant for a TV the user has since switched away from must not reach the new one
+                    if (resent || session.ip != tvIp) return Result.Error("Lost the connection to the TV. Try again")
                     resent = true
                     session = keySession() ?: return Result.NeedsPairing
                 }
                 session.pairingStillMissing() -> return Result.NeedsPairing
                 // Another caller replaced the session at its deadline; the new one gets its own wait
-                session.retired && !replaced -> {
+                session.retired && !replaced && session.ip == tvIp -> {
                     replaced = true
                     session = keySession() ?: return Result.NeedsPairing
                 }
@@ -756,14 +757,16 @@ class WebOsClient(appContext: Context) {
 
     /**
      * Blocks until the watcher has reported something, or [timeoutMs] elapses. While the shared
-     * command session is still mid-handshake the wait runs on to [whileConnectingMs], since on a
-     * slow Wi-Fi an answer is still on its way.
+     * command session is still mid-handshake, or registered with its power report still due, the
+     * wait runs on to [whileConnectingMs], since on a slow Wi-Fi an answer is still on its way.
      */
     fun awaitPresence(timeoutMs: Long, whileConnectingMs: Long = timeoutMs): Presence {
         val start = System.currentTimeMillis()
         presenceLock.withLock {
             while (presence is Presence.Unknown) {
-                val limit = if (commandSessionConnecting()) whileConnectingMs else timeoutMs
+                // A session that registers late must still get time for its power report: cutting
+                // the wait there would leave Unknown, which the power button reads as "on"
+                val limit = if (commandMaybeUp()) whileConnectingMs else timeoutMs
                 val left = start + limit - System.currentTimeMillis()
                 if (left <= 0) break
                 // The session leaving the connecting state does not signal the condition
@@ -772,9 +775,6 @@ class WebOsClient(appContext: Context) {
         }
         return presence
     }
-
-    private fun commandSessionConnecting() =
-        sharedCommandSession?.let { it.state == CmdState.CONNECTING && it.isUsable } == true
 
     /** The TV is registered or still registering on the shared command session. */
     fun commandMaybeUp() = sharedCommandSession?.maybeUp == true
