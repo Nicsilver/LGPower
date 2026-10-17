@@ -62,6 +62,9 @@ class SetupActivity : AppCompatActivity() {
     private fun cancelAddIfAbandoned() {
         if (!addMode || added || addCancelled || !isFinishing) return
         addCancelled = true
+        // Stopped before the restore: a key stored after it would pair the active entry with the new TV
+        stopPairing?.invoke()
+        stopPairing = null
         TvStore.cancelAdd(prefs)
     }
 
@@ -227,15 +230,20 @@ class SetupActivity : AppCompatActivity() {
             },
             onPaired = {
                 pairingTimeout?.let { timeoutHandler.removeCallbacks(it) }
-                client.saveTvIp(ip)
-                pairedUdn = udns[ip]
-                // Grab MAC (and the fingerprint, if discovery did not have it) while the name step shows
-                Thread {
-                    val mac = client.getMacFromDevice()
-                    if (mac != null) client.saveTvMac(mac)
-                    if (pairedUdn == null) pairedUdn = TvDiscovery.fingerprint(this, ip)
-                }.start()
-                runOnUiThread { showSuccess(ip) }
+                // Backing out restores the active TV's prefs on the UI thread, so these writes go
+                // there too and are skipped once that has happened
+                runOnUiThread {
+                    if (addCancelled) return@runOnUiThread
+                    client.saveTvIp(ip)
+                    pairedUdn = udns[ip]
+                    // Grab MAC (and the fingerprint, if discovery did not have it) while the name step shows
+                    Thread {
+                        val mac = client.getMacFromDevice()
+                        if (mac != null) runOnUiThread { if (!addCancelled) client.saveTvMac(mac) }
+                        if (pairedUdn == null) pairedUdn = TvDiscovery.fingerprint(this, ip)
+                    }.start()
+                    showSuccess(ip)
+                }
             }
         )
     }
