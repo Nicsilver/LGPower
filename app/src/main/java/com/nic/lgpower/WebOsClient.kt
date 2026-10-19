@@ -448,6 +448,11 @@ class WebOsClient(appContext: Context) {
         val ip = tvIp
         private val createdAt = System.currentTimeMillis()
         @Volatile private var lastActiveAt = createdAt
+        // The pointer's own handshake gets POINTER_CONNECT_MS from the moment it may register,
+        // not from creation: it waits for the command session first, and two slow
+        // registrations in a row would otherwise eat the whole budget. Nothing outlives
+        // CONNECT_GRACE_MS from creation, which is also as long as a caller waits for it.
+        @Volatile private var connectDeadline = createdAt + POINTER_CONNECT_MS
         private val waiters = AtomicInteger(0)
         private val readyLatch = CountDownLatch(1)
 
@@ -469,13 +474,13 @@ class WebOsClient(appContext: Context) {
         // is kept, not replaced, so a held key can't keep killing every attempt
         val isUsable get() = when (state) {
             PtrState.READY -> pointerWs != null
-            PtrState.CONNECTING -> System.currentTimeMillis() - createdAt < POINTER_CONNECT_MS
+            PtrState.CONNECTING -> System.currentTimeMillis() < connectDeadline
             PtrState.DEAD -> false
         } && ip == tvIp
 
         val isDead get() = state == PtrState.DEAD
         val isConnecting get() = state == PtrState.CONNECTING &&
-            System.currentTimeMillis() - createdAt < POINTER_CONNECT_MS && ip == tvIp
+            System.currentTimeMillis() < connectDeadline && ip == tvIp
         val shouldRetire get() = ip != tvIp || (state != PtrState.DEAD && !isUsable)
 
         /** Recent traffic or a key waiting on it: replacing it now would abort live work. */
@@ -562,7 +567,11 @@ class WebOsClient(appContext: Context) {
         }
 
         private fun registerWhenCommandHas(ws: WebSocket) {
-            val verdict = awaitCommandRegistered(this, createdAt + POINTER_CONNECT_MS)
+            connectDeadline = createdAt + CONNECT_GRACE_MS
+            val verdict = awaitCommandRegistered(this, connectDeadline)
+            if (verdict == CmdState.READY) {
+                connectDeadline = minOf(System.currentTimeMillis() + POINTER_CONNECT_MS, createdAt + CONNECT_GRACE_MS)
+            }
             // Closed, past its deadline, or for a TV the user has since switched away from
             if (!isConnecting) { ws.close(1000, null); fail(); return }
             when (verdict) {
@@ -613,12 +622,16 @@ class WebOsClient(appContext: Context) {
             readyLatch.countDown()
         }
 
-        // Same length as the connect deadline in isUsable, so a caller that gave up with a
+        // Waits out the connect deadline in isUsable, so a caller that gave up with a
         // timeout can not have its key sent by a handshake that finishes later
         fun waitUntilReady(): Boolean {
             waiters.incrementAndGet()
             try {
-                return readyLatch.await(POINTER_CONNECT_MS, TimeUnit.MILLISECONDS) && state == PtrState.READY
+                while (true) {
+                    val left = connectDeadline - System.currentTimeMillis()
+                    if (left <= 0) return state == PtrState.READY
+                    if (readyLatch.await(left, TimeUnit.MILLISECONDS)) return state == PtrState.READY
+                }
             } finally {
                 waiters.decrementAndGet()
             }
