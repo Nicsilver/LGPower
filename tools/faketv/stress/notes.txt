@@ -1,0 +1,21 @@
+NOTES (K = Kotlin app, F = Flutter app). Harness: persistent adb shell (coproc) for low-latency taps; faketv scratch copy with ctl http :3099.
+S1 K pass: 20 taps sent during connect queued, flushed in order on p4 (20x UP), hold 3s=23 UP @~122ms, drag 67 moves, 2 clicks for 2 taps, vol 4 keys; 1 ptr conn.
+S1 F pass: 20 UP, hold 22 UP (~2.9s), drag 124 moves, 3 clicks(1 = tap on locked overlay after drag locked pad, see O1), vol 4; 1 ptr conn.
+O1: after an 800ms adb swipe from Touchpad button the pad ends up LOCKED in F (per-event delta < threshold so hasMoved never set, lock timer 600ms fires). K did not in same test (fewer move events). Harness-ish; logic identical in both.
+O2: F sends zero-delta "move 0,0" frames (98 during 1.4s still hold). K filters dx=dy=0.
+S2 (reg delay 2.5s, cold launch): K a pass (1 UP delivered at pointer open, ~4s after tap); b pass (hold 1.2s released before connect -> only 1 UP, no burst); c pass (800ms drag during connect: 0 frames, no click); d K: lock-hold+tap+drag+tap during connect -> ONE stale CLICK (the first tap, ~3.4s old) delivered at open, second click suppressed (K2: K clicks are not age-limited; F drops clicks >1.5s old); e pass (nothing).
+S2 F: a pass, b pass, c pass, d pass (no frames; stale click dropped), e pass.
+O3: K pointer socket opens ~1.0s (or 0.5) after reg socket closes when reg delay active (F 0.1s); not investigated.
+S3 (drop ptr then tap at 0.2/0.8/2.0s; real tap latency 32ms via persistent shell): K+F all 6: 1 UP delivered once on a new pointer conn, 1.1-3.8s after tap (K waits 1s cooldown). pass.
+S4 (drop cmd): K+F pass: both recover (K reconnect cmd immediately, F ~3.6s), UP arrives once at 0.3s tap & again later; 1 power subscribe; end 1cmd+1ptr.
+S5 HOME relaunch 2.5s/30s and lock/unlock 2.5s/30s: K+F all pass, exactly 1 UP, no dup/burst. NOTE: taps within ~1.5s of relaunch are lost by OS/harness (30 taps sent, 25 arrived, queued in order); F relaunch sometimes cold-starts (splash ~10s) under emulator memory pressure.
+S6 TV off 20-25s (in-process off: refuse = accept+close raw TCP; hang = accept never answer): refuse K 7 attempts/24-29s max2/s; F 4-6 attempts/13-22s max1/s; hang K 5/16s F 5/15s max1/s. App alive; toast "Timeout. Is the TV on and reachable?" seen on both (K: ~6s after tap, F snackbar). Red dot while off; green after on; UP delivered after on w/o restart both.
+S7 standby on + drop all, 20s drag+hold loop: F 13 STANDBY attempts/23s, K 17/24s, max 2/s (cmd+ptr reg pair), pass. Recovery after standby off: both pass.
+S8 after heavy workload (drops, off/on, standby, 3 HOME/relaunch, 2 lock/unlock): K open_cmd=1 open_ptr=1; F 1/1; after 45s in background 1/1 both; after force-stop 0/0. pass.
+
+HOW TO RUN (2026-10-19 final-code run, results in ../../../.plans/stress-final-results.md)
+  python faketv.py --port 3021 --icon-port 3022 --ctl-port 3029 >> ftv.log      (add --wake-delays 3,15 / --sound-output external_arc as needed)
+  adb -s $ADB_SERIAL reverse tcp:3001 tcp:3021 ; adb -s $ADB_SERIAL reverse tcp:3002 tcp:3022   (private host port, other emulators cannot reach it)
+  export ADB_SERIAL=emulator-XXXX TVIP=127.0.0.1 ; source h.sh ; setapp K|F ; runcase / s3 / s4 / s6 / s7 / s8 / extra8 / flap / s2prompt / s2deny / s3arc / w4r ...
+  WoL (wake-delays) only reaches the host through the unicast target 10.0.2.2:9, so those runs use TVIP=10.0.2.2 and --port 3001.
+  Control port: /reg_delay /drop?what=ptr|cmd|all[&abort=1] /standby?on=1 /off?mode=refuse|hang /on /pair?mode=off|prompt|deny /accept /power?state= (or null|nostate) /vol?v= /mark?t= /status
