@@ -250,6 +250,9 @@ class WebOsClient(appContext: Context) {
                                 state = CmdState.NEEDS_PAIRING
                                 readyLatch.countDown()
                                 failAll(CmdReply.NeedsPairing)
+                                // The pointer session warmed alongside this one registered with the same key; a
+                                // second registration could replace the prompt that is showing
+                                if (sharedCommandSession === this@CommandSession) dropPointerSession { it.isConnecting }
                             }
                             type == "error" && id == "reg_0" -> {
                                 // The prompt was denied or timed out; the socket is no use any more
