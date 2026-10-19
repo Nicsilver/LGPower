@@ -884,14 +884,21 @@ class MainActivity : AppCompatActivity() {
     private fun wakeTv(gen: Int, action: () -> WebOsClient.Result) {
         client.sendWakeOnLan()
         val hintAfter = appPrefs.getInt("wake_hint_after_s", WAKE_HINT_FIRST_S)
+        val inFlight = java.util.concurrent.atomic.AtomicBoolean(false)
         repeat(maxOf(WAKE_RETRIES, hintAfter + 1)) { i ->
             if (wakeHomeGen != gen) return
             if (i == hintAfter) runOnUiThread { showWakeHint() }
-            Thread {
-                if (wakeHomeGen == gen && action() is WebOsClient.Result.Success) {
-                    ++wakeHomeGen
-                    client.turnOnScreen()
-                    runOnUiThread { wakeHint?.dismiss() }
+            // Attempts that overlap all wait on the same connecting command session and are
+            // released together when it registers, so each would send the action
+            if (inFlight.compareAndSet(false, true)) Thread {
+                try {
+                    if (wakeHomeGen == gen && action() is WebOsClient.Result.Success) {
+                        ++wakeHomeGen
+                        client.turnOnScreen()
+                        runOnUiThread { wakeHint?.dismiss() }
+                    }
+                } finally {
+                    inFlight.set(false)
                 }
             }.start()
             Thread.sleep(1_000)
