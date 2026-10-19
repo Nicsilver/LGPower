@@ -155,6 +155,7 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<View>(R.id.row_release_notes).setOnClickListener {
             showReleaseNotesDialog("Release notes", ReleaseNotes.all, "Close", markLatest = true)
         }
+        findViewById<View>(R.id.row_contact).setOnClickListener { ContactMail.open(this) }
 
         // Theme picker
         refreshThemeLabel()
