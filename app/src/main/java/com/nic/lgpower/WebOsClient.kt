@@ -188,6 +188,10 @@ class WebOsClient(appContext: Context) {
         // The TV answered the registration with an error after showing its prompt (denied or timed out)
         @Volatile var pairingRejected = false
             private set
+        // The socket completed its upgrade. A session that died without ever getting this far
+        // stalled in connect/TLS, which says nothing about the TV being in standby
+        @Volatile var opened = false
+            private set
         private val readyLatch = CountDownLatch(1)
         private val deathLatch = CountDownLatch(1)
         private val pending = ConcurrentHashMap<String, Pair<AtomicReference<CmdReply>, CountDownLatch>>()
@@ -217,6 +221,7 @@ class WebOsClient(appContext: Context) {
                 if (state == CmdState.DEAD) { client.dispatcher.executorService.shutdown(); return }
                 socket = client.newWebSocket(req, object : WebSocketListener() {
                     override fun onOpen(ws: WebSocket, response: Response) {
+                        opened = true
                         if (state == CmdState.DEAD) { ws.close(1000, null); return }
                         this@CommandSession.ws = ws
                         ws.send(buildRegistration(savedKey))
@@ -316,7 +321,8 @@ class WebOsClient(appContext: Context) {
         }
 
         fun send(uri: String, payload: JSONObject = JSONObject(), timeoutSecs: Long = 6): CmdReply {
-            readyLatch.await(8, TimeUnit.SECONDS)
+            // Nobody reuses a session past its connect grace, so waiting longer only delays the caller's fallback
+            readyLatch.await(minOf(8_000L, createdAt + CONNECT_GRACE_MS - System.currentTimeMillis()).coerceAtLeast(0), TimeUnit.MILLISECONDS)
             if (state != CmdState.READY) return when (state) {
                 CmdState.NEEDS_PAIRING -> CmdReply.NeedsPairing
                 CmdState.DEAD -> CmdReply.Err("Can't connect to TV" + (deadReason?.let { " ($it)" } ?: ""))
@@ -558,7 +564,7 @@ class WebOsClient(appContext: Context) {
         private fun registerWhenCommandHas(ws: WebSocket) {
             val verdict = awaitCommandRegistered(this, createdAt + POINTER_CONNECT_MS)
             // Closed, past its deadline, or for a TV the user has since switched away from
-            if (!isConnecting) { ws.close(1000, null); return }
+            if (!isConnecting) { ws.close(1000, null); fail(); return }
             when (verdict) {
                 CmdState.READY -> {
                     val key = prefs.getString("client_key", null)
@@ -694,9 +700,12 @@ class WebOsClient(appContext: Context) {
             val mine = shared != null && shared.ip == pointer.ip
             val session = when {
                 shared != null && mine && shared.state == CmdState.NEEDS_PAIRING -> return CmdState.NEEDS_PAIRING
-                // Retrying is the power watcher's job, at its own pace: a connect from here would
-                // add one per key press against a TV in standby
-                shared != null && mine && shared.state == CmdState.DEAD -> return CmdState.DEAD
+                // A session that opened and then died (a TV in standby accepts the upgrade and closes)
+                // is the power watcher's to retry at its own pace: a connect from here would add one
+                // per key press. One that never opened stalled in connect/TLS, so it falls through to
+                // the single replacement below
+                shared != null && mine && shared.state == CmdState.DEAD &&
+                    (shared.opened || shared.pairingRejected) -> return CmdState.DEAD
                 shared != null && mine && shared.isUsable -> shared
                 // None yet, or one stuck past its connect grace
                 !connected -> { connected = true; commandSession() }
