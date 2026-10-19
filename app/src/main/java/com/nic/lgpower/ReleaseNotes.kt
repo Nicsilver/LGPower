@@ -13,6 +13,11 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(47, "1.40.0", "2026-10-20", listOf(
+            "Buttons respond faster, especially the first press after unlocking the phone",
+            "Fixed presses that sometimes did nothing after coming back to the app",
+            "New: Settings > About > Contact opens an email to the developer",
+        )),
         Release(46, "1.39.1", "2026-10-16", listOf(
             "The remote fits on phones around 400dp wide instead of cutting off the right-hand buttons",
             "Removed a stray dot on the channel-up button",
