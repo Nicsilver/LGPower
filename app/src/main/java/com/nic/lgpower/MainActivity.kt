@@ -831,8 +831,8 @@ class MainActivity : AppCompatActivity() {
             autoDiscover()
             return
         }
-        // The pointer session doesn't depend on the command socket, so it connects alongside it
-        // instead of waiting for the "TV is on" report; a TV that is off just fails it quietly
+        // Starts the pointer's TLS handshake alongside the command session's instead of after the
+        // "TV is on" report; it registers once the command session has
         client.warmPointerSession()
         stopWatching = client.watchPower { p -> runOnUiThread { applyPresence(p) } }
     }

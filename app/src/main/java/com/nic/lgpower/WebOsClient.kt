@@ -177,13 +177,13 @@ class WebOsClient(appContext: Context) {
     private inner class CommandSession {
 
         @Volatile private var http: OkHttpClient? = null
-        private val ip = tvIp
+        val ip = tvIp
         @Volatile private var ws: WebSocket? = null
         @Volatile private var socket: WebSocket? = null
         @Volatile var state = CmdState.CONNECTING
             private set
         @Volatile private var deadReason: String? = null
-        private val createdAt = System.currentTimeMillis()
+        val createdAt = System.currentTimeMillis()
         @Volatile private var lastActiveAt = createdAt
         // The TV answered the registration with an error after showing its prompt (denied or timed out)
         @Volatile var pairingRejected = false
@@ -250,9 +250,6 @@ class WebOsClient(appContext: Context) {
                                 state = CmdState.NEEDS_PAIRING
                                 readyLatch.countDown()
                                 failAll(CmdReply.NeedsPairing)
-                                // The pointer session warmed alongside this one registered with the same key; a
-                                // second registration could replace the prompt that is showing
-                                if (sharedCommandSession === this@CommandSession) dropPointerSession { it.isConnecting }
                             }
                             type == "error" && id == "reg_0" -> {
                                 // The prompt was denied or timed out; the socket is no use any more
@@ -379,8 +376,8 @@ class WebOsClient(appContext: Context) {
             (pending.isNotEmpty() || System.currentTimeMillis() - lastActiveAt < RESET_KEEP_MS)
 
         /** Waits for the handshake to settle, for as long as the session may still count as connecting. */
-        fun awaitSettled() {
-            val left = createdAt + CONNECT_GRACE_MS - System.currentTimeMillis()
+        fun awaitSettled(maxMs: Long = CONNECT_GRACE_MS) {
+            val left = minOf(maxMs, createdAt + CONNECT_GRACE_MS - System.currentTimeMillis())
             if (left > 0) readyLatch.await(left, TimeUnit.MILLISECONDS)
         }
 
@@ -507,7 +504,9 @@ class WebOsClient(appContext: Context) {
                     override fun onOpen(ws: WebSocket, response: Response) {
                         if (state == PtrState.DEAD) { ws.close(1000, null); return }
                         regOpen = true
-                        ws.send(buildRegistration(savedKey))
+                        // Waits on its own thread: blocking this one would hold back the close a
+                        // TV in standby sends straight after the upgrade
+                        gateExecutor.execute { registerWhenCommandHas(ws) }
                     }
                     override fun onMessage(ws: WebSocket, text: String) {
                         val json = runCatching { JSONObject(text) }.getOrNull() ?: return
@@ -554,6 +553,23 @@ class WebOsClient(appContext: Context) {
                 }
             )
             if (state == PtrState.DEAD) regSocket?.cancel()
+        }
+
+        private fun registerWhenCommandHas(ws: WebSocket) {
+            val verdict = awaitCommandRegistered(this, createdAt + POINTER_CONNECT_MS)
+            // Closed, past its deadline, or for a TV the user has since switched away from
+            if (!isConnecting) { ws.close(1000, null); return }
+            when (verdict) {
+                CmdState.READY -> {
+                    val key = prefs.getString("client_key", null)
+                    // Registering without a key is a pairing request
+                    if (key.isNullOrEmpty()) { ws.close(1000, null); fail(); return }
+                    keyUsed = key
+                    ws.send(buildRegistration(key))
+                }
+                CmdState.NEEDS_PAIRING -> { markPairingMissing(); ws.close(1000, null); fail() }
+                else -> { ws.close(1000, null); fail() }
+            }
         }
 
         private fun openPointerSocket(client: OkHttpClient, socketPath: String) {
@@ -667,9 +683,46 @@ class WebOsClient(appContext: Context) {
         return fresh
     }
 
+    // The pointer registers with the same key as the command session. A key the TV doesn't know
+    // turns every registration into a pairing prompt, and two at once can show two prompts or have
+    // one replace the other, so the pointer only registers once the command session has and never
+    // asks on its own. Its TLS handshake still runs alongside the command session's.
+    private fun awaitCommandRegistered(pointer: PointerSession, deadline: Long): CmdState {
+        var connected = false
+        while (pointer.isConnecting) {
+            val shared = sharedCommandSession
+            val mine = shared != null && shared.ip == pointer.ip
+            val session = when {
+                shared != null && mine && shared.state == CmdState.NEEDS_PAIRING -> return CmdState.NEEDS_PAIRING
+                // Retrying is the power watcher's job, at its own pace: a connect from here would
+                // add one per key press against a TV in standby
+                shared != null && mine && shared.state == CmdState.DEAD -> return CmdState.DEAD
+                shared != null && mine && shared.isUsable -> shared
+                // None yet, or one stuck past its connect grace
+                !connected -> { connected = true; commandSession() }
+                else -> return CmdState.DEAD
+            }
+            when (session.state) {
+                CmdState.READY, CmdState.NEEDS_PAIRING -> return session.state
+                CmdState.DEAD -> return CmdState.DEAD
+                CmdState.CONNECTING -> {
+                    val now = System.currentTimeMillis()
+                    val left = minOf(deadline, session.createdAt + CONNECT_GRACE_MS) - now
+                    if (left <= 0) return CmdState.DEAD
+                    // Settles on any outcome, including the session being replaced; the next round
+                    // looks at whichever one is shared by then
+                    session.awaitSettled(left)
+                }
+            }
+        }
+        return CmdState.DEAD
+    }
+
     /** Opens the shared pointer connection if there isn't a usable one. Never blocks. */
     fun warmPointerSession() {
-        if (tvIp.isNotBlank()) pointerSession()
+        // Without a key the first registration is the pairing itself, and that belongs to the
+        // command session
+        if (tvIp.isNotBlank() && !prefs.getString("client_key", null).isNullOrEmpty()) pointerSession()
     }
 
     // A key press, unlike touchpad frames, is worth waiting out the retry pause for: the pause
@@ -1300,6 +1353,10 @@ class WebOsClient(appContext: Context) {
         // Builds the OkHttp client and opens the pointer socket off the caller's thread
         private val connectExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
             Thread(r, "pointer-connect").apply { isDaemon = true }
+        }
+        // Holds a pointer's registration until the command session has registered
+        private val gateExecutor = java.util.concurrent.Executors.newCachedThreadPool { r ->
+            Thread(r, "pointer-gate").apply { isDaemon = true }
         }
         // Observed on a C4: turnOff pushes state "Active" with processing "Request Power Off"
         // within 50 ms, then "Request/Prepare Active Standby", and lands on "Active Standby" ~3 s later
