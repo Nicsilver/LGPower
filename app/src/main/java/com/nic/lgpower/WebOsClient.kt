@@ -629,7 +629,12 @@ class WebOsClient(appContext: Context) {
             try {
                 while (true) {
                     val left = connectDeadline - System.currentTimeMillis()
-                    if (left <= 0) return state == PtrState.READY
+                    if (left <= 0) {
+                        // Nothing else stops a handshake at its deadline once the registration
+                        // went out, and a socket that opened later would send this key anyway
+                        synchronized(lock) { if (state == PtrState.CONNECTING) fail() }
+                        return state == PtrState.READY
+                    }
                     if (readyLatch.await(left, TimeUnit.MILLISECONDS)) return state == PtrState.READY
                 }
             } finally {
