@@ -159,15 +159,18 @@ class KeyboardTest(private val client: WebOsClient, private val appVersion: Stri
             }
         }
 
-        waitUntil(LISTEN_MS * 2 / 10)
-        call("insertText \"C\" replace=false (subscribed)", "$IME/insertText",
-            JSONObject().put("text", "C").put("replace", false))
-        waitUntil(LISTEN_MS * 4 / 10)
-        call("deleteCharacters count=1", "$IME/deleteCharacters", JSONObject().put("count", 1))
-        waitUntil(LISTEN_MS * 6 / 10)
-        call("sendEnterKey", "$IME/sendEnterKey")
-        waitUntil(LISTEN_MS)
-        stop?.invoke()
+        try {
+            waitUntil(LISTEN_MS * 2 / 10)
+            call("insertText \"C\" replace=false (subscribed)", "$IME/insertText",
+                JSONObject().put("text", "C").put("replace", false))
+            waitUntil(LISTEN_MS * 4 / 10)
+            call("deleteCharacters count=1", "$IME/deleteCharacters", JSONObject().put("count", 1))
+            waitUntil(LISTEN_MS * 6 / 10)
+            call("sendEnterKey", "$IME/sendEnterKey")
+            waitUntil(LISTEN_MS)
+        } finally {
+            stop?.invoke()
+        }
         note("UNSUBSCRIBE registerRemoteKeyboard")
 
         if (stop == null) {
