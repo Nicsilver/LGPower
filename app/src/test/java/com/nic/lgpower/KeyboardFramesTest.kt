@@ -47,6 +47,7 @@ class KeyboardFramesTest {
         assertFalse(out.contains("AA:BB"))
         assertFalse(out.contains("20:3d"))
         assertTrue(out.contains("HE_DTV"))
+        assertFalse(KeyboardReport.redact("failed to connect to /192.168.1.157").contains("192.168"))
     }
 
     @Test fun longFramesAreTrimmed() {

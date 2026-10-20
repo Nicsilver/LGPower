@@ -59,6 +59,8 @@ class MainActivity : AppCompatActivity() {
     private var lastAppliedThemeId = ""
     private val statusHandler = Handler(Looper.getMainLooper())
     private var stopWatching: (() -> Unit)? = null
+    // A recreated activity never dismisses the old keyboard sheet, so its watcher is stopped here too
+    private var stopKeyboardFocus: (() -> Unit)? = null
     private val levelsInterval = 5_000L
 
     private enum class TvStatus { CHECKING, CONNECTED, SEARCHING, PAIRING, DISCONNECTED }
@@ -635,6 +637,12 @@ class MainActivity : AppCompatActivity() {
         val cachedBrightness = appPrefs.getInt("last_brightness", -1)
         if (cachedBrightness >= 0) setBrightnessBar(cachedBrightness)
         startWatching()
+    }
+
+    override fun onDestroy() {
+        stopKeyboardFocus?.invoke()
+        stopKeyboardFocus = null
+        super.onDestroy()
     }
 
     override fun onPause() {
@@ -1603,15 +1611,22 @@ class MainActivity : AppCompatActivity() {
         }
 
         fun send() {
+            // The IME's Send action still fires while the button is disabled for a send in flight
+            if (!sendBtn.isEnabled) return
             val text = editText.text.toString()
             if (text.isEmpty()) { dialog.dismiss(); return }
             sendBtn.isEnabled = false
+            window.decorView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             Thread {
                 val result = client.sendText(text)
                 runOnUiThread {
                     sendBtn.isEnabled = true
                     if (result is WebOsClient.Result.Success) { dialog.dismiss(); return@runOnUiThread }
-                    if (!dialog.isShowing) return@runOnUiThread
+                    if (!dialog.isShowing) {
+                        if (result is WebOsClient.Result.Error && !isFinishing)
+                            Toast.makeText(this, result.message, Toast.LENGTH_SHORT).show()
+                        return@runOnUiThread
+                    }
                     error = when (result) {
                         is WebOsClient.Result.NeedsPairing -> "Accept pairing on your TV, then try again"
                         is WebOsClient.Result.Error ->
@@ -1630,7 +1645,7 @@ class MainActivity : AppCompatActivity() {
         }
         editText.doAfterTextChanged { if (error != null) { error = null; showStatus() } }
 
-        val stopWatching = client.watchKeyboardFocus { f ->
+        val stopFocusWatch = client.watchKeyboardFocus { f ->
             runOnUiThread {
                 if (!dialog.isShowing) return@runOnUiThread
                 focus = f
@@ -1639,8 +1654,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        stopKeyboardFocus = stopFocusWatch
         dialog.setOnDismissListener {
-            stopWatching()
+            stopFocusWatch()
+            stopKeyboardFocus = null
             window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_UNSPECIFIED)
         }
 

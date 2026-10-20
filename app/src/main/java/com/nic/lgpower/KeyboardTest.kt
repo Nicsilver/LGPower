@@ -10,11 +10,14 @@ import java.util.concurrent.CopyOnWriteArrayList
 /** Formatting helpers for the keyboard test report, kept apart from the socket code so they can be unit tested. */
 object KeyboardReport {
     private val secretValue = Regex("(\"(?:client-key|device_id|deviceId|serialNumber)\"\\s*:\\s*\")[^\"]*(\")")
-    private val mac = Regex("\\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\\b")
+    private val mac = Regex("\\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\\b")
+    private val ipv4 = Regex("\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b")
 
     // The report gets pasted into public threads, so nothing that identifies the TV or its pairing leaves the phone
-    fun redact(text: String): String =
-        mac.replace(secretValue.replace(text) { "${it.groupValues[1]}redacted${it.groupValues[2]}" }, "xx:xx:xx:xx:xx:xx")
+    fun redact(text: String): String {
+        val noSecrets = secretValue.replace(text) { "${it.groupValues[1]}redacted${it.groupValues[2]}" }
+        return ipv4.replace(mac.replace(noSecrets, "xx:xx:xx:xx:xx:xx"), "x.x.x.x")
+    }
 
     fun trim(text: String, max: Int = 700): String =
         if (text.length <= max) text else text.take(max) + "... (${text.length - max} more characters)"

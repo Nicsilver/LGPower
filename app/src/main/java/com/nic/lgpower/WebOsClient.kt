@@ -1220,17 +1220,24 @@ class WebOsClient(appContext: Context) {
      */
     fun watchKeyboardFocus(listener: (KeyboardFocus) -> Unit): () -> Unit {
         val thread = Thread {
+            var idle = false
             try {
                 while (true) {
-                    val session = commandSession()
-                    session.awaitSettled()
-                    if (session.state != CmdState.READY) { listener(KeyboardFocus.UNKNOWN); Thread.sleep(2_000); continue }
-                    val id = session.exchange("subscribe", KEYBOARD_URI, JSONObject().put("subscribe", true)) { frame, _ ->
+                    // Rides the session the power watcher keeps up rather than dialling one: its retry
+                    // and pairing backoff must stay the only thing that reconnects, or a refused
+                    // pairing would put the TV's prompt back up every couple of seconds
+                    val session = sharedCommandSession?.takeIf { it.state == CmdState.READY && it.ip == tvIp }
+                    val id = session?.exchange("subscribe", KEYBOARD_URI, JSONObject().put("subscribe", true)) { frame, _ ->
                         listener(keyboardFocusOf(frame))
                     }
-                    if (id == null) { Thread.sleep(1_000); continue }
+                    if (session == null || id == null) {
+                        if (!idle) { idle = true; listener(KeyboardFocus.UNKNOWN) }
+                        Thread.sleep(1_000)
+                        continue
+                    }
+                    idle = false
                     try { session.awaitDeath() } finally { session.endExchange(id, true) }
-                    Thread.sleep(1_000)
+                    listener(KeyboardFocus.UNKNOWN)
                 }
             } catch (_: InterruptedException) { }
         }
