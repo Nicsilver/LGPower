@@ -8,6 +8,16 @@
     android:paddingTop="8dp"
     android:paddingBottom="12dp">
 
+    <TextView
+        android:id="@+id/keyboard_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="10dp"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/keyboard_card"
         android:layout_width="match_parent"

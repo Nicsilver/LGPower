@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/kbt_root"
+    android:tag="window_bg"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="56dp">
+
+        <TextView
+            android:tag="title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Keyboard test"
+            android:textColor="#FFFFFF"
+            android:textSize="30sp"
+            android:textStyle="bold"
+            android:paddingHorizontal="4dp"
+            android:layout_marginBottom="32dp" />
+
+        <LinearLayout
+            android:tag="surface_bg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:background="@drawable/bg_section_group">
+
+            <TextView
+                android:id="@+id/kbt_intro"
+                android:tag="row_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Checks how this TV handles typing from the app. On the TV, open the search (or any text field) and leave the cursor in it, then tap Start.\n\nThe test takes about 30 seconds. It types a short test text and presses Enter on the TV."
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:lineSpacingMultiplier="1.1" />
+
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/kbt_start"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="16dp"
+            android:text="Start"
+            android:textAllCaps="false"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/kbt_progress"
+            android:tag="row_value"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:paddingHorizontal="4dp"
+            android:textColor="#8E8E93"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/kbt_answer_block"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="28dp"
+            android:visibility="gone">
+
+            <TextView
+                android:tag="section_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="WHAT DID THE TV'S TEXT FIELD SHOW?"
+                android:textColor="#8E8E93"
+                android:textSize="12sp"
+                android:letterSpacing="0.06"
+                android:paddingHorizontal="4dp"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/kbt_saw_both"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:text="LGP1 and LGP2"
+                    android:textAllCaps="false"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/kbt_saw_some"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:layout_marginHorizontal="8dp"
+                    android:text="Only one"
+                    android:textAllCaps="false"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/kbt_saw_none"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:text="Nothing"
+                    android:textAllCaps="false"
+                    android:textSize="13sp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/kbt_report_block"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="28dp"
+            android:visibility="gone">
+
+            <TextView
+                android:tag="section_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="REPORT"
+                android:textColor="#8E8E93"
+                android:textSize="12sp"
+                android:letterSpacing="0.06"
+                android:paddingHorizontal="4dp"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:tag="surface_bg"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp"
+                android:background="@drawable/bg_section_group">
+
+                <TextView
+                    android:id="@+id/kbt_report"
+                    android:tag="row_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:textColor="#8E8E93"
+                    android:textSize="10.5sp"
+                    android:textIsSelectable="true" />
+
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/kbt_copy"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="16dp"
+                android:text="Copy report"
+                android:textAllCaps="false"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</androidx.core.widget.NestedScrollView>

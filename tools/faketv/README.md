@@ -22,7 +22,7 @@ Handled URIs: register (any client key is accepted, no pairing prompt), `getPowe
 subscription, `getVolume` subscription and `setVolume` / `volumeUp` / `volumeDown` /
 `setMute`, `getSystemSettings` / `setSystemSettings` for picture and sound, the
 `createAlert` / `closeAlert` luna trick the app uses to write settings, `getExternalInputList`
-/ `switchInput`, `system.launcher/launch`, `insertText`, `listLaunchPoints` (12 apps),
+/ `switchInput`, `system.launcher/launch`, `insertText` / `deleteCharacters` / `sendEnterKey` / `registerRemoteKeyboard` (see below), `getSystemInfo`, `getCurrentSWInformation`, `getForegroundAppInfo`, `listLaunchPoints` (12 apps),
 `turnOffScreen` / `turnOnScreen` / `system/turnOff` (with the real Active to Active
 Standby transition timing), and `connectionmanager/getinfo`. Anything else gets
 `returnValue: true` and an `UNHANDLED URI` log line.
@@ -46,6 +46,17 @@ If it fails to bind, a previous copy is still running. Find the PID with
 the pointer socket and an icon fetch, then stops that child by PID. Run it after touching
 `faketv.py`. If a stray server is already on 3001 the selftest talks to that one instead
 and the icon fetch fails, which is the hint.
+
+### Keyboard flags
+
+`--kbd-focus field|none|cycle` sets what `registerRemoteKeyboard` reports: a focused text
+field (default), none (the sheet shows "Select a text field on the TV first"), or flipping
+every 5 s. The first reply carries `currentWidget` only while a field is focused; pushes
+carry `{"subscribed":true,"currentWidget":{"focus":true,"contentType":"text","cursorPosition":n,
+"surroundingTextLength":n,...},"focusChanged":true}`. `--kbd-deny write|all` answers
+`insertText`, `deleteCharacters` and `sendEnterKey` (and with `all` the subscription too) with
+the 401 frame webOS 26 is suspected to send: `{"type":"error","id":..,"error":"401
+insufficient permissions","payload":{}}`.
 
 ## Point the app at it
 

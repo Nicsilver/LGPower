@@ -196,6 +196,11 @@ class WebOsClient(appContext: Context) {
         private val deathLatch = CountDownLatch(1)
         private val pending = ConcurrentHashMap<String, Pair<AtomicReference<CmdReply>, CountDownLatch>>()
         private val subscriptions = ConcurrentHashMap<String, (JSONObject?) -> Unit>()
+        // Callers that want whole frames, errors included, instead of the parsed payload
+        private val rawListeners = ConcurrentHashMap<String, (JSONObject, String) -> Unit>()
+        // The TV's answer to our registration, kept for the keyboard test's report
+        @Volatile var registeredFrame: String? = null
+            private set
         private val seq = AtomicInteger(0)
 
         // Builds the client and opens the socket on the creating thread, outside the
@@ -231,8 +236,10 @@ class WebOsClient(appContext: Context) {
                         val json = runCatching { JSONObject(text) }.getOrNull() ?: return
                         val type = json.optString("type")
                         val id   = json.optString("id")
+                        rawListeners[id]?.let { it(json, text); return }
                         when {
                             type == "registered" -> {
+                                registeredFrame = text
                                 // A reply that outlives a TV switch belongs to the old TV and must
                                 // not overwrite the new one's key or MACs
                                 val current = ip == tvIp
@@ -274,14 +281,14 @@ class WebOsClient(appContext: Context) {
                                 val (ref, latch) = pending.remove(id) ?: return
                                 val payload = json.optJSONObject("payload")
                                 val reply = if (payload?.optBoolean("returnValue", true) == false)
-                                    CmdReply.Err(payload.optString("errorText").ifEmpty { "Command rejected by TV" })
+                                    CmdReply.Err(frameErrorText(json) ?: "Command rejected by TV")
                                 else
                                     CmdReply.Ok(payload)
                                 ref.set(reply); latch.countDown()
                             }
                             type == "error" -> {
                                 val (ref, latch) = pending.remove(id) ?: return
-                                ref.set(CmdReply.Err(json.optJSONObject("payload")?.optString("errorText") ?: "Unknown error"))
+                                ref.set(CmdReply.Err(frameErrorText(json) ?: "Unknown error"))
                                 latch.countDown()
                             }
                         }
@@ -359,6 +366,23 @@ class WebOsClient(appContext: Context) {
 
         fun unsubscribe(id: String) {
             if (subscriptions.remove(id) == null) return
+            ws?.send(JSONObject().put("id", id).put("type", "unsubscribe").toString())
+        }
+
+        /** Sends a frame and passes every frame the TV tags with its id to [listener] untouched. */
+        fun exchange(type: String, uri: String, payload: JSONObject, listener: (JSONObject, String) -> Unit): String? {
+            val id = "k${seq.incrementAndGet()}"
+            rawListeners[id] = listener
+            val msg = JSONObject().apply {
+                put("id", id); put("type", type); put("uri", uri); put("payload", payload)
+            }.toString()
+            if (state != CmdState.READY || ws?.send(msg) != true) { rawListeners.remove(id); return null }
+            lastActiveAt = System.currentTimeMillis()
+            return id
+        }
+
+        fun endExchange(id: String, unsubscribe: Boolean) {
+            if (rawListeners.remove(id) == null || !unsubscribe) return
             ws?.send(JSONObject().put("id", id).put("type", "unsubscribe").toString())
         }
 
@@ -1184,10 +1208,77 @@ class WebOsClient(appContext: Context) {
     fun launchYouTube() = launchApp("youtube.leanback.v4")
     fun launchStremio() = launchApp("io.strem.tv")
 
+    // replace is a boolean in the IME service's schema; 0 is accepted by older firmware only by luck
     fun sendText(text: String) = execute(
         "ssap://com.webos.service.ime/insertText",
-        JSONObject().put("text", text).put("replace", 0)
+        JSONObject().put("text", text).put("replace", false)
     )
+
+    /**
+     * Holds a registerRemoteKeyboard subscription on the shared command session and reports
+     * whether the TV has a text field focused. Returns a stop function that unsubscribes.
+     */
+    fun watchKeyboardFocus(listener: (KeyboardFocus) -> Unit): () -> Unit {
+        val thread = Thread {
+            try {
+                while (true) {
+                    val session = commandSession()
+                    session.awaitSettled()
+                    if (session.state != CmdState.READY) { listener(KeyboardFocus.UNKNOWN); Thread.sleep(2_000); continue }
+                    val id = session.exchange("subscribe", KEYBOARD_URI, JSONObject().put("subscribe", true)) { frame, _ ->
+                        listener(keyboardFocusOf(frame))
+                    }
+                    if (id == null) { Thread.sleep(1_000); continue }
+                    try { session.awaitDeath() } finally { session.endExchange(id, true) }
+                    Thread.sleep(1_000)
+                }
+            } catch (_: InterruptedException) { }
+        }
+        thread.start()
+        return { thread.interrupt() }
+    }
+
+    /** One request's answer as the TV sent it, or why none arrived. */
+    class RawCall(val frame: String?, val failure: String?)
+
+    private fun readySession(): Pair<CommandSession?, String?> {
+        if (buildWsRequest() == null) return null to "No TV IP configured"
+        val session = commandSession()
+        session.awaitSettled()
+        return when (session.state) {
+            CmdState.READY -> session to null
+            CmdState.NEEDS_PAIRING -> null to "TV is waiting for pairing"
+            else -> null to "Can't connect to TV"
+        }
+    }
+
+    /** Sends one request and returns the raw reply frame. Used by the keyboard test. */
+    fun rawRequest(uri: String, payload: JSONObject = JSONObject(), timeoutSecs: Long = 6): RawCall {
+        val (session, failure) = readySession()
+        if (session == null) return RawCall(null, failure)
+        val got = AtomicReference<String?>()
+        val latch = CountDownLatch(1)
+        val id = session.exchange("request", uri, payload) { _, text -> got.set(text); latch.countDown() }
+            ?: return RawCall(null, "Not connected")
+        val answered = latch.await(timeoutSecs, TimeUnit.SECONDS)
+        session.endExchange(id, false)
+        return if (answered) RawCall(got.get(), null) else RawCall(null, "No reply within ${timeoutSecs}s")
+    }
+
+    /** Subscribes and passes every raw frame to [listener]; returns a stop function, or null with the reason in [onFail]. */
+    fun rawSubscribe(uri: String, payload: JSONObject, onFail: (String) -> Unit, listener: (String) -> Unit): (() -> Unit)? {
+        val (session, failure) = readySession()
+        if (session == null) { onFail(failure ?: "Can't connect to TV"); return null }
+        val id = session.exchange("subscribe", uri, payload) { _, text -> listener(text) }
+        if (id == null) { onFail("Not connected"); return null }
+        return { session.endExchange(id, true) }
+    }
+
+    /** The TV's answer to the shared session's registration, once the session is up. */
+    fun registerReply(): RawCall {
+        val (session, failure) = readySession()
+        return RawCall(session?.registeredFrame, failure)
+    }
 
     // ── App list ──────────────────────────────────────────────────────────────
 
@@ -1361,6 +1452,7 @@ class WebOsClient(appContext: Context) {
         const val DEFAULT_TV_IP = ""
         const val TV_PORT = 3001
         private const val TAG = "WebOsClient"
+        private const val KEYBOARD_URI = "ssap://com.webos.service.ime/registerRemoteKeyboard"
         private const val POWER_STATE_URI = "ssap://com.webos.service.tvpower/power/getPowerState"
         private const val WATCH_RETRY_MS = 5_000L
         private const val CONNECT_GRACE_MS = 10_000L

@@ -54,6 +54,12 @@
         <!-- IR service remote (factory menus) -->
         <activity
             android:screenOrientation="portrait"
+            android:name=".KeyboardTestActivity"
+            android:exported="false"
+            android:label="Keyboard test" />
+
+        <activity
+            android:screenOrientation="portrait"
             android:name=".ServiceRemoteActivity"
             android:exported="false"
             android:label="Service Remote" />

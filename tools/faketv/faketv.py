@@ -80,6 +80,13 @@ class TvState:
         self.other_mac = "20:3D:BD:DE:49:12"
         self.wired = False
         self.ip_address = "192.168.1.50"
+        # IME state behind registerRemoteKeyboard: whether the TV has a text field focused
+        # and what is typed into it so far.
+        self.kbd_focus = True
+        self.kbd_text = ""
+        # none: the IME service answers everything; write: insertText / deleteCharacters /
+        # sendEnterKey get a 401; all: registerRemoteKeyboard does too.
+        self.kbd_deny = "none"
 
 
 STATE = TvState()
@@ -471,10 +478,94 @@ def h_launch(payload, ws):
     return {"id": app_id}
 
 
+KBD_URI = "ssap://com.webos.service.ime/registerRemoteKeyboard"
+
+
+class SsapDenied(Exception):
+    """webOS answers a call the client has no permission for with a type:error frame that
+    carries the text in a top-level `error` field and an empty payload (not payload.errorText)."""
+
+
+def _kbd_widget():
+    if not STATE.kbd_focus:
+        return {"focus": False}
+    n = len(STATE.kbd_text)
+    return {"focus": True, "contentType": "text", "hasSurroundingText": n > 0, "cursorPosition": n,
+            "surroundingTextLength": n, "hasSelection": False, "enterKeyType": 6,
+            "predictionEnabled": False, "correctionEnabled": False}
+
+
+def _kbd_changed():
+    asyncio.create_task(push_subscribers(KBD_URI))
+
+
+def _kbd_write_gate():
+    if STATE.kbd_deny in ("write", "all"):
+        raise SsapDenied("401 insufficient permissions")
+
+
+def h_register_remote_keyboard(payload, ws):
+    # Per the webOS OSE ime service: the first reply carries currentWidget only when something
+    # is focused; later pushes always carry it plus focusChanged.
+    if STATE.kbd_deny == "all":
+        raise SsapDenied("401 insufficient permissions")
+    if ws is None:
+        return {"subscribed": True, "currentWidget": _kbd_widget(), "focusChanged": True}
+    out = {"subscribed": True}
+    if STATE.kbd_focus:
+        out["currentWidget"] = _kbd_widget()
+    return out
+
+
 def h_insert_text(payload, ws):
-    # WebOsClient.kt:737-740 `execute(..., {"text": text, "replace": 0})`
-    log(f"INSERT TEXT text={payload.get('text', '')!r} replace={payload.get('replace')}")
+    # WebOsClient.kt sendText: {"text": text, "replace": false}
+    _kbd_write_gate()
+    log(f"INSERT TEXT text={payload.get('text', '')!r} replace={payload.get('replace')!r}")
+    if STATE.kbd_focus:
+        STATE.kbd_text += str(payload.get("text", ""))
+        _kbd_changed()
     return {}
+
+
+def h_delete_characters(payload, ws):
+    _kbd_write_gate()
+    count = int(payload.get("count", 1))
+    log(f"DELETE CHARACTERS count={count}")
+    if STATE.kbd_focus:
+        STATE.kbd_text = STATE.kbd_text[:max(0, len(STATE.kbd_text) - count)]
+        _kbd_changed()
+    return {}
+
+
+def h_send_enter_key(payload, ws):
+    _kbd_write_gate()
+    log("SEND ENTER KEY")
+    return {}
+
+
+def h_get_system_info(payload, ws):
+    return {"features": {"3d": True}, "receiverType": "dvb", "modelName": "OLED65C4PUA"}
+
+
+def h_get_sw_information(payload, ws):
+    return {"product_name": "webOS", "model_name": "HE_DTV_W24P_AFADATAA", "sw_type": "FIRMWARE",
+            "major_ver": "04", "minor_ver": "40.43", "country": "DK", "device_id": "AA:BB:CC:DD:EE:FF",
+            "auth_flag": "N", "ignore_disable": "N", "eco_info": "01", "config_key": "00",
+            "language_code": "en-GB"}
+
+
+def h_get_foreground_app_info(payload, ws):
+    return {"appId": "com.webos.app.browser", "windowId": "", "processId": ""}
+
+
+async def _kbd_focus_cycle():
+    while True:
+        await asyncio.sleep(5)
+        STATE.kbd_focus = not STATE.kbd_focus
+        if not STATE.kbd_focus:
+            STATE.kbd_text = ""
+        log(f"[kbd] focus -> {STATE.kbd_focus}")
+        await push_subscribers(KBD_URI)
 
 
 def h_list_launch_points(payload, ws):
@@ -541,6 +632,12 @@ HANDLERS = {
     "ssap://tv/switchInput": h_switch_input,
     "ssap://system.launcher/launch": h_launch,
     "ssap://com.webos.service.ime/insertText": h_insert_text,
+    "ssap://com.webos.service.ime/deleteCharacters": h_delete_characters,
+    "ssap://com.webos.service.ime/sendEnterKey": h_send_enter_key,
+    KBD_URI: h_register_remote_keyboard,
+    "ssap://system/getSystemInfo": h_get_system_info,
+    "ssap://com.webos.service.update/getCurrentSWInformation": h_get_sw_information,
+    "ssap://com.webos.applicationManager/getForegroundAppInfo": h_get_foreground_app_info,
     "ssap://com.webos.applicationManager/listLaunchPoints": h_list_launch_points,
     "ssap://com.webos.service.networkinput/getPointerInputSocket": h_get_pointer_input_socket,
     "ssap://system.notifications/createAlert": h_create_alert,
@@ -615,7 +712,11 @@ async def handle_command_message(ws, raw: str):
         log(f"UNHANDLED URI: {uri!r} (payload={_compact(payload)})")
         resp_payload = {"returnValue": True}
     else:
-        resp_payload = {"returnValue": True, **(handler(payload, ws) or {})}
+        try:
+            resp_payload = {"returnValue": True, **(handler(payload, ws) or {})}
+        except SsapDenied as denied:
+            await ws.send(json.dumps({"type": "error", "id": mid, "error": str(denied), "payload": {}}))
+            return
 
     # WebOsClient.kt:187,199-200: both plain responses and the first subscribe
     # reply are type "response" carrying the same "id" the request/subscribe used.
@@ -713,7 +814,14 @@ def main():
                               "makes setVolume a no-op while the volume keys still work, like a receiver on ARC")
     parser.add_argument("--wired", action="store_true",
                          help="TV is on a network cable: only a magic packet for the wiredInfo MAC wakes it")
+    parser.add_argument("--kbd-deny", choices=["none", "write", "all"], default="none",
+                         help="answer the IME calls with a real-looking 401 (top-level error, empty payload): "
+                              "write = insertText/deleteCharacters/sendEnterKey, all = registerRemoteKeyboard too")
+    parser.add_argument("--kbd-focus", choices=["none", "field", "cycle"], default="field",
+                         help="registerRemoteKeyboard state: a text field focused (default), none, or flipping every 5 s")
     args = parser.parse_args()
+    STATE.kbd_deny = args.kbd_deny
+    STATE.kbd_focus = args.kbd_focus != "none"
     STATE.sound_output = args.sound_output
     STATE.wired = args.wired
 
@@ -736,6 +844,8 @@ def main():
         async with websockets.serve(router, "0.0.0.0", CONFIG.port, ssl=ssl_ctx):
             if WAKE_DELAYS:
                 await start_wol_listener()
+            if args.kbd_focus == "cycle":
+                asyncio.create_task(_kbd_focus_cycle())
             log(f"faketv listening wss://0.0.0.0:{CONFIG.port} "
                 f"(icons at http://{CONFIG.host}:{CONFIG.icon_port}/icon/<id>.png)")
             await asyncio.Future()

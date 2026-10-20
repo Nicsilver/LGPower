@@ -156,6 +156,12 @@ class SettingsActivity : AppCompatActivity() {
             showReleaseNotesDialog("Release notes", ReleaseNotes.all, "Close", markLatest = true)
         }
         findViewById<View>(R.id.row_contact).setOnClickListener { ContactMail.open(this) }
+        // Hidden: a long press on the app header opens the keyboard test
+        findViewById<View>(R.id.row_app_header).setOnLongClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            startActivity(android.content.Intent(this, KeyboardTestActivity::class.java))
+            true
+        }
 
         // Theme picker
         refreshThemeLabel()

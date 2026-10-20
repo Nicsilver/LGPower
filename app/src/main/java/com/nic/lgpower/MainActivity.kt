@@ -28,6 +28,7 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.widget.doAfterTextChanged
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.util.concurrent.atomic.AtomicBoolean
@@ -1580,19 +1581,66 @@ class MainActivity : AppCompatActivity() {
         }
         sendBtn.imageTintList = ColorStateList.valueOf(Color.WHITE)
 
+        val status = dialog.findViewById<TextView>(R.id.keyboard_status)
+        status.background = GradientDrawable().apply {
+            setColor(theme.circleBtnBg)
+            cornerRadius = 16 * d
+        }
+        // The error stays up until the next send; the focus hint comes and goes with the TV
+        var error: String? = null
+        var focus = KeyboardFocus.UNKNOWN
+        fun showStatus() {
+            val e = error
+            when {
+                e != null -> { status.text = e; status.setTextColor(0xFFE05555.toInt()) }
+                focus == KeyboardFocus.NO_FIELD -> {
+                    status.text = "Select a text field on the TV first"
+                    status.setTextColor(theme.secondaryText)
+                }
+                else -> { status.text = ""; status.visibility = View.GONE; return }
+            }
+            status.visibility = View.VISIBLE
+        }
+
         fun send() {
             val text = editText.text.toString()
-            if (text.isNotEmpty()) sendCommand { client.sendText(text) }
-            dialog.dismiss()
+            if (text.isEmpty()) { dialog.dismiss(); return }
+            sendBtn.isEnabled = false
+            Thread {
+                val result = client.sendText(text)
+                runOnUiThread {
+                    sendBtn.isEnabled = true
+                    if (result is WebOsClient.Result.Success) { dialog.dismiss(); return@runOnUiThread }
+                    if (!dialog.isShowing) return@runOnUiThread
+                    error = when (result) {
+                        is WebOsClient.Result.NeedsPairing -> "Accept pairing on your TV, then try again"
+                        is WebOsClient.Result.Error ->
+                            if (isPermissionError(result.message)) "This TV doesn't allow typing from this app"
+                            else result.message.ifEmpty { "The TV rejected the text" }
+                        else -> null
+                    }
+                    showStatus()
+                }
+            }.start()
         }
 
         sendBtn.setOnClickListener { send() }
         editText.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) { send(); true } else false
         }
+        editText.doAfterTextChanged { if (error != null) { error = null; showStatus() } }
+
+        val stopWatching = client.watchKeyboardFocus { f ->
+            runOnUiThread {
+                if (!dialog.isShowing) return@runOnUiThread
+                focus = f
+                showStatus()
+            }
+        }
 
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         dialog.setOnDismissListener {
+            stopWatching()
             window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_UNSPECIFIED)
         }
 

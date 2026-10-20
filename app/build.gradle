@@ -53,4 +53,6 @@ dependencies {
     implementation 'com.android.billingclient:billing:9.1.0'
 
     testImplementation 'junit:junit:4.13.2'
+    // android.jar's org.json is a stub on the JVM
+    testImplementation 'org.json:json:20231013'
 }
