@@ -280,7 +280,7 @@ class WebOsClient(appContext: Context) {
                             type == "response" -> {
                                 val (ref, latch) = pending.remove(id) ?: return
                                 val payload = json.optJSONObject("payload")
-                                val reply = if (payload?.optBoolean("returnValue", true) == false)
+                                val reply = if (responseFailed(json))
                                     CmdReply.Err(frameErrorText(json) ?: "Command rejected by TV")
                                 else
                                     CmdReply.Ok(payload)

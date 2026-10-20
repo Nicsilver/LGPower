@@ -34,10 +34,28 @@ class KeyboardFramesTest {
             """{"type":"response","payload":{"returnValue":true,"currentWidget":{"focus":true,"contentType":"text"}}}"""))
         assertEquals(KeyboardFocus.NO_FIELD, focus(
             """{"type":"response","payload":{"returnValue":true,"currentWidget":{"focus":false}}}"""))
-        assertEquals(KeyboardFocus.NO_FIELD, focus(
+        assertEquals(KeyboardFocus.UNKNOWN, focus(
             """{"type":"response","payload":{"returnValue":true,"subscribed":true}}"""))
+        assertEquals(KeyboardFocus.UNKNOWN, focus(
+            """{"type":"response","payload":{"returnValue":true,"currentWidget":{"contentType":"text"}}}"""))
         assertEquals(KeyboardFocus.UNKNOWN, focus("""{"type":"error","error":"401 insufficient permissions","payload":{}}"""))
         assertEquals(KeyboardFocus.UNKNOWN, focus("""{"type":"response","payload":{"returnValue":false}}"""))
+    }
+
+    @Test fun strayErrorOnAGoodResponseIsNotAFailure() {
+        fun failed(json: String) = responseFailed(JSONObject(json))
+        assertFalse(failed("""{"type":"response","error":"500 stray","payload":{"returnValue":true}}"""))
+        assertTrue(failed("""{"type":"response","error":"500 bad","payload":{}}"""))
+        assertTrue(failed("""{"type":"response","payload":{"returnValue":false}}"""))
+        assertFalse(failed("""{"type":"response","payload":{"volume":5}}"""))
+        assertEquals("ok", KeyboardReport.statusOf(
+            """{"type":"response","error":"500 stray","payload":{"returnValue":true}}""", null))
+        assertEquals("error: 401 insufficient permissions", KeyboardReport.statusOf(denied.toString(), null))
+    }
+
+    @Test fun summaryUsesSharedWording() {
+        assertEquals("OK", KeyboardReport.summaryStatus("""{"type":"response","payload":{"returnValue":true}}""", null))
+        assertEquals("ERROR 401 insufficient permissions", KeyboardReport.summaryStatus(denied.toString(), null))
     }
 
     @Test fun reportRedactsPairingKeyAndMacs() {

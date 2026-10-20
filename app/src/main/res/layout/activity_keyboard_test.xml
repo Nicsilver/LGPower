@@ -40,7 +40,7 @@
                 android:tag="row_label"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Checks how this TV handles typing from the app. On the TV, open the search (or any text field) and leave the cursor in it, then tap Start.\n\nThe test takes about 30 seconds. It types a short test text and presses Enter on the TV."
+                android:text="Open the TV search so the on-screen keyboard shows, then tap Start. The test takes about 20 seconds and types the letters A, B and C into the TV."
                 android:textColor="#FFFFFF"
                 android:textSize="15sp"
                 android:lineSpacingMultiplier="1.1" />
@@ -79,7 +79,7 @@
                 android:tag="section_label"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="WHAT DID THE TV'S TEXT FIELD SHOW?"
+                android:text="WHAT IS IN THE TV TEXT FIELD NOW?"
                 android:textColor="#8E8E93"
                 android:textSize="12sp"
                 android:letterSpacing="0.06"
@@ -92,32 +92,32 @@
                 android:orientation="horizontal">
 
                 <Button
-                    android:id="@+id/kbt_saw_both"
+                    android:id="@+id/kbt_saw_a"
                     android:layout_width="0dp"
                     android:layout_height="44dp"
                     android:layout_weight="1"
-                    android:text="LGP1 and LGP2"
+                    android:text="A"
                     android:textAllCaps="false"
-                    android:textSize="13sp" />
+                    android:textSize="15sp" />
 
                 <Button
-                    android:id="@+id/kbt_saw_some"
+                    android:id="@+id/kbt_saw_b"
                     android:layout_width="0dp"
                     android:layout_height="44dp"
                     android:layout_weight="1"
                     android:layout_marginHorizontal="8dp"
-                    android:text="Only one"
+                    android:text="B"
                     android:textAllCaps="false"
-                    android:textSize="13sp" />
+                    android:textSize="15sp" />
 
                 <Button
-                    android:id="@+id/kbt_saw_none"
+                    android:id="@+id/kbt_saw_c"
                     android:layout_width="0dp"
                     android:layout_height="44dp"
                     android:layout_weight="1"
-                    android:text="Nothing"
+                    android:text="C"
                     android:textAllCaps="false"
-                    android:textSize="13sp" />
+                    android:textSize="15sp" />
 
             </LinearLayout>
 

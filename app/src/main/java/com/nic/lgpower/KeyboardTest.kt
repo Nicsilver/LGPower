@@ -4,8 +4,13 @@ import android.os.Build
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Collections
 import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /** Formatting helpers for the keyboard test report, kept apart from the socket code so they can be unit tested. */
 object KeyboardReport {
@@ -22,10 +27,21 @@ object KeyboardReport {
     fun trim(text: String, max: Int = 700): String =
         if (text.length <= max) text else text.take(max) + "... (${text.length - max} more characters)"
 
+    /** The summary wording shared with the Flutter app's report, so both can be compared line by line. */
+    fun summaryStatus(frame: String?, failure: String?): String {
+        val status = statusOf(frame, failure)
+        return when {
+            status == "ok" -> "OK"
+            status.startsWith("error: ") -> "ERROR " + status.removePrefix("error: ")
+            status.startsWith("refused: ") -> "ERROR " + status.removePrefix("refused: ")
+            else -> "ERROR $status"
+        }
+    }
+
     fun statusOf(frame: String?, failure: String?): String {
         if (frame == null) return "no reply (${failure ?: "unknown"})"
         val json = runCatching { JSONObject(frame) }.getOrNull() ?: return "unreadable reply"
-        val refused = json.optJSONObject("payload")?.optBoolean("returnValue", true) == false
+        val refused = responseFailed(json)
         return when {
             json.optString("type") == "error" -> "error: " + (frameErrorText(json) ?: "no text")
             refused -> "refused: " + (frameErrorText(json) ?: "returnValue false")
@@ -38,15 +54,19 @@ object KeyboardReport {
 class KeyboardTest(private val client: WebOsClient, private val appVersion: String) {
 
     class Report(private val head: List<String>, private val summary: List<String>, private val log: List<String>) {
-        fun render(userSaw: String?): String = buildString {
+        fun render(seen: Set<String>): String = buildString {
             head.forEach { appendLine(it) }
             appendLine()
             appendLine("SUMMARY")
             summary.forEach { appendLine(it) }
-            appendLine("Text seen on the TV (answered by user): ${userSaw ?: "not answered"}")
             appendLine()
             appendLine("LOG (seconds since start)")
             log.forEach { appendLine(it) }
+            appendLine()
+            appendLine("== Letters on the TV afterwards ==")
+            appendLine("A and B were typed before the keyboard subscription, C during it, then one character was deleted.")
+            append("Visible in the TV text field: " +
+                LETTERS.filter { it in seen }.joinToString(", ").ifEmpty { "none" })
         }.trimEnd()
     }
 
@@ -62,106 +82,110 @@ class KeyboardTest(private val client: WebOsClient, private val appVersion: Stri
     private fun payloadOf(frame: String?): JSONObject? =
         frame?.let { runCatching { JSONObject(it) }.getOrNull() }?.optJSONObject("payload")
 
-    private fun call(label: String, uri: String, payload: JSONObject = JSONObject()): JSONObject? {
+    private fun call(label: String, uri: String, payload: JSONObject = JSONObject()) {
+        log.add("== $label ==")
         note("SEND $uri $payload")
         val r = client.rawRequest(uri, payload)
         if (r.frame != null) frameLine("RECV", r.frame) else note("NO REPLY: ${r.failure}")
-        summary.add("$label: ${KeyboardReport.statusOf(r.frame, r.failure)}")
-        return payloadOf(r.frame)
+        summary.add("$label: ${KeyboardReport.summaryStatus(r.frame, r.failure)}")
     }
-
-    private fun JSONObject.text(key: String) = optString(key).takeIf { it.isNotEmpty() }
 
     fun run(onProgress: (String) -> Unit): Report {
         val head = listOf(
-            "LG Power keyboard test",
+            "Keyboard test report",
             "App: $appVersion",
-            "Phone: ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
-            "Started: " + SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(started))
+            "Phone: ${Build.MANUFACTURER} ${Build.MODEL}",
+            "OS: Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+            "Time: " + SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                .apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date(started))
         )
 
-        onProgress("Connecting to the TV")
+        log.add("== Registration ==")
         val reg = client.registerReply()
         if (reg.frame != null) frameLine("REGISTER REPLY", reg.frame) else note("REGISTER FAILED: ${reg.failure}")
-        summary.add("Registration: " + if (reg.frame != null) "ok" else "failed (${reg.failure})")
         val regPayload = payloadOf(reg.frame)
         val granted = listOf("permissions", "grantedPermissions", "scopes")
             .firstOrNull { regPayload?.has(it) == true }?.let { "$it=${regPayload?.opt(it)}" }
-        summary.add("Permissions in the register reply: ${granted ?: "not reported"}")
+        note("granted permissions: ${granted ?: "not reported by the TV"}")
 
         onProgress("Reading TV info")
-        val sys = call("getSystemInfo", "ssap://system/getSystemInfo")
-        val sw = call("getCurrentSWInformation", "ssap://com.webos.service.update/getCurrentSWInformation")
-        val tvInfo = listOfNotNull(
-            sw?.text("model_name") ?: sys?.text("modelName"),
-            sw?.text("product_name"),
-            listOfNotNull(sw?.text("major_ver"), sw?.text("minor_ver")).joinToString(".").takeIf { it.isNotEmpty() },
-            sw?.text("sw_type")
-        )
-        summary.add("TV: ${if (tvInfo.isEmpty()) "not reported" else tvInfo.joinToString(", ")}")
+        call("getSystemInfo", "ssap://system/getSystemInfo")
+        call("getSoftwareInformation", "ssap://com.webos.service.update/getCurrentSWInformation")
 
         onProgress("Checking the connection")
-        call("getVolume (control)", "ssap://audio/getVolume")
-        call("getForegroundAppInfo (control)", "ssap://com.webos.applicationManager/getForegroundAppInfo")
+        call("control: getVolume", "ssap://audio/getVolume")
+        call("control: getForegroundAppInfo", "ssap://com.webos.applicationManager/getForegroundAppInfo")
 
-        var pushes = 0
-        var sawFocus = false
-        var firstFrame: String? = null
-        var subFailure: String? = null
-        val lengths = ArrayList<Int>()
-        note("SUBSCRIBE $KEYBOARD_URI {\"subscribe\":true}")
-        val stop = client.rawSubscribe(
-            KEYBOARD_URI, JSONObject().put("subscribe", true),
-            onFail = { subFailure = it; note("NO SUBSCRIPTION: $it") }
-        ) { text ->
-            pushes++
-            if (firstFrame == null) firstFrame = text
-            frameLine("PUSH", text)
-            runCatching { JSONObject(text) }.getOrNull()?.let { frame ->
-                if (keyboardFocusOf(frame) == KeyboardFocus.FIELD) sawFocus = true
-                frame.optJSONObject("payload")?.optJSONObject("currentWidget")
-                    ?.takeIf { it.has("surroundingTextLength") }?.optInt("surroundingTextLength")
-                    ?.let { len -> if (lengths.lastOrNull() != len) lengths.add(len) }
-            }
-        }
+        onProgress("Typing without the keyboard subscription")
+        call("insertText \"A\" replace=false", "$IME/insertText",
+            JSONObject().put("text", "A").put("replace", false))
+        call("insertText \"B\" replace=0", "$IME/insertText",
+            JSONObject().put("text", "B").put("replace", 0))
 
-        for (left in 15 downTo 1) {
-            onProgress("Listening to the TV's keyboard focus, $left s")
-            Thread.sleep(1000)
-        }
-
-        onProgress("Typing a test text")
-        call("insertText, replace false", "$IME/insertText",
-            JSONObject().put("text", "LGP1").put("replace", false))
-        Thread.sleep(1500)
-        call("insertText, replace 0", "$IME/insertText",
-            JSONObject().put("text", "LGP2").put("replace", 0))
-        Thread.sleep(1500)
-        onProgress("Deleting a character and pressing Enter")
-        call("deleteCharacters", "$IME/deleteCharacters", JSONObject().put("count", 1))
-        Thread.sleep(1000)
-        call("sendEnterKey", "$IME/sendEnterKey")
-        Thread.sleep(1500)
-        stop?.invoke()
-        note("UNSUBSCRIBE registerRemoteKeyboard")
-
-        val subStatus = when {
-            stop == null -> "not opened (${subFailure ?: "unknown"})"
-            firstFrame == null -> "no frames received"
-            else -> KeyboardReport.statusOf(firstFrame, null)
-        }
-        // Keyboard results sit together, ahead of the typing calls they explain
-        val at = summary.indexOfFirst { it.startsWith("insertText") }.coerceAtLeast(0)
-        summary.add(at, "Text length the TV reported over time: " +
-            if (lengths.isEmpty()) "never reported" else lengths.joinToString(", "))
-        summary.add(at, "registerRemoteKeyboard: $subStatus; $pushes frame${if (pushes == 1) "" else "s"}; " +
-            "a focused text field was reported: ${if (sawFocus) "yes" else "no"}")
+        keyboardWindow(onProgress)
         onProgress("Done")
         return Report(head, summary.toList(), log.toList())
     }
 
-    private companion object {
-        const val IME = "ssap://com.webos.service.ime"
-        const val KEYBOARD_URI = "$IME/registerRemoteKeyboard"
+    private fun keyboardWindow(onProgress: (String) -> Unit) {
+        onProgress("Listening to the TV keyboard")
+        // Measured from its own start, so a slow call earlier on does not eat into the listening time
+        val window = System.nanoTime()
+        fun waitUntil(ms: Long) {
+            val left = ms - (System.nanoTime() - window) / 1_000_000
+            if (left > 0) Thread.sleep(left)
+        }
+        log.add("== registerRemoteKeyboard (${LISTEN_MS / 1000} s) ==")
+
+        // Written on the socket thread, read here
+        val pushes = AtomicInteger()
+        val sawFocus = AtomicBoolean(false)
+        val firstFrame = AtomicReference<String?>()
+        val subFailure = AtomicReference<String?>()
+        val lengths = Collections.synchronizedList(ArrayList<Int>())
+        note("SUBSCRIBE $KEYBOARD_URI {\"subscribe\":true}")
+        val stop = client.rawSubscribe(
+            KEYBOARD_URI, JSONObject().put("subscribe", true),
+            onFail = { subFailure.set(it); note("NO SUBSCRIPTION: $it") }
+        ) { text ->
+            val n = pushes.incrementAndGet()
+            firstFrame.compareAndSet(null, text)
+            frameLine("PUSH #$n", text)
+            runCatching { JSONObject(text) }.getOrNull()?.let { frame ->
+                if (keyboardFocusOf(frame) == KeyboardFocus.FIELD) sawFocus.set(true)
+                frame.optJSONObject("payload")?.optJSONObject("currentWidget")
+                    ?.takeIf { it.has("surroundingTextLength") }?.optInt("surroundingTextLength")
+                    ?.let { len -> synchronized(lengths) { if (lengths.lastOrNull() != len) lengths.add(len) } }
+            }
+        }
+
+        waitUntil(LISTEN_MS * 2 / 10)
+        call("insertText \"C\" replace=false (subscribed)", "$IME/insertText",
+            JSONObject().put("text", "C").put("replace", false))
+        waitUntil(LISTEN_MS * 4 / 10)
+        call("deleteCharacters count=1", "$IME/deleteCharacters", JSONObject().put("count", 1))
+        waitUntil(LISTEN_MS * 6 / 10)
+        call("sendEnterKey", "$IME/sendEnterKey")
+        waitUntil(LISTEN_MS)
+        stop?.invoke()
+        note("UNSUBSCRIBE registerRemoteKeyboard")
+
+        if (stop == null) {
+            summary.add("registerRemoteKeyboard: not sent (${subFailure.get() ?: "session not ready"})")
+        } else {
+            summary.add("registerRemoteKeyboard: ${pushes.get()} frame(s) in ${LISTEN_MS / 1000} s")
+            firstFrame.get()?.let { summary.add("registerRemoteKeyboard first frame: ${KeyboardReport.statusOf(it, null)}") }
+            summary.add("A focused text field was reported: ${if (sawFocus.get()) "yes" else "no"}")
+            summary.add("Text length the TV reported over time: " + synchronized(lengths) {
+                if (lengths.isEmpty()) "never reported" else lengths.joinToString(", ")
+            })
+        }
+    }
+
+    companion object {
+        val LETTERS = listOf("A", "B", "C")
+        private const val LISTEN_MS = 15_000L
+        private const val IME = "ssap://com.webos.service.ime"
+        private const val KEYBOARD_URI = "$IME/registerRemoteKeyboard"
     }
 }

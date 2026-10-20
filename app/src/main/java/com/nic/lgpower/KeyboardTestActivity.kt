@@ -16,7 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 class KeyboardTestActivity : AppCompatActivity() {
 
     private var report: KeyboardTest.Report? = null
-    private var userSaw: String? = null
+    private val seen = sortedSetOf<String>()
     private var running = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,15 +27,15 @@ class KeyboardTestActivity : AppCompatActivity() {
         applyTheme()
 
         findViewById<Button>(R.id.kbt_start).setOnClickListener { start() }
-        mapOf(
-            R.id.kbt_saw_both to "both texts appeared",
-            R.id.kbt_saw_some to "only one of the texts appeared",
-            R.id.kbt_saw_none to "nothing appeared"
-        ).forEach { (id, answer) ->
-            findViewById<Button>(id).setOnClickListener { userSaw = answer; showReport() }
+        mapOf(R.id.kbt_saw_a to "A", R.id.kbt_saw_b to "B", R.id.kbt_saw_c to "C").forEach { (id, letter) ->
+            findViewById<Button>(id).setOnClickListener {
+                if (!seen.remove(letter)) seen.add(letter)
+                applyTheme()
+                showReport()
+            }
         }
         findViewById<Button>(R.id.kbt_copy).setOnClickListener {
-            val text = report?.render(userSaw) ?: return@setOnClickListener
+            val text = report?.render(seen) ?: return@setOnClickListener
             getSystemService(ClipboardManager::class.java)
                 .setPrimaryClip(ClipData.newPlainText("LG Power keyboard test", text))
             Toast.makeText(this, "Report copied", Toast.LENGTH_SHORT).show()
@@ -45,7 +45,7 @@ class KeyboardTestActivity : AppCompatActivity() {
     private fun start() {
         if (running) return
         running = true
-        report = null; userSaw = null
+        report = null; seen.clear()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val start = findViewById<Button>(R.id.kbt_start)
         val progress = findViewById<TextView>(R.id.kbt_progress)
@@ -56,7 +56,7 @@ class KeyboardTestActivity : AppCompatActivity() {
         findViewById<View>(R.id.kbt_answer_block).visibility = View.GONE
         findViewById<View>(R.id.kbt_report_block).visibility = View.GONE
 
-        val version = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+        val version = "LG Power ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
         Thread {
             val result = KeyboardTest(WebOsClient(this), version).run { line ->
                 runOnUiThread { progress.text = line }
@@ -77,7 +77,7 @@ class KeyboardTestActivity : AppCompatActivity() {
 
     private fun showReport() {
         val r = report ?: return
-        findViewById<TextView>(R.id.kbt_report).text = r.render(userSaw)
+        findViewById<TextView>(R.id.kbt_report).text = r.render(seen)
         findViewById<View>(R.id.kbt_report_block).visibility = View.VISIBLE
     }
 
@@ -101,13 +101,14 @@ class KeyboardTestActivity : AppCompatActivity() {
                 setTextColor(theme.btnAccentText)
             }
         }
-        listOf(R.id.kbt_saw_both, R.id.kbt_saw_some, R.id.kbt_saw_none).forEach { id ->
+        mapOf(R.id.kbt_saw_a to "A", R.id.kbt_saw_b to "B", R.id.kbt_saw_c to "C").forEach { (id, letter) ->
+            val on = letter in seen
             findViewById<Button>(id).apply {
                 background = GradientDrawable().apply {
-                    cornerRadius = 10f * dp; setColor(0)
+                    cornerRadius = 10f * dp; setColor(if (on) theme.btnAccentBg else 0)
                     setStroke((1f * dp).toInt(), theme.btnGhostBorder)
                 }
-                setTextColor(theme.primaryText)
+                setTextColor(if (on) theme.btnAccentText else theme.primaryText)
             }
         }
     }
