@@ -463,6 +463,7 @@ class WebOsClient(appContext: Context) {
         @Volatile private var httpClient: OkHttpClient? = null
         @Volatile private var regSocket: WebSocket? = null
         @Volatile private var regOpen = false
+        private val attempts = HandshakeAttempts()
         @Volatile private var ptrSocket: WebSocket? = null
         @Volatile private var pointerWs: WebSocket? = null
         @Volatile var failedAt = 0L
@@ -521,10 +522,29 @@ class WebOsClient(appContext: Context) {
             prefs.getString("client_key", null).orEmpty() == keyUsed.orEmpty()
 
         fun connect() {
-            try { open() } catch (e: Exception) { fail() }
+            try { open(attempts.number()) } catch (e: Exception) { fail() }
         }
 
-        private fun open() {
+        // The TV sometimes answers the command socket and leaves this registration socket
+        // without any TLS or upgrade reply. The read timeout would end it after 3 s and fail the
+        // press with most of its deadline unused, while a fresh socket opens in about 100 ms.
+        private fun retryUnopenedRegistration(attempt: Int) {
+            val stale: WebSocket?
+            val staleClient: OkHttpClient?
+            val next: Int
+            synchronized(lock) {
+                if (state != PtrState.CONNECTING || retired) return
+                if (connectDeadline - System.currentTimeMillis() < MIN_RETRY_LEFT_MS) return
+                next = attempts.retry(attempt) ?: return
+                stale = regSocket
+                staleClient = httpClient
+            }
+            stale?.cancel()
+            staleClient?.dispatcher?.executorService?.shutdown()
+            try { open(next) } catch (e: Exception) { fail() }
+        }
+
+        private fun open(attempt: Int) {
             if (state == PtrState.DEAD) return
             val req = buildWsRequest()
             if (req == null) { fail(); return }
@@ -534,16 +554,20 @@ class WebOsClient(appContext: Context) {
             val client = buildClient()
             httpClient = client
             if (state == PtrState.DEAD) { client.dispatcher.executorService.shutdown(); return }
+            if (attempts.mayRetry(attempt)) {
+                watchdog.schedule({ retryUnopenedRegistration(attempt) }, REGISTRATION_OPEN_MS, TimeUnit.MILLISECONDS)
+            }
             regSocket = client.newWebSocket(req,
                 object : WebSocketListener() {
                     override fun onOpen(ws: WebSocket, response: Response) {
-                        if (state == PtrState.DEAD) { ws.close(1000, null); return }
+                        if (state == PtrState.DEAD || !attempts.markOpened(attempt)) { ws.close(1000, null); return }
                         regOpen = true
                         // Waits on its own thread: blocking this one would hold back the close a
                         // TV in standby sends straight after the upgrade
                         gateExecutor.execute { registerWhenCommandHas(ws) }
                     }
                     override fun onMessage(ws: WebSocket, text: String) {
+                        if (!attempts.isCurrent(attempt)) return
                         val json = runCatching { JSONObject(text) }.getOrNull() ?: return
                         when (json.optString("type")) {
                             "registered" -> {
@@ -561,7 +585,7 @@ class WebOsClient(appContext: Context) {
                                     val socketPath = json.optJSONObject("payload")?.optString("socketPath")
                                     handedOff = true
                                     ws.close(1000, null)
-                                    if (!socketPath.isNullOrEmpty()) openPointerSocket(client, socketPath)
+                                    if (!socketPath.isNullOrEmpty()) openPointerSocket(client, socketPath, attempt)
                                     else fail()
                                 }
                                 // The TV is asking the user to accept a pairing prompt
@@ -580,10 +604,14 @@ class WebOsClient(appContext: Context) {
                     }
                     override fun onClosing(ws: WebSocket, code: Int, reason: String) {
                         ws.close(1000, null)
-                        if (!handedOff) fail()
+                        if (!handedOff && attempts.isCurrent(attempt)) fail()
                     }
                     override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                        if (!handedOff) fail()
+                        if (handedOff || !attempts.isCurrent(attempt)) return
+                        // No reply at all (refused, reset, TLS, timeout) is left to the pending
+                        // retry instead of failing the press; an answer from the TV is final
+                        if (!regOpen && response == null && attempts.mayRetry(attempt)) return
+                        fail()
                     }
                 }
             )
@@ -611,13 +639,13 @@ class WebOsClient(appContext: Context) {
             }
         }
 
-        private fun openPointerSocket(client: OkHttpClient, socketPath: String) {
+        private fun openPointerSocket(client: OkHttpClient, socketPath: String, attempt: Int) {
             ptrSocket = client.newWebSocket(
                 Request.Builder().url(socketPath).build(),
                 object : WebSocketListener() {
                     override fun onOpen(pws: WebSocket, response: Response) {
                         synchronized(lock) {
-                            if (state == PtrState.DEAD) { pws.close(1000, null); return }
+                            if (state == PtrState.DEAD || !attempts.isCurrent(attempt)) { pws.close(1000, null); return }
                             pointerWs = pws
                             state = PtrState.READY
                             lastActiveAt = System.currentTimeMillis()
@@ -1469,6 +1497,9 @@ class WebOsClient(appContext: Context) {
         private const val MAX_QUEUED_FRAMES = 64
         private const val POINTER_CONNECT_MS = 6_000L
         private const val POINTER_RETRY_MS = 1_000L
+        // A registration socket normally opens in 70-220 ms on the C4
+        private const val REGISTRATION_OPEN_MS = 1_000L
+        private const val MIN_RETRY_LEFT_MS = 1_500L
         private const val STALE_FRAME_MS = 1_500L
 
         // Guards only the swap of the two shared sessions, never any network work
@@ -1480,6 +1511,9 @@ class WebOsClient(appContext: Context) {
         private val connectExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
             Thread(r, "pointer-connect").apply { isDaemon = true }
         }
+        private val watchdog = java.util.concurrent.ScheduledThreadPoolExecutor(1) { r ->
+            Thread(r, "pointer-watchdog").apply { isDaemon = true }
+        }.apply { removeOnCancelPolicy = true }
         // Holds a pointer's registration until the command session has registered
         private val gateExecutor = java.util.concurrent.Executors.newCachedThreadPool { r ->
             Thread(r, "pointer-gate").apply { isDaemon = true }

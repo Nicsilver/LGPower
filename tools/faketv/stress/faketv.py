@@ -643,7 +643,8 @@ async def handle_command_message(ws, raw: str):
         CONN_SUBS[ws][mid] = uri
 
 
-FAULT = {"reg_delay": 0.0, "standby": False, "pair": "off", "deny_after": 0.5}
+FAULT = {"reg_delay": 0.0, "standby": False, "pair": "off", "deny_after": 0.5,
+         "hang": {"skip": 0, "n": 0, "late": 0.0}}
 CONN_SEQ = {"c": 0, "p": 0}
 CMD_OPEN: dict = {}
 PTR_OPEN: dict = {}
@@ -747,6 +748,28 @@ async def pointer_connection(ws):
         log(f"[ptr {pid}] closed {peer} {stat()}")
 
 
+# ── hung upgrade ──────────────────────────────────────────────────────────────
+# /hang?skip=S&n=N&late=L: the N command-path upgrades after the next S are held for L seconds
+# (0 = until the client gives up) before the 101 goes out, like the C4 leaving a connection
+# without any upgrade reply. Pointer-path sockets are never held.
+
+async def hang_hook(connection, request):
+    if request.path.startswith("/pointer"):
+        return None
+    h = FAULT["hang"]
+    if h["skip"] > 0:
+        h["skip"] -= 1
+        return None
+    if h["n"] <= 0:
+        return None
+    h["n"] -= 1
+    late = h["late"]
+    log(f"[hang] upgrade from {connection.remote_address} held {'forever' if not late else f'{late}s'}")
+    await asyncio.sleep(late if late else 3600)
+    log(f"[hang] upgrade from {connection.remote_address} released")
+    return None
+
+
 # ── router ────────────────────────────────────────────────────────────────────
 
 async def router(ws):
@@ -799,7 +822,8 @@ def main():
         state = {"ws": None, "raw": None, "attempts": 0}
 
         async def start_ws():
-            state["ws"] = await websockets.serve(router, "0.0.0.0", CONFIG.port, ssl=ssl_ctx)
+            state["ws"] = await websockets.serve(router, "0.0.0.0", CONFIG.port, ssl=ssl_ctx,
+                                                 process_request=hang_hook, open_timeout=None)
 
         async def go_off(mode):
             log(f"[ctl] TV OFF mode={mode}")
@@ -833,6 +857,9 @@ def main():
         async def ctl(path, q):
             if path == "/reg_delay":
                 FAULT["reg_delay"] = float(q.get("s", "0"))
+            elif path == "/hang":
+                FAULT["hang"] = {"skip": int(q.get("skip", "0")), "n": int(q.get("n", "1")),
+                                 "late": float(q.get("late", "0"))}
             elif path == "/standby":
                 FAULT["standby"] = q.get("on", "0") == "1"
             elif path == "/pair":

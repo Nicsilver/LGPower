@@ -18,4 +18,4 @@ HOW TO RUN (2026-10-19 final-code run, results in ../../../.plans/stress-final-r
   adb -s $ADB_SERIAL reverse tcp:3001 tcp:3021 ; adb -s $ADB_SERIAL reverse tcp:3002 tcp:3022   (private host port, other emulators cannot reach it)
   export ADB_SERIAL=emulator-XXXX TVIP=127.0.0.1 ; source h.sh ; setapp K|F ; runcase / s3 / s4 / s6 / s7 / s8 / extra8 / flap / s2prompt / s2deny / s3arc / w4r ...
   WoL (wake-delays) only reaches the host through the unicast target 10.0.2.2:9, so those runs use TVIP=10.0.2.2 and --port 3001.
-  Control port: /reg_delay /drop?what=ptr|cmd|all[&abort=1] /standby?on=1 /off?mode=refuse|hang /on /pair?mode=off|prompt|deny /accept /power?state= (or null|nostate) /vol?v= /mark?t= /status
+  Control port: /reg_delay /drop?what=ptr|cmd|all[&abort=1] /standby?on=1 /off?mode=refuse|hang /hang?skip=S&n=N&late=L (hold the N command-path upgrades after the next S for L s, 0 = forever; which of the cmd/pointer-registration pair arrives first varies, so check that the other one registered within ms of the [hang] line) /on /pair?mode=off|prompt|deny /accept /power?state= (or null|nostate) /vol?v= /mark?t= /status
