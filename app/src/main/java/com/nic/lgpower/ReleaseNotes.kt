@@ -16,6 +16,8 @@ object ReleaseNotes {
         Release(47, "1.40.0", "2026-10-20", listOf(
             "Buttons respond faster, especially the first press after unlocking the phone",
             "Fixed presses that sometimes did nothing after coming back to the app",
+            "Keyboard: a clearer message when the TV doesn't allow typing, and a hint to select a text field on the TV first",
+            "The first button press after opening the app no longer gets lost when the TV is slow to answer",
             "New: Settings > About > Contact opens an email to the developer",
         )),
         Release(46, "1.39.1", "2026-10-16", listOf(
