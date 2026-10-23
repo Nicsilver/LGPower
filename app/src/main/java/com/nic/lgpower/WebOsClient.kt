@@ -318,8 +318,11 @@ class WebOsClient(appContext: Context) {
             // The pointer socket has no ping of its own, so it can sit half-open after the
             // TV drops; the pinging command socket is the one that notices
             // A pointer still inside its connect deadline is left to finish: the power watcher
-            // loses sessions every few seconds while the TV wakes
-            if (sharedCommandSession === this) dropPointerSession { !it.isDead && !it.isConnecting }
+            // loses sessions every few seconds while the TV wakes.
+            // A pointer that carried input moments ago is kept too: it is evidently still
+            // delivering, and replacing it mid-drag stalls the cursor until a new command session
+            // registers, then lands everything moved meanwhile as one jump
+            if (sharedCommandSession === this) dropPointerSession { !it.isDead && !it.isConnecting && !it.inUse() }
         }
 
         private fun failAll(reply: CmdReply) {
