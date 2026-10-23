@@ -58,6 +58,16 @@ carry `{"subscribed":true,"currentWidget":{"focus":true,"contentType":"text","cu
 the 401 frame webOS 26 is suspected to send: `{"type":"error","id":..,"error":"401
 insufficient permissions","payload":{}}`.
 
+### Touchpad timing flags
+
+`--timeline <file>` appends one line per pointer frame and SSAP request with a millisecond
+wall clock (`<unix time> ptr move <dx> <dy> <port>`, `ptr-open`, `ptr-close`, `cmd <type> <uri>`),
+so gaps in a long touchpad drag can be lined up against what else happened. Move frames then
+stay out of the console log. `--drop-cmd-every <s>` aborts every open command socket at that
+interval and leaves the pointer socket alone, like a Wi-Fi blip that only hits the command
+connection. A continuous drag for either: a `monkey -f` script of `DispatchPointer` moves
+10 ms apart, which `input swipe` can't do without lifting the finger.
+
 ## Point the app at it
 
 Skip discovery by seeding the app's `webos` preferences on a debug build. The values only

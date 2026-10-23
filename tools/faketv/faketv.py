@@ -49,6 +49,17 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+# --timeline: one line per pointer frame and SSAP request with a millisecond wall clock,
+# so gaps in a continuous touchpad drag can be lined up against what else was going on
+TIMELINE = None
+
+
+def timeline(kind: str, detail: str) -> None:
+    if TIMELINE is not None:
+        TIMELINE.write(f"{time.time():.3f} {kind} {detail}\n")
+        TIMELINE.flush()
+
+
 def _compact(obj) -> str:
     s = json.dumps(obj, separators=(",", ":"))
     return s if len(s) <= 200 else s[:200] + "..."
@@ -687,6 +698,7 @@ async def handle_command_message(ws, raw: str):
     uri = msg.get("uri")
     payload = msg.get("payload") or {}
     log(f"<- type={mtype} id={mid} uri={uri} payload={_compact(payload)}")
+    timeline("cmd", f"{mtype} {uri}")
 
     if mtype == "register":
         # Always reply "registered" immediately, whether or not the incoming
@@ -746,6 +758,15 @@ async def command_connection(ws):
         log(f"[cmd] closed {peer}")
 
 
+async def _drop_cmd_loop(every: float):
+    while True:
+        await asyncio.sleep(every)
+        for ws in list(OPEN_CONNS):
+            log(f"[cmd] dropping {ws.remote_address} (--drop-cmd-every)")
+            timeline("cmd-drop", str(ws.remote_address[1]))
+            ws.transport.abort()
+
+
 # ── pointer connection ────────────────────────────────────────────────────────
 # WebOsClient.kt:398-401: plain-text frames "type:button\nname:X\n\n" etc, no
 # JSON, no registration on this socket (registration happened on the socket
@@ -760,8 +781,11 @@ def _parse_pointer_frame(text: str) -> dict:
     return fields
 
 
-async def handle_pointer_message(raw: str):
+async def handle_pointer_message(raw: str, peer=None):
     fields = _parse_pointer_frame(raw)
+    timeline("ptr", f"{fields.get('type')} {fields.get('dx', fields.get('name', ''))} {fields.get('dy', '')} {peer[1] if peer else ''}")
+    if fields.get("type") == "move" and TIMELINE is not None:
+        return
     log(f"[pointer] <- {fields}")
     if fields.get("type") == "button":
         name = fields.get("name", "")
@@ -779,13 +803,15 @@ async def handle_pointer_message(raw: str):
 async def pointer_connection(ws):
     peer = ws.remote_address
     log(f"[pointer] connected {peer}")
+    timeline("ptr-open", str(peer[1]))
     try:
         async for raw in ws:
-            await handle_pointer_message(raw)
+            await handle_pointer_message(raw, peer)
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
         log(f"[pointer] closed {peer}")
+        timeline("ptr-close", str(peer[1]))
 
 
 # ── router ────────────────────────────────────────────────────────────────────
@@ -819,7 +845,16 @@ def main():
                               "write = insertText/deleteCharacters/sendEnterKey, all = registerRemoteKeyboard too")
     parser.add_argument("--kbd-focus", choices=["none", "field", "cycle"], default="field",
                          help="registerRemoteKeyboard state: a text field focused (default), none, or flipping every 5 s")
+    parser.add_argument("--timeline", default="",
+                         help="append a millisecond timeline of pointer frames and SSAP requests to this file "
+                              "(move frames then stay out of the console log)")
+    parser.add_argument("--drop-cmd-every", type=float, default=0,
+                         help="abort every open SSAP command socket this often (seconds), like a Wi-Fi drop "
+                              "that only hits the command connection; the pointer socket is left alone")
     args = parser.parse_args()
+    if args.timeline:
+        global TIMELINE
+        TIMELINE = open(args.timeline, "a", encoding="utf-8")
     STATE.kbd_deny = args.kbd_deny
     STATE.kbd_focus = args.kbd_focus != "none"
     STATE.sound_output = args.sound_output
@@ -844,6 +879,8 @@ def main():
         async with websockets.serve(router, "0.0.0.0", CONFIG.port, ssl=ssl_ctx):
             if WAKE_DELAYS:
                 await start_wol_listener()
+            if args.drop_cmd_every > 0:
+                asyncio.create_task(_drop_cmd_loop(args.drop_cmd_every))
             if args.kbd_focus == "cycle":
                 asyncio.create_task(_kbd_focus_cycle())
             log(f"faketv listening wss://0.0.0.0:{CONFIG.port} "
