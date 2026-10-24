@@ -214,7 +214,7 @@ class WebOsClient(appContext: Context) {
         fun connect() {
             try { open() } catch (e: Exception) {
                 deadReason = e.message
-                die(CmdReply.Err(e.message ?: "Connection failed"), "open threw ${e.javaClass.simpleName}: ${e.message}")
+                die(CmdReply.Err(e.message ?: "Connection failed"), "open threw ${e.javaClass.simpleName}: ${scrubAddresses(e.message)}")
             }
         }
 
@@ -274,7 +274,7 @@ class WebOsClient(appContext: Context) {
                                 // The prompt was denied or timed out; the socket is no use any more
                                 pairingRejected = state == CmdState.NEEDS_PAIRING
                                 deadReason = json.optString("error").ifEmpty { null }
-                                die(CmdReply.Err(deadReason ?: "Pairing failed"), "registration error: ${deadReason ?: "none"}")
+                                die(CmdReply.Err(deadReason ?: "Pairing failed"), "registration error: ${scrubAddresses(deadReason)}")
                                 ws.close(1000, null)
                             }
                             type == "response" && id == "s_mac" -> {
@@ -302,7 +302,7 @@ class WebOsClient(appContext: Context) {
                     }
                     override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                         deadReason = t.message
-                        die(CmdReply.Err(t.message ?: "Connection failed"), "failure ${t.javaClass.simpleName}: ${t.message}")
+                        die(CmdReply.Err(t.message ?: "Connection failed"), "failure ${t.javaClass.simpleName}: ${scrubAddresses(t.message)}")
                     }
                     override fun onClosing(ws: WebSocket, code: Int, reason: String) {
                         // A TV in standby accepts the upgrade and then closes with
