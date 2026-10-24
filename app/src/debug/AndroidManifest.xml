@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Exported so `adb shell am broadcast` (uid shell) can reach it; debug builds only -->
+        <receiver
+            android:name=".TestReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.nic.lgpower.TEST_MARK" />
+                <action android:name="com.nic.lgpower.TEST_WIDGETS" />
+                <action android:name="com.nic.lgpower.TEST_LOG" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

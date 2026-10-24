@@ -202,6 +202,7 @@ class WebOsClient(appContext: Context) {
         @Volatile var registeredFrame: String? = null
             private set
         private val seq = AtomicInteger(0)
+        val sid = "cmd${cmdSids.incrementAndGet()}"
 
         // Builds the client and opens the socket on the creating thread, outside the
         // shared-state lock, so a main-thread resetConnection() never waits on it
@@ -224,9 +225,11 @@ class WebOsClient(appContext: Context) {
                 val client = buildClient(pingIntervalSecs = 15)
                 http = client
                 if (state == CmdState.DEAD) { client.dispatcher.executorService.shutdown(); return }
+                TestLog.sock("cmd", sid, "connect")
                 socket = client.newWebSocket(req, object : WebSocketListener() {
                     override fun onOpen(ws: WebSocket, response: Response) {
                         opened = true
+                        TestLog.sock("cmd", sid, "open")
                         if (state == CmdState.DEAD) { ws.close(1000, null); return }
                         this@CommandSession.ws = ws
                         ws.send(buildRegistration(savedKey))
@@ -254,11 +257,13 @@ class WebOsClient(appContext: Context) {
                                         put("uri", "ssap://com.webos.service.connectionmanager/getinfo")
                                     }.toString())
                                 }
+                                TestLog.sock("cmd", sid, "registered")
                                 state = CmdState.READY
                                 readyLatch.countDown()
                             }
                             type == "response" && id == "reg_0" -> {
                                 // TV challenged registration — user must accept pairing prompt
+                                TestLog.sock("cmd", sid, "prompt")
                                 state = CmdState.NEEDS_PAIRING
                                 readyLatch.countDown()
                                 failAll(CmdReply.NeedsPairing)
@@ -284,26 +289,31 @@ class WebOsClient(appContext: Context) {
                                     CmdReply.Err(frameErrorText(json) ?: "Command rejected by TV")
                                 else
                                     CmdReply.Ok(payload)
+                                TestLog.res(sid, id, reply is CmdReply.Ok, (reply as? CmdReply.Err)?.msg)
                                 ref.set(reply); latch.countDown()
                             }
                             type == "error" -> {
                                 val (ref, latch) = pending.remove(id) ?: return
+                                TestLog.res(sid, id, false, frameErrorText(json))
                                 ref.set(CmdReply.Err(frameErrorText(json) ?: "Unknown error"))
                                 latch.countDown()
                             }
                         }
                     }
                     override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                        TestLog.sock("cmd", sid, "fail", reason = t.message)
                         deadReason = t.message
                         die(CmdReply.Err(t.message ?: "Connection failed"))
                     }
                     override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+                        TestLog.sock("cmd", sid, "closing", code, reason.ifEmpty { null })
                         // A TV in standby accepts the upgrade and then closes with
                         // "Try Again Later (EWS)"; finish the handshake so onClosed fires promptly
                         deadReason = reason.ifEmpty { null }
                         ws.close(1000, null)
                     }
                     override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                        TestLog.sock("cmd", sid, "close", code, reason.ifEmpty { null })
                         die(CmdReply.Err("Connection closed"))
                     }
                 })
@@ -351,6 +361,7 @@ class WebOsClient(appContext: Context) {
                 pending.remove(id)
                 return CmdReply.Err("Not connected")
             }
+            TestLog.req(sid, id, uri)
             if (!latch.await(timeoutSecs, TimeUnit.SECONDS)) pending.remove(id)
             return resultRef.get()
         }
@@ -482,6 +493,8 @@ class WebOsClient(appContext: Context) {
         // CONNECT_GRACE_MS from creation, which is also as long as a caller waits for it.
         @Volatile private var connectDeadline = createdAt + POINTER_CONNECT_MS
         private val waiters = AtomicInteger(0)
+        val sid = "ptr${ptrSids.incrementAndGet()}"
+        private val frameSeq = AtomicInteger(0)
         private val readyLatch = CountDownLatch(1)
 
         /** Closed on purpose (replaced or reset) rather than failed, so it carries no retry pause. */
@@ -525,6 +538,7 @@ class WebOsClient(appContext: Context) {
             prefs.getString("client_key", null).orEmpty() == keyUsed.orEmpty()
 
         fun connect() {
+            TestLog.sock("ptr", sid, "connect")
             try { open(attempts.number()) } catch (e: Exception) { fail() }
         }
 
@@ -560,11 +574,13 @@ class WebOsClient(appContext: Context) {
             if (attempts.mayRetry(attempt)) {
                 watchdog.schedule({ retryUnopenedRegistration(attempt) }, REGISTRATION_OPEN_MS, TimeUnit.MILLISECONDS)
             }
+            TestLog.sock("reg", sid, "connect")
             regSocket = client.newWebSocket(req,
                 object : WebSocketListener() {
                     override fun onOpen(ws: WebSocket, response: Response) {
                         if (state == PtrState.DEAD || !attempts.markOpened(attempt)) { ws.close(1000, null); return }
                         regOpen = true
+                        TestLog.sock("reg", sid, "open")
                         // Waits on its own thread: blocking this one would hold back the close a
                         // TV in standby sends straight after the upgrade
                         gateExecutor.execute { registerWhenCommandHas(ws) }
@@ -574,6 +590,7 @@ class WebOsClient(appContext: Context) {
                         val json = runCatching { JSONObject(text) }.getOrNull() ?: return
                         when (json.optString("type")) {
                             "registered" -> {
+                                TestLog.sock("reg", sid, "registered")
                                 val key = json.optJSONObject("payload")?.optString("client-key")
                                 if (ip == tvIp && !key.isNullOrEmpty()) prefs.edit().putString("client_key", key).apply()
                                 ws.send(JSONObject().apply {
@@ -593,6 +610,7 @@ class WebOsClient(appContext: Context) {
                                 }
                                 // The TV is asking the user to accept a pairing prompt
                                 "reg_0" -> {
+                                    TestLog.sock("reg", sid, "prompt")
                                     markPairingMissing()
                                     ws.close(1000, null)
                                     fail()
@@ -606,10 +624,12 @@ class WebOsClient(appContext: Context) {
                         }
                     }
                     override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+                        TestLog.sock("reg", sid, "closing", code, reason.ifEmpty { null })
                         ws.close(1000, null)
                         if (!handedOff && attempts.isCurrent(attempt)) fail()
                     }
                     override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                        TestLog.sock("reg", sid, "fail", reason = t.message)
                         if (handedOff || !attempts.isCurrent(attempt)) return
                         // No reply at all (refused, reset, TLS, timeout) is left to the pending
                         // retry instead of failing the press; an answer from the TV is final
@@ -643,6 +663,7 @@ class WebOsClient(appContext: Context) {
         }
 
         private fun openPointerSocket(client: OkHttpClient, socketPath: String, attempt: Int) {
+            TestLog.sock("ptr", sid, "connect")
             ptrSocket = client.newWebSocket(
                 Request.Builder().url(socketPath).build(),
                 object : WebSocketListener() {
@@ -652,22 +673,34 @@ class WebOsClient(appContext: Context) {
                             pointerWs = pws
                             state = PtrState.READY
                             lastActiveAt = System.currentTimeMillis()
-                            queue.drain().forEach { pws.send(it) }
+                            val queued = queue.size
+                            val out = queue.drain()
+                            out.forEach { pws.send(it) }
+                            TestLog.sock("ptr", sid, "open")
+                            if (queued > 0) TestLog.flush(sid, queued, out.size)
                         }
                         readyLatch.countDown()
                     }
                     override fun onClosing(pws: WebSocket, code: Int, reason: String) {
+                        TestLog.sock("ptr", sid, "closing", code, reason.ifEmpty { null })
                         pws.close(1000, null)
                         fail()
                     }
-                    override fun onClosed(pws: WebSocket, code: Int, reason: String) { fail() }
-                    override fun onFailure(pws: WebSocket, t: Throwable, response: Response?) { fail() }
+                    override fun onClosed(pws: WebSocket, code: Int, reason: String) {
+                        TestLog.sock("ptr", sid, "close", code, reason.ifEmpty { null })
+                        fail()
+                    }
+                    override fun onFailure(pws: WebSocket, t: Throwable, response: Response?) {
+                        TestLog.sock("ptr", sid, "fail", reason = t.message)
+                        fail()
+                    }
                 }
             )
         }
 
         private fun fail(deliberate: Boolean = false) {
             synchronized(lock) {
+                if (state != PtrState.DEAD) TestLog.sock("ptr", sid, "dead", deliberate = deliberate)
                 if (!deliberate && state != PtrState.DEAD) failedAt = System.currentTimeMillis()
                 if (deliberate) retired = true
                 state = PtrState.DEAD
@@ -704,17 +737,27 @@ class WebOsClient(appContext: Context) {
         }
 
         /** True when a live socket took the frame or it is queued for the one still opening. */
-        private fun post(frame: String, kind: PointerQueue.Kind): Boolean = synchronized(lock) {
+        private fun post(frame: String, kind: PointerQueue.Kind, name: String? = null, dx: Int = 0, dy: Int = 0): Boolean = synchronized(lock) {
             val ws = pointerWs
             when {
-                ws != null -> deliver(ws.send(frame))
-                state == PtrState.DEAD -> false
-                else -> { queue.add(kind, frame); true }
+                ws != null -> deliver(ws.send(frame)).also { logFrame(kind, if (it) "sent" else "dropped", name, dx, dy) }
+                state == PtrState.DEAD -> false.also { logFrame(kind, "dropped", name, dx, dy) }
+                else -> { queue.add(kind, frame); logFrame(kind, "queued", name, dx, dy); true }
             }
         }
 
-        fun sendKey(keyCode: String) = post("type:button\nname:$keyCode\n\n", PointerQueue.Kind.KEY)
-        fun scroll(dx: Int, dy: Int) = post("type:scroll\ndx:$dx\ndy:$dy\n\n", PointerQueue.Kind.SCROLL)
+        private fun logFrame(kind: PointerQueue.Kind, st: String, name: String?, dx: Int, dy: Int) {
+            val n = frameSeq.incrementAndGet()
+            when (kind) {
+                PointerQueue.Kind.KEY -> TestLog.key(sid, n, st, name ?: "")
+                PointerQueue.Kind.MOVE -> TestLog.move("move", sid, n, st, dx, dy)
+                PointerQueue.Kind.SCROLL -> TestLog.move("scroll", sid, n, st, dx, dy)
+                PointerQueue.Kind.CLICK -> TestLog.click(sid, n, st)
+            }
+        }
+
+        fun sendKey(keyCode: String) = post("type:button\nname:$keyCode\n\n", PointerQueue.Kind.KEY, name = keyCode)
+        fun scroll(dx: Int, dy: Int) = post("type:scroll\ndx:$dx\ndy:$dy\n\n", PointerQueue.Kind.SCROLL, dx = dx, dy = dy)
         fun click() = post("type:click\n\n", PointerQueue.Kind.CLICK)
 
         fun move(dx: Int, dy: Int) {
@@ -722,9 +765,9 @@ class WebOsClient(appContext: Context) {
             synchronized(lock) {
                 val ws = pointerWs
                 when {
-                    ws != null -> deliver(ws.send(PointerQueue.moveFrame(dx, dy)))
-                    state == PtrState.DEAD -> {}
-                    else -> queue.addMove(dx, dy)
+                    ws != null -> deliver(ws.send(PointerQueue.moveFrame(dx, dy))).also { logFrame(PointerQueue.Kind.MOVE, if (it) "sent" else "dropped", null, dx, dy) }
+                    state == PtrState.DEAD -> logFrame(PointerQueue.Kind.MOVE, "dropped", null, dx, dy)
+                    else -> { queue.addMove(dx, dy); logFrame(PointerQueue.Kind.MOVE, "queued", null, dx, dy) }
                 }
             }
         }
@@ -1490,6 +1533,8 @@ class WebOsClient(appContext: Context) {
         const val DEFAULT_TV_IP = ""
         const val TV_PORT = 3001
         private const val TAG = "WebOsClient"
+        private val cmdSids = AtomicInteger()
+        private val ptrSids = AtomicInteger()
         private const val KEYBOARD_URI = "ssap://com.webos.service.ime/registerRemoteKeyboard"
         private const val POWER_STATE_URI = "ssap://com.webos.service.tvpower/power/getPowerState"
         private const val WATCH_RETRY_MS = 5_000L

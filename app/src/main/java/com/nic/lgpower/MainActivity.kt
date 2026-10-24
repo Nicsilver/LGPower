@@ -589,6 +589,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        TestLog.resumed(this)
         TvStore.syncFromLive(appPrefs)
         findViewById<TextView>(R.id.tv_main_title).text = TvStore.activeName(appPrefs)
         if (appPrefs.getBoolean(PREF_TOUR_PENDING, false)) {
@@ -646,6 +647,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        TestLog.paused(this)
         demoReceiver?.let { runCatching { unregisterReceiver(it) }; demoReceiver = null }
         super.onPause()
         stopWatching?.invoke()
@@ -1453,6 +1455,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        TestLog.touch(ev)
         if (ev.action == MotionEvent.ACTION_DOWN) {
             colorRowJustDismissed = false
             if (colorRowOpen) {
