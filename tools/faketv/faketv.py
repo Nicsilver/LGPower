@@ -53,6 +53,13 @@ def log(msg: str) -> None:
 # so gaps in a continuous touchpad drag can be lined up against what else was going on
 TIMELINE = None
 
+# --reg-delay / --hang-new-every: a slow set (2025 webOS 25 entry model) and the C4's
+# occasional connection that accepts and then goes quiet for ~10 s.
+REG_DELAY = 0.0
+HANG_NEW_EVERY = 0
+HANG_SECONDS = 10.0
+_new_conns = 0
+
 
 def timeline(kind: str, detail: str) -> None:
     if TIMELINE is not None:
@@ -706,6 +713,8 @@ async def handle_command_message(ws, raw: str):
         # returning client doesn't get stuck waiting on a pairing accept that
         # will never come. WebOsClient.kt:176 reads
         # `json.optJSONObject("payload")?.optString("client-key")` from this reply.
+        if REG_DELAY:
+            await asyncio.sleep(REG_DELAY)
         await ws.send(json.dumps({
             "type": "registered", "id": mid, "payload": {"client-key": CLIENT_KEY},
         }))
@@ -729,6 +738,9 @@ async def handle_command_message(ws, raw: str):
         except SsapDenied as denied:
             await ws.send(json.dumps({"type": "error", "id": mid, "error": str(denied), "payload": {}}))
             return
+
+    if REG_DELAY and uri == "ssap://com.webos.service.networkinput/getPointerInputSocket":
+        await asyncio.sleep(REG_DELAY)
 
     # WebOsClient.kt:187,199-200: both plain responses and the first subscribe
     # reply are type "response" carrying the same "id" the request/subscribe used.
@@ -814,6 +826,15 @@ async def pointer_connection(ws):
         timeline("ptr-close", str(peer[1]))
 
 
+async def hang_new_connections(connection, request):
+    global _new_conns
+    _new_conns += 1
+    if HANG_NEW_EVERY and _new_conns % HANG_NEW_EVERY == 0:
+        timeline("conn-hang", f"{_new_conns} {request.path}")
+        await asyncio.sleep(HANG_SECONDS)
+    return None
+
+
 # ── router ────────────────────────────────────────────────────────────────────
 
 async def router(ws):
@@ -851,10 +872,17 @@ def main():
     parser.add_argument("--timeline", default="",
                          help="append a millisecond timeline of pointer frames and SSAP requests to this file "
                               "(move frames then stay out of the console log)")
+    parser.add_argument("--reg-delay", type=float, default=0, metavar="MS",
+                         help="delay the register and getPointerInputSocket replies by this many ms")
+    parser.add_argument("--hang-new-every", type=int, default=0, metavar="N",
+                         help="hold every Nth new connection (command or pointer) ~10 s before the websocket handshake completes")
     parser.add_argument("--drop-cmd-every", type=float, default=0,
                          help="abort every open SSAP command socket this often (seconds), like a Wi-Fi drop "
                               "that only hits the command connection; the pointer socket is left alone")
     args = parser.parse_args()
+    global REG_DELAY, HANG_NEW_EVERY
+    REG_DELAY = args.reg_delay / 1000.0
+    HANG_NEW_EVERY = args.hang_new_every
     if args.timeline:
         global TIMELINE
         TIMELINE = open(args.timeline, "a", encoding="utf-8")
@@ -879,7 +907,8 @@ def main():
     ssl_ctx.load_cert_chain(CERT_FILE, KEY_FILE)
 
     async def run():
-        async with websockets.serve(router, args.bind, CONFIG.port, ssl=ssl_ctx):
+        async with websockets.serve(router, args.bind, CONFIG.port, ssl=ssl_ctx,
+                                    process_request=hang_new_connections, open_timeout=30):
             if WAKE_DELAYS:
                 await start_wol_listener()
             if args.drop_cmd_every > 0:

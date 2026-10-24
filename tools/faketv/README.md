@@ -67,7 +67,11 @@ wall clock (`<unix time> ptr move <dx> <dy> <port>`, `ptr-open`, `ptr-close`, `c
 so gaps in a long touchpad drag can be lined up against what else happened. Move frames then
 stay out of the console log. `--drop-cmd-every <s>` aborts every open command socket at that
 interval and leaves the pointer socket alone, like a Wi-Fi blip that only hits the command
-connection. A continuous drag for either: a `monkey -f` script of `DispatchPointer` moves
+connection. `--reg-delay <ms>` holds the `register` and `getPointerInputSocket` replies by that long,
+like a slow 2025 webOS 25 entry set whose handshake takes a while. `--hang-new-every <n>` holds
+every nth new websocket connection (command or pointer) for about 10 s before the handshake
+completes, like the C4's occasional hung connect; the timeline gets a `conn-hang` line when it
+does. A continuous drag for either: a `monkey -f` script of `DispatchPointer` moves
 10 ms apart, which `input swipe` can't do without lifting the finger.
 
 ## Point the app at it
