@@ -138,6 +138,15 @@ def app_events(run, rec):
     return out
 
 
+def app_counts(run, rec, a, b, ev):
+    """How the app reports its own frames of one kind in [a, b]: sent / queued / dropped."""
+    c = collections.Counter()
+    for e in app_events(run, rec):
+        if e.get("ev") == ev and a <= e["pc"] <= b:
+            c[e.get("st", "?")] += 1
+    return dict(c)
+
+
 def sock_story(evs, t_pc, win_ms):
     """What the app's pointer session looked like when the tap arrived."""
     story = dict(session=None, ready_ms=None, fails=[], connects=0, key=None, key_st=None, touch_seen=None, dispatch_ms=None,
@@ -259,9 +268,13 @@ def score_hold(run, rec):
     out = dict(kind="hold", n_down=len(evs), first_ms=r0(evs[0]["pc"] - t0) if evs else None, first_gap=gaps[0] if gaps else None,
                rep_med=med(rep), rep_sd=round(statistics.pstdev(rep), 1) if len(rep) > 1 else None, rep_max=max(rep) if rep else None,
                last_after_up=r0(evs[-1]["pc"] - t1) if evs else None, t_pc=t0, hold_ms=r0(t1 - t0))
+    ac = app_counts(run, rec, t0 - 50, t1 + 50, "key")
+    out["app_keys"] = ac or None
     out["verdict"], out["why"] = "ok", None
     if not evs:
         out["verdict"], out["why"] = "lost", "no keydown during the hold"
+    elif ac and ac.get("sent", 0) > len(evs) + 1:
+        out["verdict"], out["why"] = "lost", f"app sent {ac['sent']} presses, TV saw {len(evs)}"
     elif out["first_ms"] > LATE_MS:
         out["verdict"], out["why"] = "late", f"first press {out['first_ms']} ms"
     elif rep and out["rep_max"] > max(250, 3 * (out["rep_med"] or 1)):
@@ -284,6 +297,7 @@ def score_fast(run, rec):
     lat = [e["pc"] - to_pc(rec, d) for e, d in zip(evs, downs)] if len(evs) == len(downs) else None
     out = dict(kind="fast", sent=len(seq), got=len(evs), in_order=got == seq, lat_max=r0(max(lat)) if lat else None,
                lat_med=r0(med(lat)) if lat else None, t_pc=t0)
+    out["app_keys"] = app_counts(run, rec, t0 - 50, t1 + 300, "key") or None
     out["verdict"], out["why"] = "ok", None
     if len(evs) < len(seq):
         out["verdict"], out["why"] = "lost", f"{len(evs)}/{len(seq)} arrived"
@@ -315,9 +329,13 @@ def score_drag(run, rec):
     out = dict(kind="drag", inj_moves=n_inj, n_move=len(mm), gap_med=med(gaps), gap_max=max(gaps) if gaps else None,
                gap_p95=pct(gaps, 95), first_move=r0(mm[0]["pc"] - t0) if mm else None,
                last_after_end=r0(mm[-1]["pc"] - t1) if mm else None, disp=[round(disp[0]), round(disp[1])], clicks=clicks, t_pc=t0)
+    am = app_counts(run, rec, t0 - 50, t1 + 300, "move")
+    out["app_moves"] = am or None
     out["verdict"], out["why"] = "ok", None
     if len(mm) < 3:
         out["verdict"], out["why"] = "lost", f"only {len(mm)} move frames"
+    elif am and am.get("sent", 0) > len(mm) + 1:
+        out["verdict"], out["why"] = "lost", f"app sent {am['sent']} move frames, TV saw {len(mm)}"
     elif out["gap_max"] > GAP_WARN_MS:
         out["verdict"], out["why"] = "stall", f"gap {out['gap_max']} ms between move frames"
     elif out["first_move"] > LATE_MS:
@@ -343,9 +361,13 @@ def score_kbd(run, rec):
     k = rec.get("kbd")
     if not k:
         return dict(kind="kbd", verdict="void")
-    out = dict(kind="kbd", **k, t_pc=rec["pc_start"])
+    op = inj_by_role(rec, "open-sheet")
+    out = dict(kind="kbd", **k, t_pc=to_pc(rec, op[0]["nums"][0]) if op else rec["pc_start"])
     out["verdict"], out["why"] = "ok", None
-    if k["hint_visible"]:
+    if not k["focus"]:
+        # informational: a fake that answers without currentWidget does not make the apps show the hint (only an explicit focus:false does)
+        out["why"] = None
+    elif k["hint_visible"]:
         out["verdict"], out["why"] = "bad", "no-field hint visible while the TV reports focus"
     elif k["delta"] != k["expect"]:
         out["verdict"], out["why"] = "lost", f"surroundingTextLength rose by {k['delta']}, expected {k['expect']}"
@@ -544,6 +566,27 @@ def score_dir(d):
     if not run.by_app:
         flags.append("no app log lines (builds without LgpTest): app-side columns are empty, lost trials cannot be split into rig vs app")
 
+    skews, missing = [], 0
+    if run.by_app:
+        marks = {}
+        for lab, evs in run.by_app.items():
+            for e in evs:
+                if e.get("ev") == "mark":
+                    marks[(lab, e.get("id"))] = e
+        for r in scored:
+            rec = r["rec"]
+            if rec.get("void") or "off" not in rec or not rec.get("pc_mark") or rec["sc"] == "cold":
+                continue
+            m = marks.get((rec["app"].lower(), rec["id"]))
+            if m is None:
+                missing += 1
+            else:
+                skews.append(m["t"] + rec["off"]["phone_ms"] - rec["pc_mark"])
+        if skews and abs(med(skews)) > 150:
+            flags.append(f"app mark lines sit {med(skews):.0f} ms from the runner's mark time: the phone clock join is suspect")
+        if missing and len([1 for e in run.app if e.get("ev") == "mark"]):
+            flags.append(f"{missing} trial(s) have no TEST_MARK line in the app log (broadcast failed or app log off)")
+
     n_tr = len(scored)
     bad = [r for r in scored if r["s"]["verdict"] not in ("ok",)]
     wall = (meta.get("pc_end", 0) - meta.get("pc_start", 0)) / 60000 if meta.get("pc_end") else None
@@ -588,7 +631,7 @@ def score_dir(d):
         rec, s = r["rec"], r["s"]
         title = f"## {rec['id']} {rec['app']} {r['grp']} (#{rec['i'] + 1}): {s['verdict'].upper()}"
         A += [title, "", f"- {s.get('why') or '-'}"]
-        for k in ("lat", "retry_lat", "retry_after_ms", "dups", "n_down", "first_ms", "rep_max", "got", "sent", "n_move", "gap_max", "kbd"):
+        for k in ("lat", "retry_lat", "retry_after_ms", "dups", "n_down", "first_ms", "rep_max", "got", "sent", "n_move", "gap_max", "app_keys", "app_moves", "kbd"):
             if s.get(k) is not None and k in s:
                 A.append(f"- {k}: {s[k]}")
         if s.get("flags"):

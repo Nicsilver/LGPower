@@ -396,20 +396,42 @@ def sc_wifi_blip(ctx, rec, app, off_s=5, retry=True):
     tap_and_watch(ctx, rec, app, "right", retry)
 
 
-def sc_kbd(ctx, rec, app, text="hello", wait_s=6.0):
+def sc_kbd(ctx, rec, app, text="hello", wait_s=6.0, expect_focus=True):
     if ctx.kbd is None:
         raise Skip("no keyboard watcher (registerRemoteKeyboard subscription failed at start)")
     prep(ctx, rec, app)
     (kx, ky), = need(app, "keyboard")
     arm(ctx, rec, app, prime=False)
     inject(ctx, rec, f"T {kx} {ky}", "open-sheet")
-    time.sleep(1.8)
+    xml = ""
+    end = time.time() + 10
+    while time.time() < end:   # the first open of the sheet can take seconds on a slow device
+        time.sleep(0.8)
+        _, xml = ui_coords(ctx.dev, app)
+        if "EditText" in xml:
+            break
+    else:
+        raise Skip("the keyboard sheet never opened")
     before = ctx.kbd.last()
-    if before is None or not before[1]:
-        raise Skip("TV reports no focused text field (a real TV needs the URL bar focused first)")
+    if before is None:
+        raise Skip("the TV sent no registerRemoteKeyboard frame")
+    if bool(before[1]) != bool(expect_focus):
+        raise Skip(f"TV reports focus={bool(before[1])} but the trial expects {bool(expect_focus)} (a real TV needs the URL bar focused first)")
     n0 = before[2]
-    _, xml = ui_coords(ctx.dev, app)
+    if expect_focus:
+        time.sleep(1.5)   # the no-field hint arrives with the first focus frame; give a wrong one time to show
+        _, xml = ui_coords(ctx.dev, app)
+    else:
+        hint_end = time.time() + 5
+        while "Select a text field" not in xml and time.time() < hint_end:
+            time.sleep(0.7)
+            _, xml = ui_coords(ctx.dev, app)
     hint = "Select a text field" in xml
+    if not expect_focus:
+        rec["kbd"] = dict(text="", len_before=None, len_after=None, delta=0, expect=0, focus=False, hint_visible=hint, frames=0)
+        ctx.dev.adb("shell", "am", "force-stop", app.pkg)
+        app.xy = {}
+        return
     t0 = now_ms()
     ctx.dev.sh(f"input text {text}")
     time.sleep(0.5)

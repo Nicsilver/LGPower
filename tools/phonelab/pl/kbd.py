@@ -67,7 +67,7 @@ class KbdWatch:
                     self._record(t, bool(w.get("focus")), w.get("surroundingTextLength") if w.get("focus") else None,
                                  cur=w.get("cursorPosition"))
                 elif "subscribed" in p:
-                    self._record(t, None, None, note="subscribed-without-widget")
+                    self._record(t, False, None, note="subscribed-without-widget")
 
     def _record(self, t, focus, length, **extra):
         with self.lock:
