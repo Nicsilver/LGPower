@@ -40,14 +40,13 @@ class ConnReportTest {
             "low-latency, held during the test", tv, deaths, nowMs = 100_000)
 
     @Test fun fullReportHasEveryItemOnItsOwnLine() {
-        val tv = TvProbe(null, "OLED65C4PUA", "webOS firmware 04.40.43", 183.0, List(10) { 6.0 + it }, 0, 96.0, null, List(10) { 0.02 })
+        val tv = TvProbe(null, "OLED65C4PUA", "webOS firmware 04.40.43", 183.0, List(10) { 6.0 + it }, 0, 96.0, null)
         val lines = ConnReport.finish(inputs(tv, deaths = listOf(DeathLog.Entry(58_000, "cmd session died: cause=own close age=1ms sinceRx=never pointer=none")))).lines()
         assertEquals("LG Power connection report", lines[0])
         assertEquals("App: LG Power (Kotlin) 1.39.1 (versionCode 46)", lines[1])
         assertTrue(lines.contains("Wi-Fi: 5 GHz, RSSI -52 dBm, link speed 866 Mbps"))
         assertTrue(lines.contains("Command connection: opened and registered in 183 ms"))
         assertTrue(lines.contains("Command round trips (10): min 6.0 / median 11 / max 15 ms"))
-        assertTrue(lines.contains("Pointer frame sends (10): min 0.02 / median 0.02 / max 0.02 ms"))
         assertTrue(lines.any { it == "- 42s ago, cmd session died: cause=own close age=1ms sinceRx=never pointer=none" })
     }
 
@@ -61,7 +60,7 @@ class ConnReportTest {
     }
 
     @Test fun ordinaryReportLinesSurviveScrubbing() {
-        val tv = TvProbe(null, "OLED65C4PUA", "webOS firmware 04.40.43 (HE_DTV_W24P_AFADATAA)", 12.0, listOf(5.0), 2, 9.0, null, listOf(0.1))
+        val tv = TvProbe(null, "OLED65C4PUA", "webOS firmware 04.40.43 (HE_DTV_W24P_AFADATAA)", 12.0, listOf(5.0), 2, 9.0, null)
         val raw = ConnReport.render(inputs(tv))
         assertEquals(raw, ConnReport.finish(inputs(tv)))
     }

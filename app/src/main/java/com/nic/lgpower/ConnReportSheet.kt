@@ -15,6 +15,9 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Suppress("DEPRECATION")
 private fun wifiSnapshot(activity: Activity): WifiSnapshot? {
@@ -26,16 +29,17 @@ private fun wifiSnapshot(activity: Activity): WifiSnapshot? {
     return WifiSnapshot(info.frequency, info.rssi, info.linkSpeed)
 }
 
+private val running = AtomicBoolean(false)
+
 private fun collectReport(activity: Activity, client: WebOsClient, progress: (String) -> Unit): String {
-    val heldBefore = LowLatencyWifi.isHeld
     // The remote is not in front while Settings is, so take the lock for the test to measure the same radio mode
-    val held = LowLatencyWifi.acquire(activity)
+    val held = LowLatencyWifi.acquire(activity, "report")
     val tv = try {
         client.probeConnection(progress)
     } catch (e: Exception) {
         TvProbe(failure = "${e.javaClass.simpleName}: ${e.message ?: "no detail"}")
     } finally {
-        if (!heldBefore) LowLatencyWifi.release()
+        LowLatencyWifi.release("report")
     }
     return ConnReport.finish(ReportInputs(
         appName = "LG Power (Kotlin)",
@@ -54,6 +58,8 @@ private fun collectReport(activity: Activity, client: WebOsClient, progress: (St
 
 /** Settings > About > Copy connection report: runs the probe behind a progress sheet, then offers the text to copy. */
 fun Activity.showConnReportSheet(client: WebOsClient) {
+    // A second tap would close the sessions the first probe is timing
+    if (!running.compareAndSet(false, true)) return
     val theme = ThemeManager.getActiveTheme(this)
     val d = resources.displayMetrics.density
     fun dp(v: Int) = (v * d).toInt()
@@ -138,8 +144,17 @@ fun Activity.showConnReportSheet(client: WebOsClient) {
     }
     dialog.show()
 
+    // A dialog outliving its activity (rotation) leaks the window
+    (this as? LifecycleOwner)?.lifecycle?.addObserver(object : DefaultLifecycleObserver {
+        override fun onDestroy(owner: LifecycleOwner) { if (dialog.isShowing) dialog.dismiss() }
+    })
+
     Thread {
-        val text = collectReport(this, client) { line -> runOnUiThread { progressText.text = line } }
+        val text = try {
+            collectReport(this, client) { line -> runOnUiThread { progressText.text = line } }
+        } finally {
+            running.set(false)
+        }
         runOnUiThread {
             if (!dialog.isShowing) return@runOnUiThread
             status.visibility = View.GONE

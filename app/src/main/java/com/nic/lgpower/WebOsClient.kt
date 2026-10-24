@@ -801,12 +801,6 @@ class WebOsClient(appContext: Context) {
             }
         }
 
-        /** A move by nothing: exercises the socket's send path without the cursor going anywhere. */
-        fun sendProbeFrame(): Boolean = synchronized(lock) {
-            val ws = pointerWs ?: return false
-            deliver(ws.send(PointerQueue.moveFrame(0, 0)))
-        }
-
         fun close() {
             val open = pointerWs
             fail(deliberate = true)
@@ -1404,6 +1398,11 @@ class WebOsClient(appContext: Context) {
         val oldPointer: PointerSession?
         val oldCommand: CommandSession?
         synchronized(stateLock) {
+            // Closing a session mid-exchange or under a pairing prompt would break the user's own action
+            if (sharedCommandSession?.inUse() == true || sharedPointerSession?.inUse() == true ||
+                sharedCommandSession?.pairingPromptShowing == true) {
+                return TvProbe(failure = "The connection is busy, try again in a moment")
+            }
             oldPointer = sharedPointerSession; sharedPointerSession = null
             oldCommand = sharedCommandSession; sharedCommandSession = null
         }
@@ -1439,16 +1438,7 @@ class WebOsClient(appContext: Context) {
         }
         val pointerOpenMs = msSince(pointerAt)
 
-        progress("Timing pointer frames")
-        val sends = ArrayList<Double>()
-        repeat(PROBE_COUNT) {
-            val t0 = System.nanoTime()
-            val ok = pointer.sendProbeFrame()
-            if (ok) sends.add(msSince(t0))
-            Thread.sleep(30)
-        }
-        return TvProbe(null, model, softwareText, commandOpenMs, trips, failed, pointerOpenMs,
-            if (sends.size < PROBE_COUNT) "${PROBE_COUNT - sends.size} pointer frames were refused" else null, sends)
+        return TvProbe(null, model, softwareText, commandOpenMs, trips, failed, pointerOpenMs)
     }
 
     /** The TV's answer to the shared session's registration, once the session is up. */

@@ -13,6 +13,7 @@ import android.util.Log
 object LowLatencyWifi {
     private var lock: WifiManager.WifiLock? = null
     private var failureLogged = false
+    private val holders = mutableSetOf<String>()
 
     private val mode get() =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) WifiManager.WIFI_MODE_FULL_LOW_LATENCY
@@ -23,9 +24,10 @@ object LowLatencyWifi {
 
     @get:Synchronized val isHeld get() = lock?.isHeld == true
 
-    /** Returns whether the lock is held afterwards; never throws, since the remote works fine without it. */
+    /** Several screens share the one lock, so it is only dropped when the last holder lets go. Returns whether the lock is held afterwards; never throws, since the remote works fine without it. */
     @Synchronized
-    fun acquire(context: Context): Boolean {
+    fun acquire(context: Context, holder: String = "remote"): Boolean {
+        holders.add(holder)
         try {
             val held = lock ?: (context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager)
                 ?.createWifiLock(mode, "lgpower:remote")
@@ -40,7 +42,9 @@ object LowLatencyWifi {
     }
 
     @Synchronized
-    fun release() {
+    fun release(holder: String = "remote") {
+        holders.remove(holder)
+        if (holders.isNotEmpty()) return
         try {
             lock?.takeIf { it.isHeld }?.release()
         } catch (e: Exception) {

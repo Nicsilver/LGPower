@@ -33,7 +33,6 @@ internal class TvProbe(
     val roundTripFailures: Int = 0,
     val pointerOpenMs: Double? = null,
     val pointerFailure: String? = null,
-    val frameSendMs: List<Double> = emptyList(),
 )
 
 internal class ReportInputs(
@@ -113,7 +112,6 @@ internal object ConnReport {
         }
         tv.pointerOpenMs?.let { appendLine("Pointer socket: opened in ${fmt(it)} ms") }
         if (tv.pointerFailure != null) appendLine("Pointer test failed: ${tv.pointerFailure}")
-        if (tv.frameSendMs.isNotEmpty()) appendLine("Pointer frame sends (${tv.frameSendMs.size}): ${spread(tv.frameSendMs)}")
         if (r.deaths.isEmpty()) {
             append("Session deaths this run: none")
         } else {
