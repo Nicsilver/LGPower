@@ -39,6 +39,8 @@ Windows ships one). `--host` only controls the hostname baked into icon URLs; th
 reaches the host machine at `10.0.2.2`. `--port` and `--icon-port` exist if 3001 or 3002
 are taken.
 
+`--bind <address>` listens on one address instead of 0.0.0.0. The apps always dial port 3001, so a second copy (the phonelab runner does this on its own) binds the PC's LAN address next to one on 0.0.0.0 and the device is pointed at that address.
+
 If it fails to bind, a previous copy is still running. Find the PID with
 `netstat -ano | findstr :3001` and stop that PID. Never kill by image name.
 

@@ -118,6 +118,16 @@ def self_test(ctx, apps):
     return out
 
 
+def tv_shot(out, label):
+    """Panel on only for the few seconds the shot takes (tv skill rule 3); the file is for a human to look at once."""
+    path = os.path.join(out, f"tv-{label}.png")
+    T.tv_py("screen-on", timeout=60)
+    r = T.tv_py("shot", path, timeout=90)
+    T.tv_py("screen-off", timeout=60)
+    log(f"tv shot {label}: rc={r.returncode}")
+    return path if os.path.exists(path) else None
+
+
 def start_faketv(args, out):
     """Starts faketv as a child. Another session may already hold 0.0.0.0:3001 (the apps always dial 3001), so in that case
     this copy binds the PC's LAN address instead and the device is pointed at that address."""
@@ -155,6 +165,7 @@ def main():
     ap.add_argument("--install-k")
     ap.add_argument("--install-f")
     ap.add_argument("--tv-prep", action="store_true", help="real TV: run tv.py wake and tv.py blank first")
+    ap.add_argument("--tv-shots", action="store_true", help="real TV: one screenshot (panel on for a few seconds) before and after the matrix")
     ap.add_argument("--keep-tv", action="store_true", help="real TV: do not turn it off at the end")
     ap.add_argument("--no-park", action="store_true")
     ap.add_argument("--allow-click", action="store_true", help="real TV: allow pad_click trials")
@@ -263,6 +274,9 @@ def main():
                 raise R.AbortRun(f"self-test failed: {bad}; app log lines seen {ctx.applog.n}, TV events {ctx.truth.count()}")
         meta["injector"] = ctx.inj.kind
 
+        if args.tv == "real" and args.tv_shots:
+            meta["tv_shot_start"] = tv_shot(out, "start")
+
         # ---- matrix
         t_run = time.time()
         voids = 0
@@ -276,6 +290,8 @@ def main():
                       open(os.path.join(out, "progress.json"), "w"))
             log(f"[{done}/{len(trials)}] {rec['id']} {rec['app']} {rec['sc']} {'VOID' if rec['void'] else 'ok'}  eta {eta / 60:.1f} min")
             time.sleep(ctx.cfg["gap_s"])
+        if args.tv == "real" and args.tv_shots:
+            meta["tv_shot_end"] = tv_shot(out, "end")
     except R.AbortRun as e:
         log(f"ABORT: {e}")
         meta["abort"] = str(e)

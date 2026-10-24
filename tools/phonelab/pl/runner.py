@@ -215,6 +215,8 @@ def unlock_phone(ctx, rec, app, t_after_wake=0.7):
 
 
 def sc_lock(ctx, rec, app, lock_s=8, delay_ms=0, retry=True):
+    if ctx.dev.phone and not ctx.pin:
+        raise Skip("no phone PIN (~/.phone-pin) to unlock with")
     prep(ctx, rec, app)
     blur_wait(ctx, rec)
     mark(ctx, rec, app)
