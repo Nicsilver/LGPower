@@ -188,6 +188,20 @@ def blur_overlap(run, a, b):
     return any(s <= b and e >= a for s, e in run.blur)
 
 
+RESUME_SC = ("lock", "bg", "cold")
+
+
+def hold_count_verdict(n_tv, ac):
+    """Presses the app says it sent against keydowns the TV saw, exactly: fewer on the TV is lost, more is a duplicate."""
+    if not ac or "sent" not in ac:
+        return None
+    if n_tv < ac["sent"]:
+        return "lost", f"app sent {ac['sent']} presses, TV saw {n_tv}"
+    if n_tv > ac["sent"]:
+        return "dup", f"app sent {ac['sent']} presses, TV saw {n_tv}"
+    return None
+
+
 def classify_lost(run, rec, t_pc, win, story, have_app_log):
     """Why a tap produced no key: swallowed by the rig, never produced by the app, or lost after the app sent it."""
     near = window_events(run, t_pc - 20, t_pc + win)
@@ -196,6 +210,9 @@ def classify_lost(run, rec, t_pc, win, story, have_app_log):
     if blur_overlap(run, t_pc - 1500, t_pc + win):
         return "rig-void", "Blank blur window overlaps the tap"
     if have_app_log and story["touch_seen"] is False:
+        if rec.get("sc") in RESUME_SC:
+            # after a lock, background or cold start the first touch going missing is the resume path's own symptom
+            return "resume-miss", "tap injected after the resume but the app saw no touch"
         return "rig-void", "tap injected but the app saw no touch (swallowed by another window?)"
     if have_app_log and story["key_st"] is None and story["touch_seen"]:
         return "lost", "app got the touch but produced no key"
@@ -254,6 +271,9 @@ def score_tap(run, rec):
     return out
 
 
+HOLD_APP_TAIL_MS = 1200
+
+
 def score_hold(run, rec):
     h = inj_by_role(rec, "hold")
     if not h:
@@ -261,20 +281,22 @@ def score_hold(run, rec):
     d, u = h[0]["nums"][:2]
     t0, t1 = to_pc(rec, d), to_pc(rec, u)
     key = rec.get("expect")
-    evs = [e for e in run.tv_between(t0 - 20, cap(rec, t1 + 1500), {"key"}) if e["key"] == key]
+    evs = [e for e in run.tv_between(t0 - 20, cap(rec, t1 + HOLD_APP_TAIL_MS + 300), {"key"}) if e["key"] == key]
     ts = [e["t"] for e in evs]
     gaps = [round(b - a, 1) for a, b in zip(ts, ts[1:])]
     rep = gaps[1:]
     out = dict(kind="hold", n_down=len(evs), first_ms=r0(evs[0]["pc"] - t0) if evs else None, first_gap=gaps[0] if gaps else None,
                rep_med=med(rep), rep_sd=round(statistics.pstdev(rep), 1) if len(rep) > 1 else None, rep_max=max(rep) if rep else None,
                last_after_up=r0(evs[-1]["pc"] - t1) if evs else None, t_pc=t0, hold_ms=r0(t1 - t0))
-    ac = app_counts(run, rec, t0 - 50, t1 + 50, "key")
+    # same span on both sides (the TV window ends 300 ms later for the LAN delay), so the counts can be compared exactly
+    ac = app_counts(run, rec, t0 - 50, t1 + HOLD_APP_TAIL_MS, "key")
     out["app_keys"] = ac or None
     out["verdict"], out["why"] = "ok", None
+    cv = hold_count_verdict(len(evs), ac)
     if not evs:
         out["verdict"], out["why"] = "lost", "no keydown during the hold"
-    elif ac and ac.get("sent", 0) > len(evs) + 1:
-        out["verdict"], out["why"] = "lost", f"app sent {ac['sent']} presses, TV saw {len(evs)}"
+    elif cv:
+        out["verdict"], out["why"] = cv
     elif out["first_ms"] > LATE_MS:
         out["verdict"], out["why"] = "late", f"first press {out['first_ms']} ms"
     elif rep and out["rep_max"] > max(250, 3 * (out["rep_med"] or 1)):
@@ -424,6 +446,7 @@ def build_tables(scored):
         real = [s for s in sc if s["verdict"] not in ("void", "rig-void")]
         n_void = sum(1 for s in sc if s["verdict"] == "void")
         n_rig = sum(1 for s in sc if s["verdict"] == "rig-void")
+        n_rm = sum(1 for s in sc if s["verdict"] == "resume-miss")
         if kind == "tap":
             lats = [s["lat"] for s in real if s.get("lat") is not None]
             lost = sum(1 for s in real if s["verdict"] == "lost")
@@ -431,8 +454,8 @@ def build_tables(scored):
             late = sum(1 for s in real if s["verdict"] == "late")
             rt = [s.get("retry_lat") for s in real if "retry_lat" in s]
             ready = [s["story"]["ready_ms"] for s in real if s.get("story") and s["story"]["ready_ms"] is not None]
-            sections["tap"].append([grp, app, len(sc), len(real) - lost - late - sum(1 for s in real if s["verdict"] == "dup"),
-                                    lost, dup, late, n_rig, n_void, r0(med(lats)), r0(pct(lats, 95)), r0(max(lats)) if lats else None,
+            sections["tap"].append([grp, app, len(sc), len(real) - lost - late - n_rm - sum(1 for s in real if s["verdict"] == "dup"),
+                                    lost, n_rm, dup, late, n_rig, n_void, r0(med(lats)), r0(pct(lats, 95)), r0(max(lats)) if lats else None,
                                     f"{sum(1 for x in rt if x is not None)}/{len(rt)}" if rt else "-", r0(med(ready))])
         elif kind == "hold":
             sections["hold"].append([grp, app, len(sc), med([s["n_down"] for s in real]), med([s["first_ms"] for s in real if s["first_ms"] is not None]),
@@ -459,7 +482,7 @@ def build_tables(scored):
             sections["kbd"].append([grp, app, len(sc), sum(1 for s in real if s["verdict"] == "ok"),
                                     sum(1 for s in real if s.get("hint_visible")), med([s["delta"] for s in real]), n_void])
     heads = dict(
-        tap=["scenario", "app", "n", "ok", "lost", "dup", "late>500", "rig-void", "void", "lat med ms", "p95", "max", "retry ok", "ready ms med"],
+        tap=["scenario", "app", "n", "ok", "lost", "resume-miss", "dup", "late>500", "rig-void", "void", "lat med ms", "p95", "max", "retry ok", "ready ms med"],
         hold=["scenario", "app", "n", "presses med", "first press ms", "1st gap ms", "repeat med ms", "sd", "worst gap", "bad", "void"],
         fast=["scenario", "app", "n", "arrived", "in order", "lat med ms", "lat worst", "void"],
         drag=["scenario", "app", "n", "moves med", "moves min", "disp px med", "gap med ms", "gap worst", "first move ms", "<3 moves", "clicks", "void"],
@@ -563,6 +586,8 @@ def score_dir(d):
         flags.append(f"run aborted: {meta['abort'][:200]}")
     if meta.get("tv_off_failed"):
         flags.append("tv.py off did not confirm standby: CHECK THE TV")
+    if meta.get("tv_levels_restore_failed"):
+        flags.append("the TV volume / OLED light were NOT restored (run `python -m pl.tvlevels restore` from tools/phonelab before the TV is used)")
     if not run.by_app:
         flags.append("no app log lines (builds without LgpTest): app-side columns are empty, lost trials cannot be split into rig vs app")
 

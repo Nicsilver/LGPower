@@ -1,6 +1,6 @@
 """Matrix file -> flat trial list. Rows run in file order; inside a row the apps are interleaved per trial (K, F, K, F)
 so a TV hang episode hits both apps equally instead of whichever ran first."""
-import itertools
+import itertools, re
 
 from .util import load_matrix
 
@@ -33,3 +33,46 @@ def expand(path_or_dict, apps):
                 for a in row_apps:
                     trials.append(dict(row=ri, i=i, sc=sc, app=a, params=params))
     return settings, trials
+
+
+# The real C4 may only ever see these (tv skill rule 1: ENTER on an unnoticed upgrade modal hits "Check now").
+REAL_TV_KEYS = {"up", "down", "left", "right"}
+_OK_WORDS = {"ok", "enter", "btn_ok", "select"}
+REAL_TV_REFUSED_SC = {"pad_click": "a click can land on an unnoticed modal", "kbd": "typing needs a focused field and ENTER (fake TV only)"}
+
+
+def _tokens(v):
+    return [t for t in re.split(r"[^a-z0-9_]+", str(v).lower()) if t]
+
+
+def real_tv_problems(trials):
+    """Reasons the trial list must never run against the real TV; empty when it is safe. Checked at startup, before any
+    device is touched."""
+    out = []
+    seen = set()
+    for t in trials:
+        sc, params = t["sc"], t["params"]
+        msg = None
+        if sc in REAL_TV_REFUSED_SC:
+            msg = f"row {t['row']}: {sc} is refused on the real TV ({REAL_TV_REFUSED_SC[sc]})"
+        else:
+            for k, v in params.items():
+                toks = _tokens(v) if isinstance(v, (str, list)) else []
+                if k in ("key", "pattern"):
+                    bad = [x for x in toks if x not in REAL_TV_KEYS]
+                elif isinstance(v, str):
+                    bad = [x for x in toks if x in _OK_WORDS]
+                else:
+                    bad = []
+                if bad:
+                    msg = f"row {t['row']}: {sc} {k}={v!r} would send {', '.join(sorted(set(bad)))} to the real TV (only up/down/left/right are allowed)"
+                    break
+        if msg and msg not in seen:
+            seen.add(msg)
+            out.append(msg)
+    return out
+
+
+def phone_problems(trials):
+    """Scenarios that must never run with a real phone as the device."""
+    return sorted({f"row {t['row']}: {t['sc']} is refused on a real phone (Wi-Fi off drops wireless adb)" for t in trials if t["sc"] == "wifi_blip"})

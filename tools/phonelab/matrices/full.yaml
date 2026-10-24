@@ -15,6 +15,6 @@ rows:
   - {sc: drag, from: touchpad, ms: 300, n: 5}
   - {sc: locked_pad, ms: [300, 1500], n: 5}
   - {sc: idle_gap, s: 120, n: 2}
-  # pad_click needs --allow-click on the real TV; wifi_blip only on an emulator or a USB-connected phone
+  # pad_click is fake-TV only and wifi_blip emulator only; --tv real and a real phone refuse them
   # - {sc: pad_click, n: 5}
   # - {sc: wifi_blip, off_s: 5, n: 3}

@@ -2,18 +2,16 @@
 current); every verdict is computed by score.py so a run can be re-scored after the scorer improves."""
 import os, subprocess, sys, time, traceback
 
+from . import truth as T
 from .device import (InjectorDead, Paused, FallbackInjector, Injector, get_coords, parse_reply, ui_coords)
-from .util import log, now_ms
+from .matrix import REAL_TV_KEYS
+from .util import AbortRun, log, now_ms
 
 EXPECT = {"right": "ArrowRight", "left": "ArrowLeft", "up": "ArrowUp", "down": "ArrowDown", "ok": "Enter"}
 
 
 class Skip(Exception):
     """The trial cannot run in this setup; it is recorded as void with the reason."""
-
-
-class AbortRun(Exception):
-    pass
 
 
 class Ctx:
@@ -24,20 +22,35 @@ class Ctx:
         self.paused_s = 0.0
         self.pin = None
         self.recovered = 0
+        self.dark = False          # the runner turned the panel off between trials, so the next first key only wakes it
+        self.after_lock = set()    # packages whose touchpad-lock overlay may still be up from the previous trial
+        self.unlock_fail = 0
 
 
 # ------------------------------------------------------------------ housekeeping
 
+PARK_AFTER_S = 60
+
+
 def housekeep(ctx):
     t0 = time.time()
+    parked = False
     while ctx.truth.alert() or os.path.exists(os.path.join(ctx.out, "PAUSE")):
         why = "ALERT" if ctx.truth.alert() else "PAUSE file"
         if time.time() - t0 < 6:
             log(f"paused by {why}; waiting (clear it with `tv.py close-popup --clear` / delete PAUSE)")
             ctx.run.write(dict(ev="pause", why=why, pc=round(now_ms(), 1)))
+        if ctx.dev.phone and not parked and time.time() - t0 > PARK_AFTER_S:
+            # an unlocked, dimmed phone must not sit idle through a long wait (OLED, and Nic may want it back)
+            ctx.run.write(dict(ev="park", why=why, rc=ctx.dev.park(), pc=round(now_ms(), 1)))
+            parked = True
         if time.time() - t0 > ctx.cfg.get("alert_max_s", 1800):
             raise AbortRun(f"{why} not cleared after {ctx.cfg.get('alert_max_s', 1800)} s")
         time.sleep(3)
+    if parked:
+        rc = ctx.dev.borrow()
+        ctx.last_borrow = time.time()
+        ctx.run.write(dict(ev="borrow", rc=rc, after_park=True, pc=round(now_ms(), 1)))
     if time.time() - t0 > 1:
         ctx.run.write(dict(ev="resume", after_s=round(time.time() - t0, 1), pc=round(now_ms(), 1)))
     if ctx.dev.phone and time.time() - ctx.last_borrow > ctx.cfg["borrow_every_s"]:
@@ -62,6 +75,7 @@ def housekeep(ctx):
             s.start()
     if ctx.truth.kind == "real" and not ctx.truth.guard_alive():
         ctx.run.write(dict(ev="guard-dead", pc=round(now_ms(), 1)))
+        raise AbortRun("the TV guard died; nothing keeps the panel dark or watches for the upgrade modal")
 
 
 def blur_wait(ctx, rec, maxs=120):
@@ -81,10 +95,27 @@ def blur_wait(ctx, rec, maxs=120):
 
 def maybe_prime(ctx, wait=1.2):
     """The guard darkens the panel ~20 s after the last key and the first key after dark only wakes it."""
-    if ctx.truth.kind == "real" and now_ms() - ctx.truth.last_recv() > 8000:
+    if ctx.truth.kind == "real" and (ctx.dark or now_ms() - ctx.truth.last_recv() > 8000):
         ctx.mouse.prime(wait)
+        ctx.dark = False
         return True
     return False
+
+
+def dark_panel(ctx):
+    """Real TV: panel off between trials (tv skill rule 3); the next trial's prime wakes it."""
+    if ctx.truth.kind != "real":
+        return
+    if not ctx.mouse.screen_off():
+        r = T.tv_py("screen-off", timeout=60)
+        if r.returncode != 0:
+            log(f"screen-off failed rc={r.returncode}: {r.stdout.strip()[-100:]}")
+    ctx.dark = True
+
+
+def center_pointer(ctx):
+    ctx.mouse.center()
+    ctx.dark = False   # 137 pointer moves wake a dark panel; only the first one is swallowed
 
 
 def ensure_fg(ctx, rec, app, settle=None):
@@ -105,6 +136,14 @@ def coords(ctx, rec, app, refresh=False):
         get_coords(ctx.dev, app, ctx.applog)
     rec["coord_src"] = app.coord_src
     return app.xy
+
+
+def real_dirs_only(ctx, *names):
+    """Backstop for matrix.real_tv_problems: the real TV only ever gets d-pad directions."""
+    if ctx.truth.kind == "real":
+        bad = [n for n in names if n not in REAL_TV_KEYS]
+        if bad:
+            raise AbortRun(f"refusing to press {bad} on the real TV")
 
 
 def need(app, *names):
@@ -129,12 +168,23 @@ def mark(ctx, rec, app, broadcast=True):
     rec["pc_mark"] = round(now_ms(), 1)
 
 
-def inject(ctx, rec, line, role):
+def check_alert(ctx):
+    if ctx.truth.alert():
+        raise Skip("guard ALERT is set; no touch goes out while a popup may be on the TV")
+
+
+def inject(ctx, rec, line, role, force=False):
+    """`force` is for cleanup only (leaving a locked touchpad): it skips the ALERT and pause checks."""
+    if not force:
+        check_alert(ctx)
+        ctx.dev.gate_if_idle()   # the owner may have paused the phone during the sleep before this touch
     reply, pc0, pc1 = ctx.inj.cmd(line)
+    ctx.dev.last_cmd = time.time()
     if reply.startswith("ERR"):
         raise Skip(f"injector error: {reply[:120]}")
     pr = parse_reply(reply)
-    e = dict(role=role, cmd=line, op=pr["op"], nums=pr["nums"], pc0=round(pc0, 1), pc1=round(pc1, 1))
+    # the PIN must never reach disk: run.jsonl and the scorer's excerpts print this field
+    e = dict(role=role, cmd="K *" if role == "pin" else line, op=pr["op"], nums=pr["nums"], pc0=round(pc0, 1), pc1=round(pc1, 1))
     rec["inj"].append(e)
     return e
 
@@ -151,16 +201,20 @@ def wait_key(ctx, key, since_ms, wait_s):
 
 def arm(ctx, rec, app, prime=True, app_mark=True):
     """Everything that must be true right before an injected touch: no blur, TV awake, fresh clock offsets, mark."""
+    check_alert(ctx)
     blur_wait(ctx, rec)
     if prime:
         maybe_prime(ctx)
     mark(ctx, rec, app, broadcast=app_mark)
     do_sync(ctx, rec)
     blur_wait(ctx, rec)
+    check_alert(ctx)
+    ctx.dev.gate()
 
 
 def tap_and_watch(ctx, rec, app, name="right", retry=True, wait_s=None):
     wait_s = wait_s or ctx.cfg["tap_wait_s"]
+    real_dirs_only(ctx, name)
     (x, y), = need(app, name)
     key = EXPECT.get(name)
     rec["expect"] = key
@@ -199,6 +253,7 @@ def sc_idle_gap(ctx, rec, app, s=120, key="right", retry=True):
 
 
 def unlock_phone(ctx, rec, app, t_after_wake=0.7):
+    ctx.dev.gate()   # the lock sleep was long; the PIN must not go into a phone the owner picked up meanwhile
     W, H = app.screen or ctx.dev.screen_size()
     inject(ctx, rec, "K 224", "wake")
     time.sleep(t_after_wake)
@@ -212,6 +267,18 @@ def unlock_phone(ctx, rec, app, t_after_wake=0.7):
         e = inject(ctx, rec, f"K {7 + int(pin[-1])}", "pin")
         return e
     return rec["inj"][-1]
+
+
+def ensure_unlocked(ctx, rec):
+    if not ctx.dev.keyguard_showing():
+        ctx.unlock_fail = 0
+        return
+    ctx.unlock_fail += 1
+    rc = ctx.dev.unlock() if ctx.dev.phone else None
+    rec["unlock_retry_rc"] = rc
+    if ctx.unlock_fail >= 2:
+        raise AbortRun("the keyguard stayed up after the PIN twice in a row")
+    raise Skip("the keyguard was still up after the unlock; phone-adb.ps1 unlock was run and the trial is void")
 
 
 def sc_lock(ctx, rec, app, lock_s=8, delay_ms=0, retry=True):
@@ -235,6 +302,11 @@ def sc_lock(ctx, rec, app, lock_s=8, delay_ms=0, retry=True):
             rec["focus_r"] = round(r, 1)
             break
         time.sleep(0.003)
+    if rec.get("focus_r") is None:
+        # no input focus for the app: the keyguard may still be up, and a tap on the PIN pad counts as a wrong PIN
+        ensure_unlocked(ctx, rec)
+    else:
+        ctx.unlock_fail = 0
     time.sleep(delay_ms / 1000)
     blur_wait(ctx, rec)
     rec["delay_ms"] = delay_ms
@@ -291,6 +363,7 @@ def sc_cold(ctx, rec, app, retry=True):
 
 def sc_hold(ctx, rec, app, ms=3000, key="right"):
     prep(ctx, rec, app)
+    real_dirs_only(ctx, key)
     arm(ctx, rec, app)
     (x, y), = need(app, key)
     rec["expect"] = EXPECT[key]
@@ -304,6 +377,7 @@ def sc_fast(ctx, rec, app, gap_ms=110, taps=10, hold_ms=25, pattern="up,down,lef
         raise Skip("fast sequences need the real injector (self-test fell back to input)")
     prep(ctx, rec, app)
     seq = (pattern.split(",") * taps)[:taps]
+    real_dirs_only(ctx, *seq)
     pts = need(app, *seq)
     arm(ctx, rec, app)
     rec["seq"] = [EXPECT[k] for k in seq]
@@ -315,7 +389,7 @@ def sc_fast(ctx, rec, app, gap_ms=110, taps=10, hold_ms=25, pattern="up,down,lef
 def sc_drag(ctx, rec, app, ms=300, step_ms=8, dx=150, dy=90, **_):
     prep(ctx, rec, app)
     (tx, ty), = need(app, "touchpad")
-    ctx.mouse.center()
+    center_pointer(ctx)
     time.sleep(0.6)
     arm(ctx, rec, app, prime=False)
     sgn = 1 if rec["i"] % 2 == 0 else -1
@@ -332,13 +406,35 @@ def engage_lock(ctx, rec, app):
 
 
 def leave_lock(ctx, rec, app):
-    if "pad_exit" in app.xy:
-        inject(ctx, rec, f"T {app.xy['pad_exit']['x']} {app.xy['pad_exit']['y']}", "pad-exit")
-    else:
-        inject(ctx, rec, "K 3", "home")
-        time.sleep(0.8)
-        ctx.dev.adb("shell", "am", "force-stop", app.pkg)
+    """Leave the locked touchpad without touching the screen: a tap on the exit button that moved would be a TV click.
+    HOME plus force-stop always works, and every step is best effort so the force-stop runs even if HOME failed."""
+    ctx.after_lock.add(app.pkg)
     app.xy = {}
+    for step in (lambda: inject(ctx, rec, "K 3", "home", force=True),
+                 lambda: time.sleep(0.8),
+                 lambda: ctx.dev.adb("shell", "am", "force-stop", app.pkg)):
+        try:
+            step()
+        except AbortRun:
+            raise
+        except Exception as e:
+            log(f"leave_lock step failed: {e!r:.120}")
+
+
+def reset_after_lock(ctx, app):
+    """The previous trial may have left an overlay up (a failed trial, or one cut short): the next touch would become a TV
+    click. Start the next trial from a stopped app."""
+    pkgs = ctx.after_lock | {app.pkg}
+    try:
+        ctx.inj.cmd("K 3")
+    except Exception as e:
+        log(f"home before the post-lock reset failed: {e!r:.100}")
+    time.sleep(0.8)
+    for pkg in sorted(pkgs):
+        ctx.dev.adb("shell", "am", "force-stop", pkg)
+    ctx.after_lock = set()
+    for a in ctx.apps.values():
+        a.xy = {}
 
 
 def pad_area(app, screen):
@@ -351,42 +447,48 @@ def pad_area(app, screen):
 
 def sc_locked_pad(ctx, rec, app, ms=300, step_ms=8, dxy=200, **_):
     prep(ctx, rec, app)
-    ctx.mouse.center()
-    engage_lock(ctx, rec, app)
-    l, t, r, b = pad_area(app, app.screen or ctx.dev.screen_size())
-    sgn = 1 if rec["i"] % 2 == 0 else -1
-    cx, cy = (l + r) // 2, (t + b) // 2
-    x0, y0 = cx - sgn * dxy // 2, cy - sgn * dxy // 4
-    time.sleep(0.6)
-    arm(ctx, rec, app, prime=False, app_mark=False)
-    rec["win_ms"] = ms + 1200
-    inject(ctx, rec, f"G {x0} {y0} {x0 + sgn * dxy} {y0 + sgn * dxy // 2} {ms} {step_ms}", "drag")
-    time.sleep(1.2)
-    leave_lock(ctx, rec, app)
+    center_pointer(ctx)
+    try:
+        engage_lock(ctx, rec, app)
+        l, t, r, b = pad_area(app, app.screen or ctx.dev.screen_size())
+        sgn = 1 if rec["i"] % 2 == 0 else -1
+        cx, cy = (l + r) // 2, (t + b) // 2
+        x0, y0 = cx - sgn * dxy // 2, cy - sgn * dxy // 4
+        time.sleep(0.6)
+        arm(ctx, rec, app, prime=False, app_mark=False)
+        rec["win_ms"] = ms + 1200
+        inject(ctx, rec, f"G {x0} {y0} {x0 + sgn * dxy} {y0 + sgn * dxy // 2} {ms} {step_ms}", "drag")
+        time.sleep(1.2)
+    finally:
+        leave_lock(ctx, rec, app)
 
 
 def sc_pad_click(ctx, rec, app, **_):
-    if ctx.truth.kind == "real" and not ctx.cfg.get("allow_click"):
-        raise Skip("clicks on the real TV need --allow-click (a click on an unnoticed modal could hit Check now)")
+    if ctx.truth.kind == "real":
+        raise Skip("pad_click is never run on the real TV (a click on an unnoticed modal could hit Check now)")
     prep(ctx, rec, app)
-    ctx.mouse.center()
-    engage_lock(ctx, rec, app)
-    l, t, r, b = pad_area(app, app.screen or ctx.dev.screen_size())
-    time.sleep(0.5)
-    arm(ctx, rec, app, prime=False, app_mark=False)
-    rec["win_ms"] = 1500
-    inject(ctx, rec, f"T {(l + r) // 2} {(t + b) // 2} 60", "click")
-    time.sleep(1.2)
-    leave_lock(ctx, rec, app)
+    center_pointer(ctx)
+    try:
+        engage_lock(ctx, rec, app)
+        l, t, r, b = pad_area(app, app.screen or ctx.dev.screen_size())
+        time.sleep(0.5)
+        arm(ctx, rec, app, prime=False, app_mark=False)
+        rec["win_ms"] = 1500
+        inject(ctx, rec, f"T {(l + r) // 2} {(t + b) // 2} 60", "click")
+        time.sleep(1.2)
+    finally:
+        leave_lock(ctx, rec, app)
 
 
 def sc_wifi_blip(ctx, rec, app, off_s=5, retry=True):
-    if ctx.dev.phone and not ctx.cfg.get("wifi_blip_ok"):
-        raise Skip("wireless adb to the phone would drop with Wi-Fi (set settings.wifi_blip_ok for a USB-connected phone)")
+    if ctx.dev.phone:
+        raise Skip("wifi_blip never runs on a real phone: Wi-Fi off drops wireless adb and padb cannot reconnect it")
     prep(ctx, rec, app)
-    ctx.dev.sh("svc wifi disable")
-    time.sleep(off_s)
-    ctx.dev.sh("svc wifi enable")
+    try:
+        ctx.dev.sh("svc wifi disable")
+        time.sleep(off_s)
+    finally:
+        ctx.dev.sh("svc wifi enable")
     t0 = time.time()
     while time.time() - t0 < 40:
         if "inet " in ctx.dev.sh("ip -4 addr show wlan0"):
@@ -399,6 +501,8 @@ def sc_wifi_blip(ctx, rec, app, off_s=5, retry=True):
 
 
 def sc_kbd(ctx, rec, app, text="hello", wait_s=6.0, expect_focus=True):
+    if ctx.truth.kind == "real":
+        raise Skip("kbd trials are fake-TV only (they need a focused field and an ENTER on the real TV)")
     if ctx.kbd is None:
         raise Skip("no keyboard watcher (registerRemoteKeyboard subscription failed at start)")
     prep(ctx, rec, app)
@@ -418,7 +522,7 @@ def sc_kbd(ctx, rec, app, text="hello", wait_s=6.0, expect_focus=True):
     if before is None:
         raise Skip("the TV sent no registerRemoteKeyboard frame")
     if bool(before[1]) != bool(expect_focus):
-        raise Skip(f"TV reports focus={bool(before[1])} but the trial expects {bool(expect_focus)} (a real TV needs the URL bar focused first)")
+        raise Skip(f"TV reports focus={bool(before[1])} but the trial expects {bool(expect_focus)} )")
     n0 = before[2]
     if expect_focus:
         time.sleep(1.5)   # the no-field hint arrives with the first focus frame; give a wrong one time to show
@@ -465,7 +569,11 @@ def run_trial(ctx, spec):
                params=spec["params"], inj=[], void=None, pc_start=round(now_ms(), 1))
     try:
         housekeep(ctx)
+        if ctx.after_lock:
+            reset_after_lock(ctx, app)
         SCENARIOS[spec["sc"]](ctx, rec, app, **spec["params"])
+        if ctx.truth.kind == "real" and ctx.truth.keys_since(rec["pc_start"], "Enter"):
+            raise AbortRun("an ENTER reached the real TV during a trial; stopping before anything else is sent")
     except Skip as e:
         rec["void"] = f"rig: {e}"
     except Paused as e:
@@ -475,7 +583,10 @@ def run_trial(ctx, spec):
         rec["void"] = f"rig: injector {e}"
     except subprocess.TimeoutExpired as e:
         rec["void"] = f"rig: adb timeout {str(e)[:80]}"
-    except AbortRun:
+    except AbortRun as e:
+        rec["void"] = f"rig: run aborted ({e})"
+        rec["pc_end"] = round(now_ms(), 1)
+        ctx.run.write(rec)
         raise
     except Exception as e:
         rec["void"] = f"rig: exception {e!r:.150}"

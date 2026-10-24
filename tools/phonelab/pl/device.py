@@ -2,7 +2,7 @@
 import json, os, queue, re, statistics, subprocess, sys, threading, time
 import xml.etree.ElementTree as ET
 
-from .util import log, now_ms
+from .util import AbortRun, log, now_ms
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEX = os.path.join(HERE, "inj", "inj.dex")
@@ -13,7 +13,9 @@ ACT = "com.nic.lgpower"
 
 
 class Paused(Exception):
-    """padb waited out the owner's pause tile (exit 75) or gave up (76): the step did not run."""
+    """padb waited out the owner's pause tile and refused the step (exit 75): the owner may have left any app open, so the
+    trial is void and the phone is back on the runner's side again. Exit 76 (padb gave up, wireless debugging off) is an
+    AbortRun instead."""
 
 
 class InjectorDead(Exception):
@@ -39,17 +41,39 @@ class Dev:
         if not phone and not serial.startswith("emulator-"):
             raise SystemExit("refusing: an emulator target needs an emulator-NNNN serial, never a real phone")
         self.serial = serial
+        self.last_cmd = time.time()
 
     def adb(self, *args, input=None, timeout=60, text=True):
         # the phone goes through padb so the owner's pause tile is honoured; an emulator gets plain adb
         base = [sys.executable, PADB, "-s", self.serial] if self.phone else [ADB, "-s", self.serial]
         r = subprocess.run([*base, *args], input=input, capture_output=True, timeout=timeout)
-        if r.returncode in (75, 76):
-            raise Paused(f"padb exit {r.returncode}")
+        if r.returncode == 76:
+            raise AbortRun("padb gave up on the paused phone (exit 76): settings restored, wireless debugging off")
+        if r.returncode == 75:
+            raise Paused("padb exit 75")
+        self.last_cmd = time.time()
         return r.stdout.decode("utf-8", "replace") if text else r.stdout
 
     def sh(self, cmd, **kw):
         return self.adb("shell", cmd, **kw)
+
+    def gate(self):
+        """The injector talks to adb directly, so it cannot see the owner's pause tile. `am` is one of the verbs padb
+        refuses after a wait (exit 75 -> Paused), so this call tells us the pause happened before the next touch."""
+        if self.phone:
+            self.adb("shell", "am", "get-current-user", timeout=40)
+
+    def gate_if_idle(self, idle_s=2.0):
+        if self.phone and time.time() - self.last_cmd > idle_s:
+            self.gate()
+
+    def keyguard_showing(self):
+        return "isKeyguardShowing=true" in self.sh("dumpsys window | grep isKeyguardShowing")
+
+    def unlock(self):
+        r = subprocess.run(["pwsh", "-NoProfile", "-File", PHONE_ADB_PS1, "unlock"], capture_output=True, text=True, timeout=90)
+        self.last_cmd = time.time()
+        return r.returncode
 
     def top(self):
         return self.sh("dumpsys activity activities | grep -m1 topResumedActivity").strip()

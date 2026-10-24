@@ -1,4 +1,4 @@
-# First real phone + C4 run, about 15 minutes. No pad_click (needs --allow-click), no wifi_blip (wireless adb).
+# First real phone + C4 run, about 15 minutes. No pad_click or kbd (refused on the real TV), no wifi_blip (refused on a phone).
 name: smoke
 settings:
   gap_s: 1.5

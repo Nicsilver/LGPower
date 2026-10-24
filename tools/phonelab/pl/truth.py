@@ -221,6 +221,9 @@ class NullMouse:
     def prime(self, wait=0.0):
         pass
 
+    def screen_off(self):
+        return False
+
     def center(self):
         pass
 
@@ -268,6 +271,18 @@ class Mouse:
     def prime(self, wait=1.2):
         self.run(self._key("RIGHT"))
         time.sleep(wait)
+
+    async def _screen_off(self):
+        r = await self.sess.call(self.TVM.POWER + "turnOffScreen")
+        return r.get("type") != "error"
+
+    def screen_off(self):
+        """Panel dark between trials (tv skill rule 3); the next trial's prime wakes it. False when the call failed."""
+        try:
+            return self.run(self._screen_off(), 15)
+        except Exception as ex:
+            log(f"screen-off over the helper socket failed ({ex!r:.80})")
+            return False
 
     def corner(self):
         self.move(-30, -30, 120)

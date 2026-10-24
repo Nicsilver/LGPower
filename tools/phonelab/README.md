@@ -41,10 +41,13 @@ python run.py --matrix matrices/smoke.yaml --apps K,F --tv real --tv-prep
 ```
 
 Useful flags: `--install-k/--install-f <apk>`, `--pkg-k/--pkg-f` (other package ids), `--out <dir>`, `--limit N`,
-`--no-selftest`, `--tv-shots` (real TV: one screenshot before and after, panel on for a few seconds each), `--force-input` (use `adb shell input` instead of the injector), `--allow-click` (real TV only), `--keep-tv`,
-`--no-park`, `--faketv-args "..."`. The run folder defaults to `runs/<timestamp>-<matrix>/` (gitignored). Progress is in
+`--no-selftest`, `--tv-end-shot` (real TV: one screenshot after the matrix, panel on for a few seconds; the start shot is taken by
+whoever starts the run, see the smoke brief), `--force-input` (use `adb shell input` instead of the injector), `--faketv-args "..."`.
+There is no flag to leave the TV on or the phone unparked at the end. The run folder defaults to `runs/<timestamp>-<matrix>/` (gitignored). Progress is in
 `progress.json` (done, total, void, eta); the runner prints one line per trial to stderr and then the two result paths.
-Exit codes: 0 done, 4/5 aborted (self-test failed, ALERT never cleared), 1 crashed. A failed run still scores what it recorded.
+Exit codes: 0 done, 5 aborted (the reason is in the log and in `meta.json` under `abort`: self-test failed, ALERT not cleared
+in 30 min, TV guard died, padb gave up on a paused phone, keyguard stuck, an ENTER reached the TV), 130 interrupted, 1 crashed
+(startup refusals also exit 1 and say why). A failed run still scores what it recorded, parks the phone and turns the TV off.
 
 If port 3001 is already taken on this PC (another faketv), the runner binds faketv to the PC's LAN address instead and
 points the device there (`faketv.py --bind`).
@@ -60,17 +63,17 @@ hang episode hits both. A list on `ms`, `gap_ms`, `lock_s`, `bg_s`, `s` or `off_
 | `sc` | params | what one trial does |
 |---|---|---|
 | `tap` | `key` (right) | steady-state tap on a d-pad button, retry once after a miss |
-| `hold` | `ms` 3000, `key` | press and hold; scored on press count, first gap, repeat cadence |
+| `hold` | `ms` 3000, `key` | press and hold; scored on press count (the keydowns on the TV must equal the presses the app sent: fewer is lost, more is dup), first gap, repeat cadence |
 | `fast` | `gap_ms` 110, `taps` 10 | back-to-back taps over up/down/left/right; arrived, order, latency |
 | `drag` | `ms` 300 | drag that starts on the Touchpad button; pointer move frames on the TV |
 | `lock` | `lock_s` 8 | screen off for `lock_s`, wake, unlock with the PIN, tap as soon as the app has input focus |
 | `bg` | `bg_s` 8 | HOME for `bg_s`, `am start`, tap once the window has focus |
 | `cold` | | force-stop, start, tap once the window has focus |
 | `locked_pad` | `ms` | hold the Touchpad button to lock it, drag inside the overlay, leave |
-| `pad_click` | | a tap on the locked pad overlay (one click). Real TV needs `--allow-click` |
+| `pad_click` | | a tap on the locked pad overlay (one click). Fake TV only: refused at startup with `--tv real` |
 | `idle_gap` | `s` 120 | sit idle, then tap |
-| `wifi_blip` | `off_s` 5 | `svc wifi disable/enable`, then tap. Emulator or USB phone only (wireless adb would drop) |
-| `kbd` | `text` hello, `expect_focus` | open the keyboard sheet, type, score from the TV's `surroundingTextLength` |
+| `wifi_blip` | `off_s` 5 | `svc wifi disable/enable`, then tap. Emulator only: refused at startup with a real phone, Wi-Fi comes back in a `finally` |
+| `kbd` | `text` hello, `expect_focus` | open the keyboard sheet, type, score from the TV's `surroundingTextLength`. Fake TV only: refused with `--tv real` |
 
 Why 8 s locks: the apps reset their sessions after 5 s idle, so 8 s covers the reset path. The lock key is
 `KEYCODE_SLEEP` (223), not the power key, because the power key toggles and a wrong state would flip the wrong way.
@@ -84,10 +87,15 @@ reconnects, close reasons), the ten nearest app log lines (ms relative to the ta
 `scored.jsonl` has the per-trial numbers; `run.jsonl`, `app.jsonl`, `sys.jsonl`, `tv.jsonl` (or `faketv.timeline`) are the
 raw recordings, and `python score.py <run dir>` rescores them.
 
+Real-TV runs are checked before any device is touched: with `--tv real` a matrix that contains `pad_click`, `kbd`, or any key or
+`fast` pattern other than up/down/left/right (ok, enter, btn_ok) is refused.
+
 Verdicts: `ok`; `lost` (no key, and why: app dropped it, queued it, sent it and the TV never saw it, got the touch but made
 no key); `late` (over 500 ms); `dup` (extra keydowns, or a click during a drag); `order`; `stall` (hold repeat gap over
-3x the median and 250 ms, or drag move gap over 150 ms); `rig-void` (Blank blur overlaps, the panel's wake swallowed the key,
-or the app never saw the touch: counted separately, not as an app loss); `void` (the runner could not run the trial, with the
+3x the median and 250 ms, or drag move gap over 150 ms); `rig-void` (Blank blur overlaps or the panel's wake swallowed the key,
+or, on a plain tap, the app never saw the touch: counted separately, not as an app loss); `resume-miss` (lock, background and
+cold trials only: the tap went out after the resume and the app saw no touch at all, which is the resume path's own symptom and
+has its own column); `void` (the runner could not run the trial, with the
 reason). The tap tables count a trial in `ok` only when it has no finding.
 
 Flags worth reading: clock offset drift over 50 ms, Blank blur overlaps, pause events, guard ALERT lines, injector or
@@ -106,15 +114,28 @@ log first (the scorer compares each mark's time with the runner's and flags a sk
 
 - Self-test per app before the matrix: 10 injected taps must land on the TV, else it switches to `adb shell input` and tests
   again, else it aborts (a night of empty trials is worse than no run).
-- Before every tap: waits out a Blank blur or hidden state, wakes the panel if the last key was over 8 s ago, re-syncs the
-  phone clock, writes the trial mark (`Inj L` into logcat plus `TEST_MARK` to the app), checks blur again.
-- Real TV: refuses to start without the guard running or with an ALERT set; during the run an ALERT (or a file named `PAUSE`
-  in the run folder) pauses the matrix between trials until cleared, and aborts after 30 min. The matrix sends only
-  RIGHT/UP/LEFT/DOWN, touchpad moves and, with `--allow-click`, clicks. It never sends ENTER or OK.
-- Phone: `phone-adb.ps1 borrow` again every 10 minutes (stale borrow), `park` at the end or on a crash. A padb pause exit
-  voids the trial and re-borrows.
+- Before every tap: waits out a Blank blur or hidden state, wakes the panel if the last key was over 8 s ago or the runner
+  darkened it, re-syncs the phone clock, writes the trial mark (`Inj L` into logcat plus `TEST_MARK` to the app), checks blur and
+  the ALERT file again, and makes one padb-gated call so a pause tile pressed meanwhile is noticed before the touch goes out.
+- Real TV: refuses to start without the guard running or with an ALERT set; right after the checks it notes the TV volume and
+  OLED light, sets both to 0 (tv skill rule 5) and restores them just before `tv.py off`. The values are kept in
+  `~/.phonelab-tv-levels.json` until restored, so a crashed run does not lose the originals
+  (`python -m pl.tvlevels restore`). The panel is turned off between trials and the next trial's first key wakes it.
+  During the run an ALERT (or a file named `PAUSE` in the run folder) stops all touches, pauses the matrix between trials until
+  cleared (the phone is parked after 60 s and borrowed again on resume), and aborts after 30 min. A dead guard aborts at once.
+  The matrix sends only RIGHT/UP/LEFT/DOWN and touchpad moves. It never sends ENTER or OK, and the run aborts if an ENTER shows
+  up on the TV anyway.
+- Phone: `phone-adb.ps1 borrow` again every 10 minutes (stale borrow), `park` at the end or on a crash. padb exit 75 (the
+  owner paused the phone and a tap or `am` command was refused) voids the trial and re-borrows; exit 76 (padb gave up after 55
+  minutes, wireless debugging off) aborts the run. The injector talks to adb directly, so the runner gates it with an
+  `am get-current-user` call through padb before the unlock and before any touch that follows a gap over 2 s.
+  The PIN is never written to disk: its keypresses are recorded as `K *`. After the unlock the keyguard is checked; if it
+  is still up, `phone-adb.ps1 unlock` runs, the trial is void, and two failures in a row abort.
+- Locked-pad trials always leave through HOME plus `am force-stop` in a `finally` (never a tap on the exit button), and the
+  next trial starts by force-stopping the app again.
+- Ctrl-C during the teardown is ignored so the park, the TV restore and `tv.py off` always finish.
 - Restarts the injector or a dead logcat stream and says so in the flags.
-- Real TV at the end: `tv.py off` with up to 6 attempts; if it never confirms standby the summary says to check the TV.
+- Real TV at the end: volume and OLED light restored, then `tv.py off` with up to 6 attempts; if either fails the summary says to check the TV.
   The guard log of the run is copied into the run folder.
 
 ## Keyboard trials
@@ -122,9 +143,8 @@ log first (the scorer compares each mark's time with the runner's and flags a sk
 `kbd` opens the keyboard sheet, types `text` with `adb shell input text`, presses Enter, and compares the TV's
 `registerRemoteKeyboard` `surroundingTextLength` before and after (a PC-side subscriber logs every frame to `kbd.jsonl`).
 It also looks for the "Select a text field on the TV first" hint in a UI dump: it must not show while the TV reports
-`focus:true`. No screenshots. A real TV needs a text field focused first (the URL bar; panel on for that one step); the
-trial is voided with that reason otherwise. On faketv `--kbd-focus field` (default) gives a focused field. Unverified on the
-C4: whether a second registerRemoteKeyboard subscriber (this watcher, next to the app's) is accepted there.
+`focus:true`. No screenshots. Keyboard trials are fake-TV only: on the real C4 they would need a focused field and an ENTER, so `--tv real` refuses them.
+On faketv `--kbd-focus field` (default) gives a focused field.
 
 ## Files
 
@@ -135,7 +155,7 @@ inj/Inj.java      injector source      inj/inj.dex       built dex (6 KB); rebui
 matrices/         smoke, full, emu-smoke, all-scenarios, faults-fake, keyboard
 blank/monitor.js  Blank app source with immediate event flush (see below)
 extras/           measure-id.gradle from the old harness (a debuggable release as com.nic.lgpower.m)
-tests/            python -m unittest tests.test_score_blank
+tests/            python -m unittest discover -s tests -t .   (from this folder)
 ```
 
 Injector commands (stdin, one per line, stamps are phone uptime ms): `N` clock probe (`N <uptime> <wall>`), `T x y [hold]`,
@@ -152,4 +172,4 @@ with either version because the clock offset uses the minimum delay.
 ## Not covered
 
 Real phone and real C4 runs are the first smoke run's job (`.plans/phone-phonelab-smoke.md`). Pairing (`accept-prompt`) stays a
-human-checked step (tv skill rule 1). `wifi_blip` on a wireless-adb phone and `pad_click` on the C4 are off by default.
+human-checked step (tv skill rule 1). `wifi_blip` on a phone, and `pad_click` and `kbd` on the C4, are refused.

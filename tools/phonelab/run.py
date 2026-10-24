@@ -6,7 +6,7 @@
 Writes <out>/{meta.json,run.jsonl,app.jsonl,sys.jsonl,tv.jsonl|faketv.timeline,kbd.jsonl,runner.log} and then runs score.py
 on the folder, which writes summary.md and anomalies.md. Read those two files, not the raw logs.
 """
-import argparse, json, os, socket, subprocess, sys, time
+import argparse, json, os, signal, socket, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -15,7 +15,8 @@ from pl import device as D
 from pl import runner as R
 from pl import truth as T
 from pl.kbd import KbdWatch
-from pl.matrix import expand
+from pl import tvlevels as L
+from pl.matrix import expand, phone_problems, real_tv_problems
 from pl.util import Jsonl, log, now_ms, set_log_file, pid_alive
 
 TV_IP = os.environ.get("PHONELAB_TV_IP", "192.168.1.157")
@@ -58,6 +59,10 @@ def git_rev():
         return subprocess.run(["git", "-C", HERE, "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
     except Exception:
         return None
+
+
+def refusal(problems):
+    return "refused before touching any device:" + "".join("\n  " + p for p in problems)
 
 
 def tap_burst(ctx, app, n, gap=0.35):
@@ -121,14 +126,16 @@ def self_test(ctx, apps):
 def tv_shot(out, label):
     """Panel on only for the few seconds the shot takes (tv skill rule 3); the file is for a human to look at once."""
     path = os.path.join(out, f"tv-{label}.png")
-    T.tv_py("screen-on", timeout=60)
-    r = T.tv_py("shot", path, timeout=90)
-    T.tv_py("screen-off", timeout=60)
-    log(f"tv shot {label}: rc={r.returncode}")
+    try:
+        T.tv_py("screen-on", timeout=60)
+        r = T.tv_py("shot", path, timeout=90)
+        log(f"tv shot {label}: rc={r.returncode}")
+    finally:
+        T.tv_py("screen-off", timeout=60)
     return path if os.path.exists(path) else None
 
 
-def start_faketv(args, out):
+def start_faketv(args, out, ctx):
     """Starts faketv as a child. Another session may already hold 0.0.0.0:3001 (the apps always dial 3001), so in that case
     this copy binds the PC's LAN address instead and the device is pointed at that address."""
     bind = "0.0.0.0"
@@ -139,15 +146,20 @@ def start_faketv(args, out):
     tl = os.path.join(out, "faketv.timeline")
     cmd = [sys.executable, FAKETV, "--host", args.tv_host, "--bind", bind, "--timeline", tl, *args.faketv_args.split()]
     logf = open(os.path.join(out, "faketv.log"), "w")
-    p = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=os.path.dirname(FAKETV))
+    # a Ctrl-C between Popen and the assignment would leave faketv holding port 3001 after the runner is gone
+    old = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        p = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=os.path.dirname(FAKETV))
+        ctx.faketv = p
+    finally:
+        signal.signal(signal.SIGINT, old)
     probe = "127.0.0.1" if bind == "0.0.0.0" else bind
     for _ in range(60):
         if port_open(probe, 3001) and p.poll() is None:
-            return p, tl, probe
+            return tl, probe
         if p.poll() is not None:
             raise SystemExit("faketv exited at start, see faketv.log")
         time.sleep(0.5)
-    p.terminate()
     raise SystemExit("faketv did not open port 3001")
 
 
@@ -165,10 +177,8 @@ def main():
     ap.add_argument("--install-k")
     ap.add_argument("--install-f")
     ap.add_argument("--tv-prep", action="store_true", help="real TV: run tv.py wake and tv.py blank first")
-    ap.add_argument("--tv-shots", action="store_true", help="real TV: one screenshot (panel on for a few seconds) before and after the matrix")
-    ap.add_argument("--keep-tv", action="store_true", help="real TV: do not turn it off at the end")
-    ap.add_argument("--no-park", action="store_true")
-    ap.add_argument("--allow-click", action="store_true", help="real TV: allow pad_click trials")
+    ap.add_argument("--tv-end-shot", action="store_true", help="real TV: one screenshot after the matrix (panel on for a few seconds). The "
+                    "start shot is the worker's job before the run (screen-on, shot, screen-off, look at it).")
     ap.add_argument("--no-selftest", action="store_true")
     ap.add_argument("--force-input", action="store_true", help="skip the injector and use `adb shell input` (slower, no fast taps)")
     ap.add_argument("--limit", type=int, default=0, help="run only the first N trials (debug)")
@@ -179,6 +189,9 @@ def main():
     settings, trials = expand(args.matrix, labels)
     if args.limit:
         trials = trials[:args.limit]
+    bad = (real_tv_problems(trials) if args.tv == "real" else []) + (phone_problems(trials) if not emulator else [])
+    if bad:
+        raise SystemExit(refusal(bad))
     name = os.path.splitext(os.path.basename(args.matrix))[0]
     out = os.path.abspath(args.out or os.path.join(HERE, "runs", time.strftime("%Y%m%d-%H%M%S") + "-" + name))
     os.makedirs(out, exist_ok=True)
@@ -190,7 +203,7 @@ def main():
     serial = args.serial or D.find_phone_serial()
     dev = D.Dev(serial, phone=not emulator)
     ctx = R.Ctx()
-    ctx.cfg = {**settings, "allow_click": args.allow_click}
+    ctx.cfg = dict(settings)
     ctx.dev, ctx.out = dev, out
     ctx.run = Jsonl(os.path.join(out, "run.jsonl"))
     sys_sink = Jsonl(os.path.join(out, "sys.jsonl"))
@@ -232,12 +245,16 @@ def main():
             if ctx.truth.alert():
                 raise SystemExit("guard ALERT is set; clear it with tv.py close-popup first")
             ctx.truth.start()
+            try:
+                meta["tv_levels_noted"] = L.note_and_zero()
+            except Exception as e:
+                raise R.AbortRun(f"could not note and zero the TV volume and OLED light (tv skill rule 5): {e!r:.200}")
             ctx.mouse = T.open_mouse() or T.NullMouse()
             tv_ip, tv_mac, key = TV_IP, TV_MAC, open(TV_KEY).read().strip()
             guard_log = os.path.join(T.STATE_DIR, "guard.log")
             guard_pos = os.path.getsize(guard_log) if os.path.exists(guard_log) else 0
         else:
-            ctx.faketv, tl, fake_probe = start_faketv(args, out)
+            tl, fake_probe = start_faketv(args, out, ctx)
             ctx.truth = T.FakeTruth(tl)
             ctx.truth.start()
             ctx.mouse = T.NullMouse()
@@ -274,8 +291,7 @@ def main():
                 raise R.AbortRun(f"self-test failed: {bad}; app log lines seen {ctx.applog.n}, TV events {ctx.truth.count()}")
         meta["injector"] = ctx.inj.kind
 
-        if args.tv == "real" and args.tv_shots:
-            meta["tv_shot_start"] = tv_shot(out, "start")
+        R.dark_panel(ctx)
 
         # ---- matrix
         t_run = time.time()
@@ -289,8 +305,9 @@ def main():
             json.dump(dict(done=done, total=len(trials), void=voids, elapsed_s=round(el), eta_s=round(eta), last=rec["id"]),
                       open(os.path.join(out, "progress.json"), "w"))
             log(f"[{done}/{len(trials)}] {rec['id']} {rec['app']} {rec['sc']} {'VOID' if rec['void'] else 'ok'}  eta {eta / 60:.1f} min")
+            R.dark_panel(ctx)
             time.sleep(ctx.cfg["gap_s"])
-        if args.tv == "real" and args.tv_shots:
+        if args.tv == "real" and args.tv_end_shot:
             meta["tv_shot_end"] = tv_shot(out, "end")
     except R.AbortRun as e:
         log(f"ABORT: {e}")
@@ -304,6 +321,8 @@ def main():
         meta["abort"] = repr(e)
         exit_code = 1
     finally:
+        # a second Ctrl-C must not skip the park, the TV restore or tv.py off
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         log("teardown")
         for fn in (lambda: ctx.kbd and ctx.kbd.stop(), lambda: getattr(ctx, "inj", None) and ctx.inj.close(),
                    lambda: ctx.mouse and ctx.mouse.close()):
@@ -311,12 +330,14 @@ def main():
                 fn()
             except Exception:
                 pass
-        if dev.phone and not args.no_park:
+        if dev.phone:
             try:
                 dev.park()
             except Exception as e:
                 log(f"park failed {e!r}")
-        if args.tv == "real" and not args.keep_tv:
+        if args.tv == "real":
+            if not L.restore():
+                meta["tv_levels_restore_failed"] = True
             for attempt in range(6):
                 r = T.tv_py("off", timeout=200)
                 log(f"tv.py off attempt {attempt + 1}: rc={r.returncode}")

@@ -1,5 +1,5 @@
 # One trial of every scenario per app: checks that the kit and the scorer handle each of them. Emulator + faketv only
-# (pad_click and wifi_blip are not for the real TV / a wireless phone).
+# (pad_click and kbd are refused with --tv real, wifi_blip with a real phone).
 name: all-scenarios
 settings:
   gap_s: 1.0

@@ -1,6 +1,10 @@
 import json, os, sys, threading, time
 
 
+class AbortRun(Exception):
+    """The run must stop now; the teardown still parks the phone and turns the TV off."""
+
+
 def now_ms():
     return time.time() * 1000.0
 
