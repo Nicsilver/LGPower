@@ -4,7 +4,8 @@
         <!-- Exported so `adb shell am broadcast` (uid shell) can reach it; debug builds only -->
         <receiver
             android:name=".TestReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="com.nic.lgpower.TEST_MARK" />
                 <action android:name="com.nic.lgpower.TEST_WIDGETS" />

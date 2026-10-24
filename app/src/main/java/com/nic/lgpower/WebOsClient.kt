@@ -14,6 +14,7 @@ import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
@@ -185,6 +186,11 @@ class WebOsClient(appContext: Context) {
         @Volatile private var deadReason: String? = null
         val createdAt = System.currentTimeMillis()
         @Volatile private var lastActiveAt = createdAt
+        // lastActiveAt also counts our own sends, which would hide a TV that went quiet
+        @Volatile private var lastRxAt = 0L
+        private val deathLogged = AtomicBoolean(false)
+        // What the TV said when it closed its side; onClosed alone only knows our echo of it
+        @Volatile private var peerClose: String? = null
         // The TV answered the registration with an error after showing its prompt (denied or timed out)
         @Volatile var pairingRejected = false
             private set
@@ -209,7 +215,7 @@ class WebOsClient(appContext: Context) {
         fun connect() {
             try { open() } catch (e: Exception) {
                 deadReason = e.message
-                die(CmdReply.Err(e.message ?: "Connection failed"))
+                die(CmdReply.Err(e.message ?: "Connection failed"), "open threw ${e.javaClass.simpleName}: ${scrubAddresses(e.message)}")
             }
         }
 
@@ -236,6 +242,7 @@ class WebOsClient(appContext: Context) {
                     }
                     override fun onMessage(ws: WebSocket, text: String) {
                         lastActiveAt = System.currentTimeMillis()
+                        lastRxAt = lastActiveAt
                         val json = runCatching { JSONObject(text) }.getOrNull() ?: return
                         val type = json.optString("type")
                         val id   = json.optString("id")
@@ -272,7 +279,7 @@ class WebOsClient(appContext: Context) {
                                 // The prompt was denied or timed out; the socket is no use any more
                                 pairingRejected = state == CmdState.NEEDS_PAIRING
                                 deadReason = json.optString("error").ifEmpty { null }
-                                die(CmdReply.Err(deadReason ?: "Pairing failed"))
+                                die(CmdReply.Err(deadReason ?: "Pairing failed"), "registration error: ${scrubAddresses(deadReason)}")
                                 ws.close(1000, null)
                             }
                             type == "response" && id == "s_mac" -> {
@@ -303,25 +310,26 @@ class WebOsClient(appContext: Context) {
                     override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                         TestLog.sock("cmd", sid, "fail", reason = t.message)
                         deadReason = t.message
-                        die(CmdReply.Err(t.message ?: "Connection failed"))
+                        die(CmdReply.Err(t.message ?: "Connection failed"), "failure ${t.javaClass.simpleName}: ${scrubAddresses(t.message)}")
                     }
                     override fun onClosing(ws: WebSocket, code: Int, reason: String) {
                         TestLog.sock("cmd", sid, "closing", code, reason.ifEmpty { null })
                         // A TV in standby accepts the upgrade and then closes with
                         // "Try Again Later (EWS)"; finish the handshake so onClosed fires promptly
                         deadReason = reason.ifEmpty { null }
+                        peerClose = "peer closed code=$code reason=${reason.ifEmpty { "none" }}"
                         ws.close(1000, null)
                     }
                     override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                         TestLog.sock("cmd", sid, "close", code, reason.ifEmpty { null })
-                        die(CmdReply.Err("Connection closed"))
+                        die(CmdReply.Err("Connection closed"), peerClose ?: "closed code=$code reason=${reason.ifEmpty { "none" }}")
                     }
                 })
                 if (state == CmdState.DEAD) socket?.cancel()
             }
         }
 
-        private fun die(reply: CmdReply) {
+        private fun die(reply: CmdReply, cause: String) {
             state = CmdState.DEAD; ws = null
             readyLatch.countDown(); deathLatch.countDown()
             failAll(reply)
@@ -332,7 +340,18 @@ class WebOsClient(appContext: Context) {
             // A pointer that carried input moments ago is kept too: it is evidently still
             // delivering, and replacing it mid-drag stalls the cursor until a new command session
             // registers, then lands everything moved meanwhile as one jump
-            if (sharedCommandSession === this) dropPointerSession { !it.isDead && !it.isConnecting && !it.inUse() }
+            val pointer = if (sharedCommandSession === this) {
+                when {
+                    sharedPointerSession == null -> "none"
+                    dropPointerSession { !it.isDead && !it.isConnecting && !it.inUse() } -> "dropped"
+                    else -> "kept"
+                }
+            } else "unshared"
+            // close() runs die() again when the socket's own close callback arrives; only the first cause is the real one
+            if (deathLogged.compareAndSet(false, true)) {
+                val now = System.currentTimeMillis()
+                android.util.Log.i(CONN_TAG, sessionDeathLine(cause, now - createdAt, if (lastRxAt == 0L) null else now - lastRxAt, pointer))
+            }
         }
 
         private fun failAll(reply: CmdReply) {
@@ -357,11 +376,17 @@ class WebOsClient(appContext: Context) {
             val msg = JSONObject().apply {
                 put("id", id); put("type", "request"); put("uri", uri); put("payload", payload)
             }.toString()
-            if (currentWs == null || state != CmdState.READY || !currentWs.send(msg)) {
+            if (currentWs == null || state != CmdState.READY) {
                 pending.remove(id)
                 return CmdReply.Err("Not connected")
             }
+            // Logged before the send so the reply, which arrives on another thread, can never be logged first.
             TestLog.req(sid, id, uri)
+            if (!currentWs.send(msg)) {
+                pending.remove(id)
+                TestLog.res(sid, id, false, "send failed")
+                return CmdReply.Err("Not connected")
+            }
             if (!latch.await(timeoutSecs, TimeUnit.SECONDS)) pending.remove(id)
             return resultRef.get()
         }
@@ -425,9 +450,9 @@ class WebOsClient(appContext: Context) {
             if (left > 0) readyLatch.await(left, TimeUnit.MILLISECONDS)
         }
 
-        fun close() {
+        fun close(why: String = "own close") {
             val open = ws
-            die(CmdReply.Err("Session closed"))
+            die(CmdReply.Err("Session closed"), why)
             if (open != null) open.close(1000, null) else socket?.cancel()
             http?.dispatcher?.executorService?.shutdown()
         }
@@ -445,17 +470,18 @@ class WebOsClient(appContext: Context) {
             fresh = CommandSession()
             sharedCommandSession = fresh
         }
-        if (old != null) { old.close(); dropPointerSession { it.shouldRetire } }
+        if (old != null) { old.close("replaced"); dropPointerSession { it.shouldRetire } }
         fresh.connect()
         return fresh
     }
 
     // A dead session stays put on purpose: it carries the retry pause and the pairing backoff
-    private fun dropPointerSession(where: (PointerSession) -> Boolean) {
+    private fun dropPointerSession(where: (PointerSession) -> Boolean): Boolean {
         val pointer = synchronized(stateLock) {
             sharedPointerSession?.takeIf(where)?.also { sharedPointerSession = null }
         }
         pointer?.close()
+        return pointer != null
     }
 
     private fun execute(uri: String, payload: JSONObject = JSONObject(), timeoutSecs: Long = 6): Result =
@@ -908,7 +934,7 @@ class WebOsClient(appContext: Context) {
             if (command != null) sharedCommandSession = null
         }
         pointer?.close()
-        command?.close()
+        command?.close("reset")
     }
 
     // ── Power state ───────────────────────────────────────────────────────────
@@ -1535,6 +1561,7 @@ class WebOsClient(appContext: Context) {
         private const val TAG = "WebOsClient"
         private val cmdSids = AtomicInteger()
         private val ptrSids = AtomicInteger()
+        private const val CONN_TAG = "LgpConn"
         private const val KEYBOARD_URI = "ssap://com.webos.service.ime/registerRemoteKeyboard"
         private const val POWER_STATE_URI = "ssap://com.webos.service.tvpower/power/getPowerState"
         private const val WATCH_RETRY_MS = 5_000L

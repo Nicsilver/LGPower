@@ -62,7 +62,7 @@ object TestLog {
         code: Int? = null, reason: String? = null, deliberate: Boolean? = null,
     ) = emit(
         "sock",
-        arrayOf("role", role, "sid", sid, "st", st, "code", code, "reason", TestLogJson.short(reason), "deliberate", deliberate),
+        arrayOf("role", role, "sid", sid, "st", st, "code", code, "reason", TestLogJson.short(reason?.let(::scrubAddresses)), "deliberate", deliberate),
     )
 
     fun resumed(a: Activity) {
