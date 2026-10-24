@@ -1,0 +1,12 @@
+# Phone-only regressions against faketv, any time of day. Pair with: --faketv-args "--drop-cmd-every 20"
+name: faults-fake
+settings:
+  gap_s: 1.0
+rows:
+  - {sc: tap, n: 20}
+  - {sc: lock, lock_s: 8, n: 10}
+  - {sc: lock, lock_s: 30, n: 3}
+  - {sc: bg, bg_s: 8, n: 10}
+  - {sc: cold, n: 5}
+  - {sc: idle_gap, s: 60, n: 3}
+  - {sc: kbd, n: 3}

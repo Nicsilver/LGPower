@@ -1,0 +1,10 @@
+# Emulator + faketv smoke: proves the kit end to end in a few minutes. Run with --tv fake --serial emulator-NNNN.
+name: emu-smoke
+settings:
+  gap_s: 1.0
+  settle_s: 3.0
+rows:
+  - {sc: tap, n: 10}
+  - {sc: hold, ms: 3000, n: 3}
+  - {sc: drag, from: touchpad, ms: 300, n: 2}
+  - {sc: lock, lock_s: 8, n: 2}

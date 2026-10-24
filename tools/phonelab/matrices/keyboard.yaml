@@ -1,0 +1,5 @@
+# Keyboard trials scored from registerRemoteKeyboard surroundingTextLength deltas.
+# Faketv has a focused field by default (--kbd-focus field). On the real C4 focus the URL bar first.
+name: keyboard
+rows:
+  - {sc: kbd, text: hello, n: 5}

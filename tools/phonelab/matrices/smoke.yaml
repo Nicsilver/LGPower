@@ -1,0 +1,12 @@
+# First real phone + C4 run, about 15 minutes. No pad_click (needs --allow-click), no wifi_blip (wireless adb).
+name: smoke
+settings:
+  gap_s: 1.5
+rows:
+  - {sc: tap, n: 5}
+  - {sc: hold, ms: 3000, n: 2}
+  - {sc: fast, gap_ms: 110, taps: 10, n: 2}
+  - {sc: drag, from: touchpad, ms: 300, n: 3}
+  - {sc: lock, lock_s: 8, n: 4}
+  - {sc: bg, bg_s: 8, n: 3}
+  - {sc: cold, n: 2}

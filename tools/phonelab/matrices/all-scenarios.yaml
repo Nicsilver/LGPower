@@ -1,0 +1,19 @@
+# One trial of every scenario per app: checks that the kit and the scorer handle each of them. Emulator + faketv only
+# (pad_click and wifi_blip are not for the real TV / a wireless phone).
+name: all-scenarios
+settings:
+  gap_s: 1.0
+  settle_s: 3.0
+rows:
+  - {sc: tap, n: 1}
+  - {sc: hold, ms: 2000, n: 1}
+  - {sc: fast, gap_ms: 110, taps: 10, n: 1}
+  - {sc: drag, from: touchpad, ms: 300, n: 1}
+  - {sc: locked_pad, ms: 300, n: 1}
+  - {sc: pad_click, n: 1}
+  - {sc: lock, lock_s: 8, n: 1}
+  - {sc: bg, bg_s: 6, n: 1}
+  - {sc: cold, n: 1}
+  - {sc: idle_gap, s: 10, n: 1}
+  - {sc: wifi_blip, off_s: 4, n: 1}
+  - {sc: kbd, text: hello, n: 1}
