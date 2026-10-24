@@ -1,0 +1,15 @@
+allprojects {
+    afterEvaluate { p ->
+        if (p.plugins.hasPlugin('com.android.application')) {
+            p.android {
+                defaultConfig { applicationId "com.nic.lgpower.m" }
+                buildTypes {
+                    release {
+                        signingConfig signingConfigs.debug
+                        debuggable true
+                    }
+                }
+            }
+        }
+    }
+}

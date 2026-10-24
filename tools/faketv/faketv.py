@@ -219,8 +219,8 @@ class IconHTTPHandler(BaseHTTPRequestHandler):
         log(f"[http] {self.address_string()} {fmt % args}")
 
 
-def start_icon_server(port: int):
-    server = ThreadingHTTPServer(("0.0.0.0", port), IconHTTPHandler)
+def start_icon_server(port: int, bind: str = "0.0.0.0"):
+    server = ThreadingHTTPServer((bind, port), IconHTTPHandler)
     import threading
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
@@ -830,6 +830,9 @@ def main():
     parser = argparse.ArgumentParser(description="Fake LG webOS TV for LGPower app testing")
     parser.add_argument("--host", default="10.0.2.2",
                          help="host baked into icon URLs (emulator reaches the host machine at 10.0.2.2)")
+    parser.add_argument("--bind", default="0.0.0.0",
+                        help="address to listen on. A specific LAN address lets a second copy run next to one on 0.0.0.0, "
+                             "because the apps always dial port 3001")
     parser.add_argument("--port", type=int, default=TV_PORT, help="WSS port for SSAP (default 3001)")
     parser.add_argument("--icon-port", type=int, default=3002, help="HTTP port for app icons (default 3002)")
     parser.add_argument("--wake-delays", default="",
@@ -870,20 +873,20 @@ def main():
 
     ensure_cert()
     generate_icons()
-    start_icon_server(CONFIG.icon_port)
+    start_icon_server(CONFIG.icon_port, args.bind)
 
     ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ssl_ctx.load_cert_chain(CERT_FILE, KEY_FILE)
 
     async def run():
-        async with websockets.serve(router, "0.0.0.0", CONFIG.port, ssl=ssl_ctx):
+        async with websockets.serve(router, args.bind, CONFIG.port, ssl=ssl_ctx):
             if WAKE_DELAYS:
                 await start_wol_listener()
             if args.drop_cmd_every > 0:
                 asyncio.create_task(_drop_cmd_loop(args.drop_cmd_every))
             if args.kbd_focus == "cycle":
                 asyncio.create_task(_kbd_focus_cycle())
-            log(f"faketv listening wss://0.0.0.0:{CONFIG.port} "
+            log(f"faketv listening wss://{args.bind}:{CONFIG.port} "
                 f"(icons at http://{CONFIG.host}:{CONFIG.icon_port}/icon/<id>.png)")
             await asyncio.Future()
 
