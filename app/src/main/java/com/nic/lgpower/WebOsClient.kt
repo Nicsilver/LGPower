@@ -350,7 +350,10 @@ class WebOsClient(appContext: Context) {
             // close() runs die() again when the socket's own close callback arrives; only the first cause is the real one
             if (deathLogged.compareAndSet(false, true)) {
                 val now = System.currentTimeMillis()
-                android.util.Log.i(CONN_TAG, sessionDeathLine(cause, now - createdAt, if (lastRxAt == 0L) null else now - lastRxAt, pointer))
+                val line = sessionDeathLine(cause, now - createdAt, if (lastRxAt == 0L) null else now - lastRxAt, pointer)
+                android.util.Log.i(CONN_TAG, line)
+                // The report closes the session itself to time a fresh one; that is not a death worth listing
+                if (cause != PROBE_CLOSE) DeathLog.shared.add(line)
             }
         }
 
@@ -1381,6 +1384,63 @@ class WebOsClient(appContext: Context) {
         return { session.endExchange(id, true) }
     }
 
+    /**
+     * Timed probes for the connection report. Drops both shared sockets first so the open times
+     * are those of a fresh connection; the next use of the remote reopens them on demand.
+     */
+    internal fun probeConnection(progress: (String) -> Unit): TvProbe {
+        if (buildWsRequest() == null) return TvProbe(failure = "No TV is set up")
+        // Registering without a key would raise a pairing prompt on the TV
+        if (prefs.getString("client_key", null).isNullOrEmpty()) return TvProbe(failure = "The TV is not paired yet")
+        fun msSince(t0: Long) = (System.nanoTime() - t0) / 1_000_000.0
+
+        progress("Opening the command connection")
+        val oldPointer: PointerSession?
+        val oldCommand: CommandSession?
+        synchronized(stateLock) {
+            // Closing a session mid-exchange or under a pairing prompt would break the user's own action
+            if (sharedCommandSession?.inUse() == true || sharedPointerSession?.inUse() == true ||
+                sharedCommandSession?.pairingPromptShowing == true) {
+                return TvProbe(failure = "The connection is busy, try again in a moment")
+            }
+            oldPointer = sharedPointerSession; sharedPointerSession = null
+            oldCommand = sharedCommandSession; sharedCommandSession = null
+        }
+        oldPointer?.close()
+        oldCommand?.close(PROBE_CLOSE)
+
+        val openedAt = System.nanoTime()
+        val (session, why) = readySession()
+        if (session == null) return TvProbe(failure = why ?: "Can't connect to TV")
+        val commandOpenMs = msSince(openedAt)
+
+        progress("Reading TV info")
+        val system = rawRequest("ssap://system/getSystemInfo", timeoutSecs = 4)
+        val software = rawRequest("ssap://com.webos.service.update/getCurrentSWInformation", timeoutSecs = 4)
+        val model = ConnReport.tvModel(system.frame, system.failure)
+        val softwareText = ConnReport.tvSoftware(software.frame, software.failure)
+
+        progress("Timing requests")
+        val trips = ArrayList<Double>()
+        var failed = 0
+        repeat(PROBE_COUNT) {
+            val t0 = System.nanoTime()
+            val call = rawRequest("ssap://system/getSystemInfo", timeoutSecs = 4)
+            if (call.frame != null) trips.add(msSince(t0)) else failed++
+        }
+
+        progress("Opening the pointer socket")
+        val pointerAt = System.nanoTime()
+        val pointer = pointerSession()
+        if (pointer == null || !pointer.waitUntilReady()) {
+            return TvProbe(null, model, softwareText, commandOpenMs, trips, failed,
+                pointerFailure = "Pointer socket did not open")
+        }
+        val pointerOpenMs = msSince(pointerAt)
+
+        return TvProbe(null, model, softwareText, commandOpenMs, trips, failed, pointerOpenMs)
+    }
+
     /** The TV's answer to the shared session's registration, once the session is up. */
     fun registerReply(): RawCall {
         val (session, failure) = readySession()
@@ -1562,6 +1622,8 @@ class WebOsClient(appContext: Context) {
         private val cmdSids = AtomicInteger()
         private val ptrSids = AtomicInteger()
         private const val CONN_TAG = "LgpConn"
+        private const val PROBE_COUNT = 10
+        private const val PROBE_CLOSE = "connection report"
         private const val KEYBOARD_URI = "ssap://com.webos.service.ime/registerRemoteKeyboard"
         private const val POWER_STATE_URI = "ssap://com.webos.service.tvpower/power/getPowerState"
         private const val WATCH_RETRY_MS = 5_000L

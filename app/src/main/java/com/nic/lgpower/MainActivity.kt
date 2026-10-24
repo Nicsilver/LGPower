@@ -590,6 +590,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         TestLog.resumed(this)
+        LowLatencyWifi.acquire(this)
         TvStore.syncFromLive(appPrefs)
         findViewById<TextView>(R.id.tv_main_title).text = TvStore.activeName(appPrefs)
         if (appPrefs.getBoolean(PREF_TOUR_PENDING, false)) {
@@ -643,11 +644,13 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         stopKeyboardFocus?.invoke()
         stopKeyboardFocus = null
+        LowLatencyWifi.release()
         super.onDestroy()
     }
 
     override fun onPause() {
         TestLog.paused(this)
+        LowLatencyWifi.release()
         demoReceiver?.let { runCatching { unregisterReceiver(it) }; demoReceiver = null }
         super.onPause()
         stopWatching?.invoke()
