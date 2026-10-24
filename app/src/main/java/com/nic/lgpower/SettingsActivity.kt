@@ -156,6 +156,7 @@ class SettingsActivity : AppCompatActivity() {
             showReleaseNotesDialog("Release notes", ReleaseNotes.all, "Close", markLatest = true)
         }
         findViewById<View>(R.id.row_contact).setOnClickListener { ContactMail.open(this) }
+        findViewById<View>(R.id.row_conn_report).setOnClickListener { showConnReportSheet(client) }
         // Hidden: a long press on the app header opens the keyboard test
         findViewById<View>(R.id.row_app_header).setOnLongClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
