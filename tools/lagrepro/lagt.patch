@@ -1,0 +1,12 @@
+diff --git a/app/src/main/java/com/nic/lgpower/MainActivity.kt b/app/src/main/java/com/nic/lgpower/MainActivity.kt
+index 5e9994e..6ee3b0c 100644
+--- a/app/src/main/java/com/nic/lgpower/MainActivity.kt
++++ b/app/src/main/java/com/nic/lgpower/MainActivity.kt
+@@ -1455,6 +1455,7 @@ class MainActivity : AppCompatActivity() {
+     }
+ 
+     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
++        if (ev.actionMasked == MotionEvent.ACTION_DOWN || ev.actionMasked == MotionEvent.ACTION_UP) android.util.Log.i("LagT", "${ev.actionMasked} ${ev.eventTime}")
+         TestLog.touch(ev)
+         if (ev.action == MotionEvent.ACTION_DOWN) {
+             colorRowJustDismissed = false
