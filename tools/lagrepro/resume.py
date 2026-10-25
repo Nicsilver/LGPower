@@ -1,6 +1,11 @@
 """First key after the app comes back from the background.
 
-resume.py <apk> <name> <a|b|c> <background s> [cycles] [--stale silent|abort|silent-ptr|silent-rst] [--freeze]
+resume.py <apk> <name> <a|b|c> <background s> [cycles] [--stale silent|abort|silent-ptr|silent-rst] [--freeze] [--pkg PKG]
+
+--pkg com.nic.lgpower.flutter drives the Flutter port instead: its prefs are seeded as root (a profile
+build is not debuggable, so run-as is out), touch-down comes from the `LagT 0 <ms>` print that
+lagt-flutter.patch adds to lib/main.dart, and the resume-keep/stale verdicts (debug-only log lines there)
+are left at 0 -- read the registers and ptr_opens counts instead. --ok X,Y overrides the tap position.
 
 Per cycle: HOME, wait, bring the app back, tap OK 0.5 s later, then 11 s for the key (and any
 duplicate) to land. --stale makes faketv drop or silence every socket open 1 s into the
@@ -16,6 +21,15 @@ PY = r"C:\Python311\python.exe"
 FAKETV = os.path.join(HERE, "..", "faketv", "faketv.py")
 ENV = dict(os.environ, MSYS_NO_PATHCONV="1")
 OK = (539, 1400)
+FLUTTER_PREFS = """<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+  <string name="flutter.tv_ip">10.0.2.2</string>
+  <string name="flutter.tv_mac">AA:BB:CC:DD:EE:FF</string>
+  <string name="flutter.client_key">faketv-key-123</string>
+  <long name="flutter.last_seen_version" value="%d" />
+  <boolean name="flutter.tour_pending" value="false" />
+</map>
+"""
 PREFS = """<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
 <map>
     <string name="tv_ip">10.0.2.2</string>
@@ -39,9 +53,16 @@ def main():
     ap.add_argument("--freeze", action="store_true")
     ap.add_argument("--serial", default=os.environ.get("ANDROID_SERIAL", ""))
     ap.add_argument("--out", required=True)
-    ap.add_argument("--version-code", type=int, default=46)
+    ap.add_argument("--version-code", type=int, default=None)
+    ap.add_argument("--pkg", default="com.nic.lgpower")
+    ap.add_argument("--ok", default="")
     a = ap.parse_args()
     ser = a.serial
+    flutter = a.pkg.endswith(".flutter")
+    pkg = a.pkg
+    if a.version_code is None:
+        a.version_code = 53 if flutter else 46
+    ok = tuple(int(v) for v in a.ok.split(",")) if a.ok else OK
 
     def sh(cmd, timeout=60):
         return subprocess.run([ADB, "-s", ser, "shell", cmd], capture_output=True, text=True,
@@ -55,6 +76,10 @@ def main():
                 best = ((t0 + t1) / 2 - up, t1 - t0)
         return best[0]
 
+    def main_activity():
+        out = sh(f"cmd package resolve-activity --brief -c android.intent.category.LAUNCHER {pkg}").strip().splitlines()
+        return out[-1].strip()
+
     cfg = COND[a.cond]
     out = os.path.join(a.out, f"{a.name}_{a.cond}_{int(a.bg)}{'_' + a.stale if a.stale else ''}{'_frozen' if a.freeze else ''}")
     os.makedirs(out, exist_ok=True)
@@ -63,12 +88,24 @@ def main():
     for f in (tlf, stale_file):
         if os.path.exists(f):
             os.remove(f)
-    subprocess.run([ADB, "-s", ser, "install", "-r", "-d", a.apk], capture_output=True, env=ENV)
+    inst = subprocess.run([ADB, "-s", ser, "install", "-r", "-d", a.apk], capture_output=True, text=True, env=ENV)
+    if "Success" not in inst.stdout:
+        sys.exit("install failed: " + inst.stdout + inst.stderr)
     prefs = os.path.join(out, "webos.xml")
     open(prefs, "w").write(PREFS % a.version_code)
     subprocess.run([ADB, "-s", ser, "push", prefs, "/data/local/tmp/webos.xml"], capture_output=True, env=ENV)
-    sh("am force-stop com.nic.lgpower")
-    sh("run-as com.nic.lgpower sh -c 'mkdir -p shared_prefs; cp /data/local/tmp/webos.xml shared_prefs/webos.xml'")
+    sh(f"am force-stop {pkg}")
+    if flutter:
+        open(prefs, "w").write(FLUTTER_PREFS % a.version_code)
+        subprocess.run([ADB, "-s", ser, "push", prefs, "/data/local/tmp/webos.xml"], capture_output=True, env=ENV)
+        subprocess.run([ADB, "-s", ser, "root"], capture_output=True, env=ENV)
+        time.sleep(2)
+        subprocess.run([ADB, "-s", ser, "wait-for-device"], capture_output=True, env=ENV)
+        d = f"/data/data/{pkg}/shared_prefs"
+        sh(f"mkdir -p {d}; cp /data/local/tmp/webos.xml {d}/FlutterSharedPreferences.xml; "
+           f"chown -R $(stat -c %u /data/data/{pkg}):$(stat -c %g /data/data/{pkg}) {d}; restorecon -R {d}")
+    else:
+        sh(f"run-as {pkg} sh -c 'mkdir -p shared_prefs; cp /data/local/tmp/webos.xml shared_prefs/webos.xml'")
     sh("input keyevent KEYCODE_HOME")
     flog = open(os.path.join(out, "faketv.log"), "w")
     port_args = ["--port", "3101"] if cfg["proxy"] else []
@@ -81,9 +118,9 @@ def main():
         # The default 256 KiB ring drops the LagT lines under the app's own test log on a long run
         sh("logcat -G 16M")
         sh("logcat -c")
-        sh("am start -W -n com.nic.lgpower/.MainActivity")
+        sh(f"am start -W -n {main_activity()}")
         time.sleep(8)
-        sh(f"input tap {OK[0]} {OK[1]}")  # warm-up key, not scored
+        sh(f"input tap {ok[0]} {ok[1]}")  # warm-up key, not scored
         time.sleep(4)
         offs = [offset()]
         for i in range(a.cycles):
@@ -101,13 +138,17 @@ def main():
             if a.stale == "silent-rst":
                 open(stale_file, "w").write("rst-arm")
                 time.sleep(0.4)
-            sh("am start -W -n com.nic.lgpower/.MainActivity")
+            sh(f"am start -W -n {main_activity()}")
             time.sleep(0.5)
-            sh(f"input tap {OK[0]} {OK[1]}")
+            sh(f"input tap {ok[0]} {ok[1]}")
             time.sleep(11)
         offs.append(offset())
-        lagt = sh("logcat -d -v raw -s LagT:I")
-        conn = sh("logcat -d -v raw -s LgpTest:I | grep -E 'resume-|\"life\"'")
+        if flutter:
+            lagt = "\n".join(l[5:] for l in sh("logcat -d -v raw -s flutter:I").splitlines() if l.startswith("LagT "))
+            conn = ""
+        else:
+            lagt = sh("logcat -d -v raw -s LagT:I")
+            conn = sh("logcat -d -v raw -s LgpTest:I | grep -E 'resume-|\"life\"'")
         open(os.path.join(out, "lagt.txt"), "w").write(lagt)
         open(os.path.join(out, "conn.txt"), "w").write(conn)
     finally:
@@ -118,7 +159,7 @@ def main():
             tv.wait(10)
         except Exception:
             pass
-        sh("am force-stop com.nic.lgpower")
+        sh(f"am force-stop {pkg}")
 
     off = sum(offs) / len(offs)
     downs = [int(p[1]) / 1000.0 + off for p in (l.split() for l in lagt.splitlines()) if len(p) == 2 and p[0] == "0"]
