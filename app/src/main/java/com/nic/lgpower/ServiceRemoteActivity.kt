@@ -18,6 +18,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Replica of LG's factory service remote (105-201M / MKJ39170828).
@@ -42,6 +43,9 @@ class ServiceRemoteActivity : AppCompatActivity() {
     private val wifiExecutor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "service-remote-wifi").apply { isDaemon = true }
     }
+
+    // A double tap would launch or close the factory app twice
+    private val menuBusy = AtomicBoolean(false)
 
     // Amber marks service-grade keys in every theme, like red marks danger
     private val amber = 0xFFE8A33D.toInt()
@@ -79,28 +83,30 @@ class ServiceRemoteActivity : AppCompatActivity() {
         }
     }
 
-    private fun openOverWifi(view: View, menu: WebOsClient.ServiceMenu) {
+    private fun isUnreachable(message: String) = UNREACHABLE.any { message.startsWith(it, ignoreCase = true) }
+
+    private fun runMenuCall(view: View, call: () -> Unit) {
+        if (!menuBusy.compareAndSet(false, true)) return
         view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         wifiExecutor.execute {
-            val problem = when (val r = client.launchServiceMenu(menu)) {
-                is WebOsClient.Result.NeedsPairing -> PAIRING_TEXT
-                is WebOsClient.Result.Error ->
-                    if (UNREACHABLE.any { r.message.startsWith(it, ignoreCase = true) }) UNREACHABLE_TEXT
-                    else refusedText()
-                is WebOsClient.Result.Success -> if (menuIsUp()) null else refusedText()
-            }
-            if (problem != null) toastLong(problem)
+            try { call() } finally { menuBusy.set(false) }
         }
     }
 
-    private fun closeOverWifi(view: View) {
-        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-        wifiExecutor.execute {
-            when (val r = client.closeServiceMenu()) {
-                is WebOsClient.Result.NeedsPairing -> toastLong(PAIRING_TEXT)
-                is WebOsClient.Result.Error -> toastLong(r.message)
-                else -> {}
-            }
+    private fun openOverWifi(view: View, menu: WebOsClient.ServiceMenu) = runMenuCall(view) {
+        val problem = when (val r = client.launchServiceMenu(menu)) {
+            is WebOsClient.Result.NeedsPairing -> PAIRING_TEXT
+            is WebOsClient.Result.Error -> if (isUnreachable(r.message)) UNREACHABLE_TEXT else refusedText()
+            is WebOsClient.Result.Success -> if (menuIsUp()) null else refusedText()
+        }
+        if (problem != null) toastLong(problem)
+    }
+
+    private fun closeOverWifi(view: View) = runMenuCall(view) {
+        when (val r = client.closeServiceMenu()) {
+            is WebOsClient.Result.NeedsPairing -> toastLong(PAIRING_TEXT)
+            is WebOsClient.Result.Error -> toastLong(if (isUnreachable(r.message)) UNREACHABLE_TEXT else r.message)
+            else -> {}
         }
     }
 
@@ -110,6 +116,8 @@ class ServiceRemoteActivity : AppCompatActivity() {
     private fun menuIsUp(): Boolean {
         repeat(4) {
             Thread.sleep(600)
+            // Polling a TV for a screen the user already left only holds the activity
+            if (isFinishing || isDestroyed) return true
             val id = client.foregroundAppId() ?: return true
             if (id == WebOsClient.FACTORY_APP_ID) return true
         }
@@ -318,7 +326,7 @@ class ServiceRemoteActivity : AppCompatActivity() {
     }
 
     private companion object {
-        const val PAIRING_TEXT = "Accept pairing on your TV, then try again"
+        const val PAIRING_TEXT = "Accept pairing on your TV, then try again."
         const val UNREACHABLE_TEXT = "Can't reach the TV. Check it is on and on this Wi-Fi."
 
         // What WebOsClient says about a TV it never spoke to, as opposed to one that said no
