@@ -761,6 +761,8 @@ async def command_connection(ws):
     OPEN_CONNS.add(ws)
     try:
         async for raw in ws:
+            if ws in SILENT:
+                continue
             await handle_command_message(ws, raw)
     except websockets.exceptions.ConnectionClosed:
         pass
@@ -768,6 +770,33 @@ async def command_connection(ws):
         OPEN_CONNS.discard(ws)
         cleanup_connection(ws)
         log(f"[cmd] closed {peer}")
+
+
+# Sockets that went silent through --stale-file: their reads are paused, so neither requests
+# nor pings get an answer and pointer frames never reach the handler, like a half-open TCP link
+SILENT = set()
+OPEN_PTRS = set()
+
+
+async def _stale_file_loop(path: str):
+    while True:
+        await asyncio.sleep(0.1)
+        if not os.path.exists(path):
+            continue
+        try:
+            mode = open(path).read().strip() or "silent"
+            os.remove(path)
+        except OSError:
+            continue
+        conns = list(OPEN_CONNS) + list(OPEN_PTRS)
+        for ws in conns:
+            if mode == "abort":
+                ws.transport.abort()
+            else:
+                SILENT.add(ws)
+                ws.transport.pause_reading()
+        log(f"[stale] {mode} {len(conns)} open sockets")
+        timeline("stale", f"{mode} {len(conns)}")
 
 
 async def _drop_cmd_loop(every: float):
@@ -816,12 +845,16 @@ async def pointer_connection(ws):
     peer = ws.remote_address
     log(f"[pointer] connected {peer}")
     timeline("ptr-open", str(peer[1]))
+    OPEN_PTRS.add(ws)
     try:
         async for raw in ws:
+            if ws in SILENT:
+                continue
             await handle_pointer_message(raw, peer)
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
+        OPEN_PTRS.discard(ws)
         log(f"[pointer] closed {peer}")
         timeline("ptr-close", str(peer[1]))
 
@@ -879,6 +912,9 @@ def main():
     parser.add_argument("--drop-cmd-every", type=float, default=0,
                          help="abort every open SSAP command socket this often (seconds), like a Wi-Fi drop "
                               "that only hits the command connection; the pointer socket is left alone")
+    parser.add_argument("--stale-file", default="", metavar="PATH",
+                        help="when this file appears, every socket open at that moment goes stale: 'silent' (default "
+                             "content) stops reading it, no replies or pongs, 'abort' resets it; the file is then removed")
     args = parser.parse_args()
     global REG_DELAY, HANG_NEW_EVERY
     REG_DELAY = args.reg_delay / 1000.0
@@ -911,6 +947,8 @@ def main():
                                     process_request=hang_new_connections, open_timeout=30):
             if WAKE_DELAYS:
                 await start_wol_listener()
+            if args.stale_file:
+                asyncio.create_task(_stale_file_loop(args.stale_file))
             if args.drop_cmd_every > 0:
                 asyncio.create_task(_drop_cmd_loop(args.drop_cmd_every))
             if args.kbd_focus == "cycle":

@@ -396,6 +396,29 @@ class WebOsClient(appContext: Context) {
 
         fun awaitDeath() { deathLatch.await() }
 
+        val sinceRxMs get() = if (lastRxAt == 0L) null else System.currentTimeMillis() - lastRxAt
+
+        /** Closed by a resume check that found it silent, so the power watcher reconnects without its standby pause. */
+        @Volatile var replacedAsStale = false
+
+        /** True when the TV answers a request on this socket within [maxMs]. Any reply counts, an error included. */
+        fun answersWithin(maxMs: Long): Boolean {
+            val answered = CountDownLatch(1)
+            val id = exchange("request", POWER_STATE_URI, JSONObject()) { _, _ -> answered.countDown() } ?: return false
+            try {
+                // A socket that dies meanwhile ends the wait early rather than at the budget
+                val until = System.currentTimeMillis() + maxMs
+                while (state == CmdState.READY) {
+                    val left = until - System.currentTimeMillis()
+                    if (left <= 0) return false
+                    if (answered.await(minOf(left, 50L), TimeUnit.MILLISECONDS)) return true
+                }
+                return false
+            } finally {
+                endExchange(id, unsubscribe = false)
+            }
+        }
+
         fun subscribe(uri: String, listener: (JSONObject?) -> Unit): String? {
             val id = "s${seq.incrementAndGet()}"
             subscriptions[id] = listener
@@ -893,6 +916,7 @@ class WebOsClient(appContext: Context) {
 
     fun pressKey(keyCode: String): Result {
         if (buildWsRequest() == null) return Result.Error("No TV IP configured")
+        resumeGate.await(RESUME_PROBE_MS + RESUME_GATE_SLACK_MS)
         var session = keySession() ?: return Result.NeedsPairing
         var replaced = false
         var resent = false
@@ -938,6 +962,54 @@ class WebOsClient(appContext: Context) {
         }
         pointer?.close()
         command?.close("reset")
+    }
+
+    /**
+     * Run when the remote comes back to the front, in place of [resetConnection]. Sockets the TV
+     * still answers on are kept, so the first key costs one round trip instead of a new
+     * handshake; ones it doesn't answer on are replaced. The pointer has no ping, so the check
+     * runs on the command socket beside it.
+     */
+    fun resumeConnection() {
+        val command = sharedCommandSession
+        val step = resumeStep(
+            commandReady = command != null && command.state == CmdState.READY && command.ip == tvIp,
+            sinceRxMs = command?.sinceRxMs,
+            freshMs = RESUME_FRESH_MS,
+        )
+        when (step) {
+            ResumeStep.RESET -> { resetConnection(); return }
+            ResumeStep.KEEP -> { TestLog.sock("cmd", command!!.sid, "resume-keep"); return }
+            ResumeStep.PROBE -> {}
+        }
+        val session = command!!
+        val pointer = sharedPointerSession
+        val check = resumeGate.begin()
+        Thread({
+            try {
+                if (session.answersWithin(RESUME_PROBE_MS)) {
+                    TestLog.sock("cmd", session.sid, "resume-keep")
+                } else {
+                    TestLog.sock("cmd", session.sid, "resume-stale")
+                    replaceStale(session, pointer)
+                }
+            } finally {
+                resumeGate.end(check)
+            }
+        }, "resume-check").start()
+    }
+
+    // Unlike resetConnection this ignores recent traffic: anything sent since the resume went
+    // into a socket that has just failed to answer
+    private fun replaceStale(command: CommandSession, pointer: PointerSession?) {
+        synchronized(stateLock) {
+            if (sharedCommandSession === command) sharedCommandSession = null
+        }
+        command.replacedAsStale = true
+        // A pointer opened since the resume is fresh and is left to finish its handshake
+        if (pointer != null) dropPointerSession { it === pointer }
+        command.close("silent on resume")
+        warmPointerSession()
     }
 
     // ── Power state ───────────────────────────────────────────────────────────
@@ -1021,7 +1093,7 @@ class WebOsClient(appContext: Context) {
                             }
                             val since = System.currentTimeMillis()
                             try { session.awaitDeath() } finally { sub?.let(session::unsubscribe) }
-                            delayMs = if (System.currentTimeMillis() - since < 2_000) WATCH_RETRY_MS else 0
+                            delayMs = if (System.currentTimeMillis() - since < 2_000 && !session.replacedAsStale) WATCH_RETRY_MS else 0
                         }
                         CmdState.NEEDS_PAIRING -> {
                             publish(Presence.NeedsPairing, listener)
@@ -1629,6 +1701,12 @@ class WebOsClient(appContext: Context) {
         private const val WATCH_RETRY_MS = 5_000L
         private const val CONNECT_GRACE_MS = 10_000L
         private const val RESET_KEEP_MS = 5_000L
+        // Something heard from the TV this recently proves the socket without asking again
+        private const val RESUME_FRESH_MS = 2_000L
+        // Several round trips even on a jittery Wi-Fi. A false alarm only costs the handshake
+        // every resume used to cost; a socket that really died costs this much on top of it
+        private const val RESUME_PROBE_MS = 1_000L
+        private const val RESUME_GATE_SLACK_MS = 500L
         private const val PAIRING_BLOCK_MS = 30_000L
         private const val PAIRING_RETRY_MS = 30_000L
         private const val MAX_QUEUED_FRAMES = 64
@@ -1643,6 +1721,7 @@ class WebOsClient(appContext: Context) {
         private val stateLock = Any()
         @Volatile private var sharedCommandSession: WebOsClient.CommandSession? = null
         @Volatile private var sharedPointerSession: WebOsClient.PointerSession? = null
+        private val resumeGate = ResumeGate()
 
         // Builds the OkHttp client and opens the pointer socket off the caller's thread
         private val connectExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->

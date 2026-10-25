@@ -624,7 +624,7 @@ class MainActivity : AppCompatActivity() {
             recreate()
             return
         }
-        client.resetConnection()
+        client.resumeConnection()
         configureRightPill()
         // A phone parked as a dedicated remote shouldn't dim to black between presses
         if (appPrefs.getBoolean("keep_screen_on", false))
