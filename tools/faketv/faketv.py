@@ -107,6 +107,9 @@ class TvState:
         # none: the IME service answers everything; write: insertText / deleteCharacters /
         # sendEnterKey get a 401; all: registerRemoteKeyboard does too.
         self.kbd_deny = "none"
+        self.foreground = "com.webos.app.browser"
+        # ok / deny / ignore: what a launch of the factory menu app does
+        self.factory = "ok"
 
 
 STATE = TvState()
@@ -491,11 +494,29 @@ def h_switch_input(payload, ws):
     return {}
 
 
+FACTORY_APP = "com.webos.app.factorywin"
+
+
 def h_launch(payload, ws):
     # WebOsClient.kt:729-733; execute() only checks returnValue, no fields parsed.
     app_id = payload.get("id", "")
-    log(f"LAUNCH app={app_id!r}")
+    log(f"LAUNCH app={app_id!r} params={_compact(payload.get('params'))}")
+    if app_id == FACTORY_APP:
+        # --factory deny answers like a TV with no such app; ignore says yes and does nothing
+        if STATE.factory == "deny":
+            raise SsapDenied("404 application not found")
+        if STATE.factory == "ignore":
+            return {"id": app_id}
+    STATE.foreground = app_id
     return {"id": app_id}
+
+
+def h_close(payload, ws):
+    app_id = payload.get("id", "")
+    log(f"CLOSE app={app_id!r}")
+    if STATE.foreground == app_id:
+        STATE.foreground = "com.webos.app.browser"
+    return {}
 
 
 KBD_URI = "ssap://com.webos.service.ime/registerRemoteKeyboard"
@@ -573,7 +594,7 @@ def h_get_sw_information(payload, ws):
 
 
 def h_get_foreground_app_info(payload, ws):
-    return {"appId": "com.webos.app.browser", "windowId": "", "processId": ""}
+    return {"appId": STATE.foreground, "windowId": "", "processId": ""}
 
 
 async def _kbd_focus_cycle():
@@ -649,6 +670,7 @@ HANDLERS = {
     "ssap://tv/getExternalInputList": h_get_external_input_list,
     "ssap://tv/switchInput": h_switch_input,
     "ssap://system.launcher/launch": h_launch,
+    "ssap://system.launcher/close": h_close,
     "ssap://com.webos.service.ime/insertText": h_insert_text,
     "ssap://com.webos.service.ime/deleteCharacters": h_delete_characters,
     "ssap://com.webos.service.ime/sendEnterKey": h_send_enter_key,
@@ -936,6 +958,9 @@ def main():
                               "write = insertText/deleteCharacters/sendEnterKey, all = registerRemoteKeyboard too")
     parser.add_argument("--kbd-focus", choices=["none", "field", "cycle"], default="field",
                          help="registerRemoteKeyboard state: a text field focused (default), none, or flipping every 5 s")
+    parser.add_argument("--factory", choices=["ok", "deny", "ignore"], default="ok",
+                         help="launching com.webos.app.factorywin: ok opens it (foreground app changes), "
+                              "deny answers with an error, ignore answers success but never opens it")
     parser.add_argument("--timeline", default="",
                          help="append a millisecond timeline of pointer frames and SSAP requests to this file "
                               "(move frames then stay out of the console log)")
@@ -959,6 +984,7 @@ def main():
         global TIMELINE
         TIMELINE = open(args.timeline, "a", encoding="utf-8")
     STATE.kbd_deny = args.kbd_deny
+    STATE.factory = args.factory
     STATE.kbd_focus = args.kbd_focus != "none"
     STATE.sound_output = args.sound_output
     STATE.wired = args.wired

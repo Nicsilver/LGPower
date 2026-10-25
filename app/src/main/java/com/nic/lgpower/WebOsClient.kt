@@ -1366,6 +1366,34 @@ class WebOsClient(appContext: Context) {
         "ssap://system.launcher/launch",
         JSONObject().put("id", appId)
     )
+    /**
+     * The factory menus are the launcher's `com.webos.app.factorywin` app with an `irKey`, the same
+     * call ColorControl and bscpylgtv make. inStop (factory reset) and tilt (locks the remote until a
+     * reboot) have no entry here on purpose.
+     */
+    enum class ServiceMenu(val irKey: String) { IN_START("inStart"), EZ_ADJUST("ezAdjust") }
+
+    fun launchServiceMenu(menu: ServiceMenu) = execute(
+        "ssap://system.launcher/launch",
+        JSONObject().put("id", FACTORY_APP_ID).put(
+            "params", JSONObject().put("id", "executeFactory").put("irKey", menu.irKey)
+        )
+    )
+
+    fun closeServiceMenu() = execute(
+        "ssap://system.launcher/close",
+        JSONObject().put("id", FACTORY_APP_ID)
+    )
+
+    /** Null when the TV doesn't say, which callers must not read as "not open". */
+    fun foregroundAppId(): String? {
+        if (buildWsRequest() == null) return null
+        val reply = commandSession().send(
+            "ssap://com.webos.applicationManager/getForegroundAppInfo", JSONObject(), 3
+        )
+        return (reply as? CmdReply.Ok)?.payload?.optString("appId")?.takeIf { it.isNotEmpty() }
+    }
+
     fun goHome() = execute("ssap://system.launcher/launch", JSONObject().put("id", "com.webos.app.home"), timeoutSecs = 3)
 
     // Answers as soon as webOS is up without changing what is on screen, so a TV that
@@ -1723,6 +1751,7 @@ class WebOsClient(appContext: Context) {
         @Volatile private var sharedCommandSession: WebOsClient.CommandSession? = null
         @Volatile private var sharedPointerSession: WebOsClient.PointerSession? = null
         private val resumeGate = ResumeGate()
+        const val FACTORY_APP_ID = "com.webos.app.factorywin"
 
         // Builds the OkHttp client and opens the pointer socket off the caller's thread
         private val connectExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
