@@ -2,12 +2,14 @@ import sys, os, time, json, subprocess, socket, statistics
 
 SP = os.path.dirname(os.path.abspath(__file__))
 ADB = r"C:\Android\android-sdk\platform-tools\adb.exe"
-SER = "emulator-5558"
-PORT = 5558
-FAKETV = r"C:\Programming\LGPowerWidget-lagrepro\tools\faketv\faketv.py"
+SER = os.environ.get("ANDROID_SERIAL", "emulator-5558")
+PORT = int(SER.rsplit("-", 1)[1])
+FAKETV = os.path.join(SP, "..", "faketv", "faketv.py")
 PY = r"C:\Python311\python.exe"
 APK = {"v1391": r"C:\Users\Nic\AppData\Local\Temp\lagapk\v1391.apk",
        "master": r"C:\Users\Nic\AppData\Local\Temp\lagapk\master.apk"}
+if os.environ.get("LAGAPK"):
+    APK["custom"] = os.environ["LAGAPK"]
 ENV = dict(os.environ, MSYS_NO_PATHCONV="1")
 
 
@@ -67,6 +69,9 @@ def run(build, cond):
     if os.path.exists(tlf):
         os.remove(tlf)
     adb("install", "-r", "-d", APK[build])
+    if not os.path.exists(os.path.join(SP, "prefs.xml")):
+        from resume import PREFS
+        open(os.path.join(SP, "prefs.xml"), "w").write(PREFS % 46)
     adb("push", os.path.join(SP, "prefs.xml"), "/data/local/tmp/prefs.xml")
     sh("run-as com.nic.lgpower sh -c 'mkdir -p shared_prefs; cp /data/local/tmp/prefs.xml shared_prefs/webos.xml'")
     sh("am force-stop com.nic.lgpower")

@@ -396,8 +396,6 @@ class WebOsClient(appContext: Context) {
 
         fun awaitDeath() { deathLatch.await() }
 
-        val sinceRxMs get() = if (lastRxAt == 0L) null else System.currentTimeMillis() - lastRxAt
-
         /** Closed by a resume check that found it silent, so the power watcher reconnects without its standby pause. */
         @Volatile var replacedAsStale = false
 
@@ -406,14 +404,7 @@ class WebOsClient(appContext: Context) {
             val answered = CountDownLatch(1)
             val id = exchange("request", POWER_STATE_URI, JSONObject()) { _, _ -> answered.countDown() } ?: return false
             try {
-                // A socket that dies meanwhile ends the wait early rather than at the budget
-                val until = System.currentTimeMillis() + maxMs
-                while (state == CmdState.READY) {
-                    val left = until - System.currentTimeMillis()
-                    if (left <= 0) return false
-                    if (answered.await(minOf(left, 50L), TimeUnit.MILLISECONDS)) return true
-                }
-                return false
+                return awaitReply(answered, { state == CmdState.READY }, maxMs)
             } finally {
                 endExchange(id, unsubscribe = false)
             }
@@ -510,12 +501,14 @@ class WebOsClient(appContext: Context) {
         return pointer != null
     }
 
-    private fun execute(uri: String, payload: JSONObject = JSONObject(), timeoutSecs: Long = 6): Result =
-        when (val r = commandSession().send(uri, payload, timeoutSecs)) {
+    private fun execute(uri: String, payload: JSONObject = JSONObject(), timeoutSecs: Long = 6): Result {
+        resumeGate.await(RESUME_GATE_MAX_MS)
+        return when (val r = commandSession().send(uri, payload, timeoutSecs)) {
             is CmdReply.Ok         -> Result.Success
             is CmdReply.NeedsPairing -> Result.NeedsPairing
             is CmdReply.Err        -> Result.Error(r.msg)
         }
+    }
 
     // ── Pointer socket session ────────────────────────────────────────────────
     // Separate persistent connection for d-pad keys and touchpad input — uses a different
@@ -575,6 +568,8 @@ class WebOsClient(appContext: Context) {
         val isConnecting get() = state == PtrState.CONNECTING &&
             System.currentTimeMillis() < connectDeadline && ip == tvIp
         val shouldRetire get() = ip != tvIp || (state != PtrState.DEAD && !isUsable)
+
+        val idleMs get() = System.currentTimeMillis() - lastActiveAt
 
         /** Recent traffic or a key waiting on it: replacing it now would abort live work. */
         fun inUse() = state != PtrState.DEAD && ip == tvIp &&
@@ -916,7 +911,7 @@ class WebOsClient(appContext: Context) {
 
     fun pressKey(keyCode: String): Result {
         if (buildWsRequest() == null) return Result.Error("No TV IP configured")
-        resumeGate.await(RESUME_PROBE_MS + RESUME_GATE_SLACK_MS)
+        resumeGate.await(RESUME_GATE_MAX_MS)
         var session = keySession() ?: return Result.NeedsPairing
         var replaced = false
         var resent = false
@@ -943,8 +938,15 @@ class WebOsClient(appContext: Context) {
     // Touchpad input: never blocks, safe from the UI thread
     fun pointerMove(dx: Int, dy: Int) { if (tvIp.isNotBlank()) pointerSession()?.move(dx, dy) }
     fun pointerScroll(dx: Int, dy: Int) { if (tvIp.isNotBlank()) pointerSession()?.scroll(dx, dy) }
-    fun pointerClick() { if (tvIp.isNotBlank()) pointerSession()?.click() }
-    fun pointerKey(keyCode: String) { if (tvIp.isNotBlank()) pointerSession()?.sendKey(keyCode) }
+    fun pointerClick() = afterResumeCheck { pointerSession()?.click() }
+    fun pointerKey(keyCode: String) = afterResumeCheck { pointerSession()?.sendKey(keyCode) }
+
+    // A tap on a half-open pointer is lost without any error, so it waits for the resume verdict
+    // like a key does. Moves are streams of frames and stay unheld.
+    private fun afterResumeCheck(send: () -> Unit) {
+        if (tvIp.isBlank()) return
+        resumeGate.runAfter(RESUME_GATE_MAX_MS, gateExecutor, send)
+    }
 
     /**
      * Drops both connections so the next use opens fresh ones; recovers sockets gone stale while
@@ -972,26 +974,24 @@ class WebOsClient(appContext: Context) {
      */
     fun resumeConnection() {
         val command = sharedCommandSession
-        val step = resumeStep(
-            commandReady = command != null && command.state == CmdState.READY && command.ip == tvIp,
-            sinceRxMs = command?.sinceRxMs,
-            freshMs = RESUME_FRESH_MS,
-        )
-        when (step) {
-            ResumeStep.RESET -> { resetConnection(); return }
-            ResumeStep.KEEP -> { TestLog.sock("cmd", command!!.sid, "resume-keep"); return }
-            ResumeStep.PROBE -> {}
-        }
+        val step = resumeStep(commandReady = command != null && command.state == CmdState.READY && command.ip == tvIp)
+        if (step == ResumeStep.RESET) { resetConnection(); return }
         val session = command!!
-        val pointer = sharedPointerSession
+        val oldPointer = sharedPointerSession
+        // Before anything can pick the old pointer up
         val check = resumeGate.begin()
+        // The TV never writes on the pointer, so a close it sent while the phone dozed is never heard
+        if (oldPointer != null && shouldReplaceIdlePointer(oldPointer.isDead, oldPointer.idleMs, RESUME_POINTER_IDLE_MS) &&
+            dropPointerSession { sameSession(it, oldPointer) && !it.inUse() }) warmPointerSession()
         Thread({
             try {
-                if (session.answersWithin(RESUME_PROBE_MS)) {
+                // A TV that resets the socket kills it before the verdict, and the power watcher
+                // must not read that as standby
+                if (probeCommand({ session.replacedAsStale = it }) { session.answersWithin(RESUME_PROBE_MS) }) {
                     TestLog.sock("cmd", session.sid, "resume-keep")
                 } else {
                     TestLog.sock("cmd", session.sid, "resume-stale")
-                    replaceStale(session, pointer)
+                    replaceStale(session, oldPointer)
                 }
             } finally {
                 resumeGate.end(check)
@@ -1007,7 +1007,7 @@ class WebOsClient(appContext: Context) {
         }
         command.replacedAsStale = true
         // A pointer opened since the resume is fresh and is left to finish its handshake
-        if (pointer != null) dropPointerSession { it === pointer }
+        dropPointerSession { sameSession(it, pointer) }
         command.close("silent on resume")
         warmPointerSession()
     }
@@ -1321,6 +1321,7 @@ class WebOsClient(appContext: Context) {
 
     private fun lunaRequest(uri: String, params: JSONObject): Result {
         if (buildWsRequest() == null) return Result.Error("No TV IP configured")
+        resumeGate.await(RESUME_GATE_MAX_MS)
         val lunaUri = "luna://$uri"
         val session = commandSession()
 
@@ -1701,12 +1702,12 @@ class WebOsClient(appContext: Context) {
         private const val WATCH_RETRY_MS = 5_000L
         private const val CONNECT_GRACE_MS = 10_000L
         private const val RESET_KEEP_MS = 5_000L
-        // Something heard from the TV this recently proves the socket without asking again
-        private const val RESUME_FRESH_MS = 2_000L
         // Several round trips even on a jittery Wi-Fi. A false alarm only costs the handshake
         // every resume used to cost; a socket that really died costs this much on top of it
         private const val RESUME_PROBE_MS = 1_000L
         private const val RESUME_GATE_SLACK_MS = 500L
+        private const val RESUME_GATE_MAX_MS = RESUME_PROBE_MS + RESUME_GATE_SLACK_MS
+        private const val RESUME_POINTER_IDLE_MS = 30_000L
         private const val PAIRING_BLOCK_MS = 30_000L
         private const val PAIRING_RETRY_MS = 30_000L
         private const val MAX_QUEUED_FRAMES = 64

@@ -21,7 +21,9 @@ import asyncio
 import json
 import os
 import shutil
+import socket
 import ssl
+import struct
 import subprocess
 import sys
 import time
@@ -759,6 +761,8 @@ async def command_connection(ws):
     OPEN_CONNS.add(ws)
     try:
         async for raw in ws:
+            if _reset_if_armed(ws):
+                break
             if ws in SILENT:
                 continue
             await handle_command_message(ws, raw)
@@ -774,9 +778,30 @@ async def command_connection(ws):
 # nor pings get an answer and pointer frames never reach the handler, like a half-open TCP link
 SILENT = set()
 OPEN_PTRS = set()
+# Silenced sockets that answer the first thing the phone writes with a TCP reset, like a TV that
+# closed them while the phone dozed
+RST_ON_READ = set()
+
+
+def _reset_if_armed(ws) -> bool:
+    if ws not in RST_ON_READ:
+        return False
+    RST_ON_READ.discard(ws)
+    try:
+        ws.transport.get_extra_info("socket").setsockopt(
+            socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    except (AttributeError, OSError):
+        pass
+    ws.transport.abort()
+    log(f"[stale] reset on first read from {ws.remote_address}")
+    timeline("stale-rst", str(ws.remote_address[1]))
+    return True
 
 
 async def _stale_file_loop(path: str):
+    # Modes: silent (default, every open socket stops answering), abort (every socket reset now),
+    # silent-ptr (only pointer sockets stop answering), silent-rst (like silent, then a second
+    # 'rst-arm' write starts reading again and resets each socket on the first thing it receives)
     while True:
         await asyncio.sleep(0.1)
         if not os.path.exists(path):
@@ -786,7 +811,16 @@ async def _stale_file_loop(path: str):
             os.remove(path)
         except OSError:
             continue
-        conns = list(OPEN_CONNS) + list(OPEN_PTRS)
+        if mode == "rst-arm":
+            armed = [ws for ws in SILENT if ws in OPEN_CONNS or ws in OPEN_PTRS]
+            for ws in armed:
+                SILENT.discard(ws)
+                RST_ON_READ.add(ws)
+                ws.transport.resume_reading()
+            log(f"[stale] rst-arm {len(armed)} sockets")
+            timeline("stale", f"rst-arm {len(armed)}")
+            continue
+        conns = list(OPEN_PTRS) if mode == "silent-ptr" else list(OPEN_CONNS) + list(OPEN_PTRS)
         for ws in conns:
             if mode == "abort":
                 ws.transport.abort()
@@ -846,6 +880,8 @@ async def pointer_connection(ws):
     OPEN_PTRS.add(ws)
     try:
         async for raw in ws:
+            if _reset_if_armed(ws):
+                break
             if ws in SILENT:
                 continue
             await handle_pointer_message(raw, peer)
@@ -912,7 +948,9 @@ def main():
                               "that only hits the command connection; the pointer socket is left alone")
     parser.add_argument("--stale-file", default="", metavar="PATH",
                         help="when this file appears, every socket open at that moment goes stale: 'silent' (default "
-                             "content) stops reading it, no replies or pongs, 'abort' resets it; the file is then removed")
+                             "content) stops reading it, no replies or pongs, 'abort' resets it, 'silent-ptr' silences only "
+                             "pointer sockets, 'silent-rst' then 'rst-arm' resets silenced sockets on their first read; "
+                             "the file is then removed")
     args = parser.parse_args()
     global REG_DELAY, HANG_NEW_EVERY
     REG_DELAY = args.reg_delay / 1000.0

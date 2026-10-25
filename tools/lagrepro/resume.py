@@ -1,6 +1,6 @@
 """First key after the app comes back from the background.
 
-resume.py <apk> <name> <a|b|c> <background s> [cycles] [--stale silent|abort] [--freeze]
+resume.py <apk> <name> <a|b|c> <background s> [cycles] [--stale silent|abort|silent-ptr|silent-rst] [--freeze]
 
 Per cycle: HOME, wait, bring the app back, tap OK 0.5 s later, then 11 s for the key (and any
 duplicate) to land. --stale makes faketv drop or silence every socket open 1 s into the
@@ -35,7 +35,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("apk"); ap.add_argument("name"); ap.add_argument("cond"); ap.add_argument("bg", type=float)
     ap.add_argument("cycles", type=int, nargs="?", default=5)
-    ap.add_argument("--stale", choices=["silent", "abort"])
+    ap.add_argument("--stale", choices=["silent", "abort", "silent-ptr", "silent-rst"])
     ap.add_argument("--freeze", action="store_true")
     ap.add_argument("--serial", default=os.environ.get("ANDROID_SERIAL", ""))
     ap.add_argument("--out", required=True)
@@ -98,6 +98,9 @@ def main():
             time.sleep(max(0, a.bg - (time.time() - t_home)))
             if a.freeze:
                 sh("am unfreeze --sticky com.nic.lgpower")
+            if a.stale == "silent-rst":
+                open(stale_file, "w").write("rst-arm")
+                time.sleep(0.4)
             sh("am start -W -n com.nic.lgpower/.MainActivity")
             time.sleep(0.5)
             sh(f"input tap {OK[0]} {OK[1]}")
@@ -120,8 +123,13 @@ def main():
     off = sum(offs) / len(offs)
     downs = [int(p[1]) / 1000.0 + off for p in (l.split() for l in lagt.splitlines()) if len(p) == 2 and p[0] == "0"]
     frames, regs, ptr_open, hangs = [], 0, 0, 0
+    rst_at, presence_ms = None, []
     for line in open(tlf):
         p = line.split()
+        if len(p) >= 2 and p[1] == "stale-rst" and rst_at is None:
+            rst_at = float(p[0])
+        if len(p) >= 4 and p[1] == "cmd" and p[2] == "subscribe" and p[3].endswith("getPowerState") and rst_at is not None:
+            presence_ms.append(round((float(p[0]) - rst_at) * 1000)); rst_at = None
         if len(p) >= 4 and p[1] == "ptr" and p[2] == "button":
             frames.append((float(p[0]), p[3]))
         regs += len(p) >= 3 and p[1] == "cmd" and p[2] == "register"
@@ -137,7 +145,7 @@ def main():
     res = dict(name=a.name, cond=a.cond, bg=a.bg, stale=a.stale, frozen=a.freeze, taps=len(taps), first_key_ms=lat, keys_per_tap=counts,
                lost=sum(1 for x in lat if x is None), dup=sum(max(0, c - 1) for c in counts),
                registers=regs, ptr_opens=ptr_open, hangs=hangs,
-               keep=conn.count("resume-keep"), stale_seen=conn.count("resume-stale"))
+               presence_after_rst_ms=presence_ms, keep=conn.count("resume-keep"), stale_seen=conn.count("resume-stale"))
     json.dump(res, open(os.path.join(out, "result.json"), "w"))
     print(json.dumps(res), flush=True)
 

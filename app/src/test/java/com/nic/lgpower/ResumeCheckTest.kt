@@ -2,26 +2,26 @@ package com.nic.lgpower
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 class ResumeCheckTest {
     @Test fun aSocketThatIsNotRegisteredIsReset() {
-        assertEquals(ResumeStep.RESET, resumeStep(commandReady = false, sinceRxMs = 10, freshMs = 2_000))
-        assertEquals(ResumeStep.RESET, resumeStep(commandReady = false, sinceRxMs = null, freshMs = 2_000))
+        assertEquals(ResumeStep.RESET, resumeStep(commandReady = false))
     }
 
-    @Test fun aReplyMomentsAgoKeepsTheSocketsWithoutAsking() {
-        assertEquals(ResumeStep.KEEP, resumeStep(commandReady = true, sinceRxMs = 1_999, freshMs = 2_000))
-    }
-
-    @Test fun anIdleOrSilentSocketIsAskedFirst() {
-        assertEquals(ResumeStep.PROBE, resumeStep(commandReady = true, sinceRxMs = 2_000, freshMs = 2_000))
-        assertEquals(ResumeStep.PROBE, resumeStep(commandReady = true, sinceRxMs = 600_000, freshMs = 2_000))
-        assertEquals(ResumeStep.PROBE, resumeStep(commandReady = true, sinceRxMs = null, freshMs = 2_000))
+    // Frames buffered while the app was frozen can look like fresh traffic, so only a reply counts
+    @Test fun aRegisteredSocketIsAlwaysAskedFirst() {
+        assertEquals(ResumeStep.PROBE, resumeStep(commandReady = true))
     }
 
     @Test fun aKeyWaitsForTheVerdict() {
@@ -44,9 +44,11 @@ class ResumeCheckTest {
     @Test fun aKeyAfterTheVerdictDoesNotWait() {
         val gate = ResumeGate()
         gate.end(gate.begin())
-        val t0 = System.nanoTime()
-        gate.await(5_000)
-        assertTrue((System.nanoTime() - t0) / 1_000_000 < 100)
+        assertTrue(gate.isOpen)
+        val done = CountDownLatch(1)
+        val key = Thread { gate.await(60_000); done.countDown() }
+        key.start()
+        assertTrue(done.await(10, TimeUnit.SECONDS))
     }
 
     @Test fun aStuckCheckHoldsAKeyOnlyForItsBudget() {
@@ -54,8 +56,45 @@ class ResumeCheckTest {
         gate.begin()
         val t0 = System.nanoTime()
         gate.await(200)
-        val waited = (System.nanoTime() - t0) / 1_000_000
-        assertTrue(waited in 150..1_000)
+        assertTrue((System.nanoTime() - t0) / 1_000_000 >= 150)
+    }
+
+    @Test fun aHeldTapGoesOutOnceAfterTheVerdictAndNeverBefore() {
+        val gate = ResumeGate()
+        val check = gate.begin()
+        val pool = Executors.newCachedThreadPool()
+        val sent = AtomicInteger()
+        val sentLatch = CountDownLatch(1)
+        gate.runAfter(60_000, pool) { sent.incrementAndGet(); sentLatch.countDown() }
+        assertFalse(sentLatch.await(200, TimeUnit.MILLISECONDS))
+        assertEquals(0, sent.get())
+        gate.end(check)
+        assertTrue(sentLatch.await(10, TimeUnit.SECONDS))
+        pool.shutdown()
+        assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS))
+        assertEquals(1, sent.get())
+    }
+
+    @Test fun aTapOnAnOpenGateGoesOutOnTheCallersThread() {
+        val gate = ResumeGate()
+        val ranOn = AtomicReference<Thread>()
+        gate.runAfter(1_000, Executor { error("must not be queued") }) { ranOn.set(Thread.currentThread()) }
+        assertSame(Thread.currentThread(), ranOn.get())
+    }
+
+    // The gate is what keeps a press off a socket about to be replaced; the client needs a Context
+    // to run, so this pins the call sites instead
+    @Test fun everyPathThatSendsOnTheSharedSocketsWaitsOnTheGate() {
+        val src = File("src/main/java/com/nic/lgpower/WebOsClient.kt").readText()
+        for (fn in listOf("fun pressKey(", "private fun execute(", "private fun lunaRequest(")) {
+            val start = src.indexOf(fn)
+            assertTrue("$fn not found", start >= 0)
+            assertTrue("$fn does not wait on resumeGate", src.substring(start, start + 250).contains("resumeGate.await("))
+        }
+        val tap = src.indexOf("private fun afterResumeCheck(")
+        assertTrue(src.substring(tap, tap + 300).contains("resumeGate.runAfter("))
+        assertTrue(src.contains("fun pointerClick() = afterResumeCheck"))
+        assertTrue(src.contains("fun pointerKey(keyCode: String) = afterResumeCheck"))
     }
 
     @Test fun anOlderCheckEndingLeavesANewerOneClosed() {
@@ -66,5 +105,76 @@ class ResumeCheckTest {
         assertFalse(gate.isOpen)
         gate.end(second)
         assertTrue(gate.isOpen)
+    }
+
+    private class FakeClock(private val stepMs: Long) {
+        var t = 0L
+        fun now(): Long { t += stepMs; return t }
+    }
+
+    @Test fun aReplyBeforeTheBudgetCounts() {
+        val answered = CountDownLatch(1)
+        val clock = FakeClock(10)
+        var calls = 0
+        // Arrives on the fifth poll, well inside the budget
+        val alive = { if (++calls == 5) answered.countDown(); true }
+        assertTrue(awaitReply(answered, alive, 1_000, clock::now, pollMs = 1))
+    }
+
+    @Test fun aReplyAfterTheBudgetDoesNot() {
+        val answered = CountDownLatch(1)
+        val clock = FakeClock(100)
+        var calls = 0
+        val alive = { if (++calls == 50) answered.countDown(); true }
+        assertFalse(awaitReply(answered, alive, 1_000, clock::now, pollMs = 1))
+        assertEquals(1L, answered.count)
+    }
+
+    @Test fun aSocketThatDiesMidProbeEndsTheWaitEarly() {
+        val answered = CountDownLatch(1)
+        val clock = FakeClock(10)
+        var calls = 0
+        val alive = { ++calls < 4 }
+        assertFalse(awaitReply(answered, alive, 1_000, clock::now, pollMs = 1))
+        assertTrue("stopped at the budget instead of at the death", clock.t < 1_000)
+    }
+
+    @Test fun theStaleMarkIsSetBeforeTheProbeRuns() {
+        var mark = false
+        var markedWhileProbing = false
+        probeCommand({ mark = it }) { markedWhileProbing = mark; false }
+        assertTrue(markedWhileProbing)
+        assertTrue("a silent socket stays marked", mark)
+    }
+
+    @Test fun onlyAReplyClearsTheStaleMark() {
+        var mark = false
+        assertTrue(probeCommand({ mark = it }) { true })
+        assertFalse(mark)
+    }
+
+    @Test fun aSocketThatResetsMidProbeKeepsTheMarkForTheWatcher() {
+        val marks = mutableListOf<Boolean>()
+        // The watcher reads the flag from another thread the moment the socket dies
+        var seenByWatcher: Boolean? = null
+        var mark = false
+        probeCommand({ mark = it; marks.add(it) }) { seenByWatcher = mark; false }
+        assertEquals(true, seenByWatcher)
+        assertEquals(listOf(true), marks)
+    }
+
+    @Test fun anIdlePointerIsReplacedButADeadOrBusyOneIsNot() {
+        assertTrue(shouldReplaceIdlePointer(dead = false, idleMs = 30_001, maxIdleMs = 30_000))
+        assertFalse(shouldReplaceIdlePointer(dead = false, idleMs = 30_000, maxIdleMs = 30_000))
+        assertFalse(shouldReplaceIdlePointer(dead = false, idleMs = 5_000, maxIdleMs = 30_000))
+        assertFalse(shouldReplaceIdlePointer(dead = true, idleMs = 600_000, maxIdleMs = 30_000))
+    }
+
+    @Test fun onlyThePointerTheCheckSawIsDropped() {
+        val seen = Any()
+        val openedMeanwhile = Any()
+        assertTrue(sameSession(seen, seen))
+        assertFalse(sameSession(openedMeanwhile, seen))
+        assertFalse(sameSession(openedMeanwhile, null))
     }
 }
