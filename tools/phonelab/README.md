@@ -49,8 +49,17 @@ Exit codes: 0 done, 5 aborted (the reason is in the log and in `meta.json` under
 in 30 min, TV guard died, padb gave up on a paused phone, keyguard stuck, an ENTER reached the TV), 130 interrupted, 1 crashed
 (startup refusals also exit 1 and say why). A failed run still scores what it recorded, parks the phone and turns the TV off.
 
-If port 3001 is already taken on this PC (another faketv), the runner binds faketv to the PC's LAN address instead and
-points the device there (`faketv.py --bind`).
+### Another faketv already holds port 3001
+
+Two runs cannot share 3001 (the apps always dial it), and Windows refuses a second bind on the LAN address while another
+process holds `0.0.0.0:3001`, so the runner no longer tries one. It stops with a message instead:
+
+- Emulator: rerun with `--fake-port 3101` (or `PHONELAB_FAKE_PORT=3101`). faketv then listens on 3101 (icons on 3102) at
+  `127.0.0.1`, the runner sets `adb -s <serial> reverse tcp:3001 tcp:3101` and `tcp:3102 tcp:3102`, seeds the apps with TV
+  address `127.0.0.1`, and removes both reverse rules at the end of the run (also after a crash or Ctrl-C). A free pair of
+  ports is required; the runner refuses 3001/3002 and taken ports.
+- Real phone: not possible, the phone dials the PC's LAN address on 3001. `--fake-port` with a phone is refused, and so is a
+  taken 3001; wait for the other run or stop that faketv.
 
 ## Matrix file
 

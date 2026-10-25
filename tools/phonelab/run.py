@@ -17,6 +17,7 @@ from pl import truth as T
 from pl.kbd import KbdWatch
 from pl import tvlevels as L
 from pl.matrix import expand, phone_problems, real_tv_problems
+from pl.ports import APP_PORT, plan_faketv
 from pl.util import Jsonl, log, now_ms, set_log_file, pid_alive
 
 TV_IP = os.environ.get("PHONELAB_TV_IP", "192.168.1.157")
@@ -135,32 +136,31 @@ def tv_shot(out, label):
     return path if os.path.exists(path) else None
 
 
-def start_faketv(args, out, ctx):
-    """Starts faketv as a child. Another session may already hold 0.0.0.0:3001 (the apps always dial 3001), so in that case
-    this copy binds the PC's LAN address instead and the device is pointed at that address."""
-    bind = "0.0.0.0"
-    if port_open("127.0.0.1", 3001):
-        bind = lan_ip()
-        args.tv_host = bind
-        log(f"port 3001 is taken on this PC (another faketv?); binding {bind} instead and pointing the device at it")
+def start_faketv(args, out, ctx, plan):
+    """Starts faketv as a child on the port the plan chose; an emulator on another port gets adb reverse rules first."""
+    for dev_port, host_port in plan["reverse"]:
+        ctx.dev.adb("reverse", f"tcp:{dev_port}", f"tcp:{host_port}")
+        ctx.reversed.append(dev_port)
+        log(f"adb reverse tcp:{dev_port} -> tcp:{host_port}")
     tl = os.path.join(out, "faketv.timeline")
-    cmd = [sys.executable, FAKETV, "--host", args.tv_host, "--bind", bind, "--timeline", tl, *args.faketv_args.split()]
+    cmd = [sys.executable, FAKETV, "--host", plan["device_host"], "--bind", plan["bind"], "--timeline", tl,
+           *plan["faketv_args"], *args.faketv_args.split()]
     logf = open(os.path.join(out, "faketv.log"), "w")
-    # a Ctrl-C between Popen and the assignment would leave faketv holding port 3001 after the runner is gone
+    # a Ctrl-C between Popen and the assignment would leave faketv holding its port after the runner is gone
     old = signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
         p = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=os.path.dirname(FAKETV))
         ctx.faketv = p
     finally:
         signal.signal(signal.SIGINT, old)
-    probe = "127.0.0.1" if bind == "0.0.0.0" else bind
+    port = args.fake_port
     for _ in range(60):
-        if port_open(probe, 3001) and p.poll() is None:
-            return tl, probe
+        if port_open(plan["probe"], port) and p.poll() is None:
+            return tl, plan["probe"]
         if p.poll() is not None:
             raise SystemExit("faketv exited at start, see faketv.log")
         time.sleep(0.5)
-    raise SystemExit("faketv did not open port 3001")
+    raise SystemExit(f"faketv did not open port {port}")
 
 
 def main():
@@ -171,6 +171,9 @@ def main():
     ap.add_argument("--serial", help="adb serial; omit for the phone, required (emulator-NNNN) for an emulator")
     ap.add_argument("--out")
     ap.add_argument("--tv-host", help="address the DEVICE uses to reach faketv (default 10.0.2.2 on an emulator, this PC's LAN IP otherwise)")
+    ap.add_argument("--fake-port", type=int, default=int(os.environ.get("PHONELAB_FAKE_PORT", APP_PORT)),
+                    help=f"port faketv listens on (default {APP_PORT}, or $PHONELAB_FAKE_PORT). Another value is for an emulator: "
+                    f"the device's {APP_PORT} is forwarded to it with adb reverse, removed again at the end")
     ap.add_argument("--faketv-args", default="", help="extra faketv flags, e.g. '--drop-cmd-every 30'")
     ap.add_argument("--pkg-k", default=DEFAULT_PKG["K"])
     ap.add_argument("--pkg-f", default=DEFAULT_PKG["F"])
@@ -199,6 +202,10 @@ def main():
     if args.tv == "real" and emulator:
         log("note: emulator with the real TV; fine for a dry run, the C4 sees only RIGHT/UP/LEFT/DOWN")
     args.tv_host = args.tv_host or ("10.0.2.2" if emulator else lan_ip())
+    plan = None
+    if args.tv == "fake":
+        plan = plan_faketv(emulator, args.fake_port, args.tv_host, port_open)
+        args.tv_host = plan["device_host"]
 
     serial = args.serial or D.find_phone_serial()
     dev = D.Dev(serial, phone=not emulator)
@@ -211,13 +218,14 @@ def main():
     kbd_sink = Jsonl(os.path.join(out, "kbd.jsonl"))
     ctx.applog = D.AppLog(app_sink, sys_sink)
     ctx.kbd = ctx.mouse = ctx.faketv = None
+    ctx.reversed = []
     fake_probe = "127.0.0.1"
     ctx.pin = get_pin() if (dev.phone and any(t["sc"] == "lock" for t in trials)) else None
     exit_code = 0
     guard_log, guard_pos = None, 0
     meta = dict(matrix=os.path.abspath(args.matrix), apps=labels, tv=args.tv, serial=serial, target="emulator" if emulator else "phone",
                 trials=len(trials), started=time.strftime("%Y-%m-%d %H:%M:%S"), pc_start=now_ms(), git=git_rev(), settings=ctx.cfg,
-                tv_host=args.tv_host)
+                tv_host=args.tv_host, fake_port=args.fake_port if args.tv == "fake" else None)
     try:
         # ---- apps
         ctx.apps = {}
@@ -254,7 +262,7 @@ def main():
             guard_log = os.path.join(T.STATE_DIR, "guard.log")
             guard_pos = os.path.getsize(guard_log) if os.path.exists(guard_log) else 0
         else:
-            tl, fake_probe = start_faketv(args, out, ctx)
+            tl, fake_probe = start_faketv(args, out, ctx, plan)
             ctx.truth = T.FakeTruth(tl)
             ctx.truth.start()
             ctx.mouse = T.NullMouse()
@@ -276,7 +284,7 @@ def main():
             ctx.inj.start()
         if any(t["sc"] == "kbd" for t in trials):
             if args.tv == "fake":
-                ctx.kbd = KbdWatch(fake_probe, kbd_sink)
+                ctx.kbd = KbdWatch(fake_probe, kbd_sink, port=args.fake_port)
             else:
                 sys.path.insert(0, T.SKILLS_TV)
                 import tv as TVM
@@ -362,6 +370,11 @@ def main():
                 ctx.faketv.wait(10)
             except Exception:
                 pass
+        for dev_port in ctx.reversed:
+            try:
+                dev.adb("reverse", "--remove", f"tcp:{dev_port}")
+            except Exception as e:
+                log(f"adb reverse --remove tcp:{dev_port} failed {e!r}")
         meta["ended"] = time.strftime("%Y-%m-%d %H:%M:%S")
         meta["pc_end"] = now_ms()
         meta["exit_code"] = exit_code

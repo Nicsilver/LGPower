@@ -8,7 +8,8 @@ KBD_URI = "ssap://com.webos.service.ime/registerRemoteKeyboard"
 
 
 class KbdWatch:
-    def __init__(self, host, out, key="phonelab-watch", perms=None, pairing="PROMPT"):
+    def __init__(self, host, out, key="phonelab-watch", perms=None, pairing="PROMPT", port=3001):
+        self.port = port
         self.host, self.out, self.key, self.perms, self.pairing = host, out, key, perms or [], pairing
         self.frames = []          # (pc_ms, focus, length)
         self.lock = threading.Lock()
@@ -37,7 +38,7 @@ class KbdWatch:
         c.check_hostname = False
         c.verify_mode = ssl.CERT_NONE
         self._stop = asyncio.Event()
-        async with websockets.connect(f"wss://{self.host}:3001", ssl=c, open_timeout=8) as ws:
+        async with websockets.connect(f"wss://{self.host}:{self.port}", ssl=c, open_timeout=8) as ws:
             await ws.send(json.dumps({"id": "r", "type": "register", "payload": {
                 "client-key": self.key, "pairingType": self.pairing,
                 "manifest": {"manifestVersion": 1, "appVersion": "1.1", "permissions": self.perms}}}))

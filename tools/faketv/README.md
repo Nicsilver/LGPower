@@ -53,8 +53,7 @@ and the icon fetch fails, which is the hint.
 
 `--kbd-focus field|none|cycle` sets what `registerRemoteKeyboard` reports: a focused text
 field (default), none (the sheet shows "Select a text field on the TV first"), or flipping
-every 5 s. The first reply carries `currentWidget` only while a field is focused; pushes
-carry `{"subscribed":true,"currentWidget":{"focus":true,"contentType":"text","cursorPosition":n,
+every 5 s. The first reply and the pushes carry `{"subscribed":true,"currentWidget":{"focus":true,"contentType":"text","cursorPosition":n,
 "surroundingTextLength":n,...},"focusChanged":true}`. `--kbd-deny write|all` answers
 `insertText`, `deleteCharacters` and `sendEnterKey` (and with `all` the subscription too) with
 the 401 frame webOS 26 is suspected to send: `{"type":"error","id":..,"error":"401
