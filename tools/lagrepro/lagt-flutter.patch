@@ -1,0 +1,24 @@
+diff --git a/lib/main.dart b/lib/main.dart
+index 6a16615..08f21bb 100644
+--- a/lib/main.dart
++++ b/lib/main.dart
+@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
+ 
+ import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+ import 'package:flutter/foundation.dart' show kIsWeb;
++import 'package:flutter/gestures.dart';
+ import 'package:flutter/material.dart';
+ import 'package:flutter/services.dart';
+ import 'package:flutter_displaymode/flutter_displaymode.dart';
+@@ -19,6 +20,11 @@ import 'ui/setup/setup_screen.dart';
+ 
+ Future<void> main() async {
+   WidgetsFlutterBinding.ensureInitialized();
++  // Touch-down time on the device clock, so the harness can line it up with the TV timeline
++  GestureBinding.instance.pointerRouter.addGlobalRoute((e) {
++    // ignore: avoid_print
++    if (e is PointerDownEvent) print('LagT 0 ${e.timeStamp.inMilliseconds}');
++  });
+   TestLog.init();
+   await SystemChrome.setPreferredOrientations([
+     DeviceOrientation.portraitUp,
