@@ -945,7 +945,7 @@ class WebOsClient(appContext: Context) {
     // like a key does. Moves are streams of frames and stay unheld.
     private fun afterResumeCheck(send: () -> Unit) {
         if (tvIp.isBlank()) return
-        resumeGate.runAfter(RESUME_GATE_MAX_MS, gateExecutor, send)
+        resumeGate.runAfter(RESUME_GATE_MAX_MS, tapExecutor, send)
     }
 
     /**
@@ -1734,6 +1734,11 @@ class WebOsClient(appContext: Context) {
         // Holds a pointer's registration until the command session has registered
         private val gateExecutor = java.util.concurrent.Executors.newCachedThreadPool { r ->
             Thread(r, "pointer-gate").apply { isDaemon = true }
+        }
+        // One thread so taps held on the resume gate leave in the order they were made; on the
+        // cached pool a BACK and a click queued together could swap
+        private val tapExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "pointer-tap").apply { isDaemon = true }
         }
         // Observed on a C4: turnOff pushes state "Active" with processing "Request Power Off"
         // within 50 ms, then "Request/Prepare Active Standby", and lands on "Active Standby" ~3 s later

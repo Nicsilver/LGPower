@@ -75,6 +75,28 @@ class ResumeCheckTest {
         assertEquals(1, sent.get())
     }
 
+    @Test fun tapsHeldOnTheGateLeaveInTheOrderTheyWereQueued() {
+        val gate = ResumeGate()
+        val check = gate.begin()
+        val pool = Executors.newSingleThreadExecutor()
+        val order = java.util.Collections.synchronizedList(mutableListOf<Int>())
+        for (i in 1..20) gate.runAfter(60_000, pool) { order.add(i) }
+        gate.end(check)
+        pool.shutdown()
+        assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS))
+        assertEquals((1..20).toList(), order)
+    }
+
+    // On a pool with more than one thread a BACK and a click queued together could swap, so the
+    // client has to hand its held taps to a single-thread executor
+    @Test fun heldPointerTapsRunOnTheSingleThreadTapExecutor() {
+        val src = File("src/main/java/com/nic/lgpower/WebOsClient.kt").readText()
+        assertTrue(src.contains("resumeGate.runAfter(RESUME_GATE_MAX_MS, tapExecutor, send)"))
+        val at = src.indexOf("private val tapExecutor")
+        assertTrue("tapExecutor not found", at >= 0)
+        assertTrue(src.substring(at, at + 200).contains("newSingleThreadExecutor"))
+    }
+
     @Test fun aTapOnAnOpenGateGoesOutOnTheCallersThread() {
         val gate = ResumeGate()
         val ranOn = AtomicReference<Thread>()
