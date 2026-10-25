@@ -523,16 +523,14 @@ def _kbd_write_gate():
 
 
 def h_register_remote_keyboard(payload, ws):
-    # Per the webOS OSE ime service: the first reply carries currentWidget only when something
-    # is focused; later pushes always carry it plus focusChanged.
+    # The C4 answers the subscription with focus:false while nothing is focused (measured with the
+    # keyboard dismissed). The OSE ime source omits currentWidget there, and the apps read a missing
+    # currentWidget as "unknown" on purpose, so leaving it out would never show the hint.
     if STATE.kbd_deny == "all":
         raise SsapDenied("401 insufficient permissions")
     if ws is None:
         return {"subscribed": True, "currentWidget": _kbd_widget(), "focusChanged": True}
-    out = {"subscribed": True}
-    if STATE.kbd_focus:
-        out["currentWidget"] = _kbd_widget()
-    return out
+    return {"subscribed": True, "currentWidget": _kbd_widget()}
 
 
 def h_insert_text(payload, ws):

@@ -7,6 +7,7 @@ sys.path.insert(0, HERE)
 import score
 from pl import device as D
 from pl import matrix as M
+from pl import ports as P
 from pl import runner as R
 from pl import tvlevels as L
 from pl.util import AbortRun
@@ -389,6 +390,40 @@ class TvLevels(unittest.TestCase):
             with self.assertRaises(Exception):
                 L.note_and_zero(note)
         self.assertFalse(os.path.exists(note))
+
+
+class FakePort(unittest.TestCase):
+    free = staticmethod(lambda host, port: False)
+
+    def test_default_port_is_unchanged(self):
+        p = P.plan_faketv(True, 3001, "10.0.2.2", self.free)
+        self.assertEqual((p["bind"], p["device_host"], p["faketv_args"], p["reverse"]), ("0.0.0.0", "10.0.2.2", [], []))
+
+    def test_emulator_alt_port_reverses_both_ports(self):
+        p = P.plan_faketv(True, 3101, "10.0.2.2", self.free)
+        self.assertEqual(p["device_host"], "127.0.0.1")
+        self.assertEqual(p["faketv_args"], ["--port", "3101", "--icon-port", "3102"])
+        self.assertEqual(p["reverse"], [(3001, 3101), (3102, 3102)])
+
+    def test_taken_default_port_is_refused_with_the_way_out(self):
+        taken = lambda host, port: port == 3001
+        with self.assertRaises(SystemExit) as e:
+            P.plan_faketv(True, 3001, "10.0.2.2", taken)
+        self.assertIn("--fake-port", str(e.exception))
+        with self.assertRaises(SystemExit) as e:
+            P.plan_faketv(False, 3001, "192.168.1.5", taken)
+        self.assertNotIn("Rerun", str(e.exception))
+
+    def test_phone_never_gets_an_alt_port(self):
+        with self.assertRaises(SystemExit):
+            P.plan_faketv(False, 3101, "192.168.1.5", self.free)
+
+    def test_alt_port_checks(self):
+        for bad in (80, 3002, 65535):
+            with self.assertRaises(SystemExit, msg=bad):
+                P.plan_faketv(True, bad, "10.0.2.2", self.free)
+        with self.assertRaises(SystemExit):
+            P.plan_faketv(True, 3101, "10.0.2.2", lambda host, port: port == 3102)
 
 
 if __name__ == "__main__":
