@@ -1,0 +1,67 @@
+name: Play rollout
+
+on:
+  workflow_dispatch:
+    inputs:
+      fraction:
+        description: 'Share of users, 0.0 to 1.0 (1.0 completes the rollout), or "halt"'
+        required: true
+        default: '0.5'
+
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update production rollout
+        env:
+          PLAY_SA_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          FRACTION: ${{ inputs.fraction }}
+        run: |
+          pip install --quiet google-auth requests
+          python - <<'PY'
+          import json, os, sys
+          import requests
+          from google.auth.transport.requests import Request
+          from google.oauth2 import service_account
+
+          pkg = "com.nic.lgpower"
+          fraction = os.environ["FRACTION"].strip().lower()
+          creds = service_account.Credentials.from_service_account_info(
+              json.loads(os.environ["PLAY_SA_JSON"]),
+              scopes=["https://www.googleapis.com/auth/androidpublisher"])
+          creds.refresh(Request())
+          s = requests.Session()
+          s.headers["Authorization"] = "Bearer " + creds.token
+          base = f"https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{pkg}/edits"
+
+          def call(method, url, **kw):
+              r = s.request(method, url, **kw)
+              if not r.ok:
+                  sys.exit(f"{method} {url}: {r.status_code} {r.text}")
+              return r.json()
+
+          edit = call("POST", base, json={})["id"]
+          track = call("GET", f"{base}/{edit}/tracks/production")
+          # A rollout is the release that is inProgress or halted; completed ones are history.
+          rel = next((r for r in track.get("releases", []) if r["status"] in ("inProgress", "halted")), None)
+          if rel is None:
+              sys.exit("No staged rollout on production (nothing inProgress or halted)")
+
+          if fraction == "halt":
+              rel["status"] = "halted"
+              rel["userFraction"] = rel.get("userFraction", 0.2)
+          else:
+              f = float(fraction)
+              if not 0 < f <= 1:
+                  sys.exit("fraction must be above 0 and at most 1, or halt")
+              if f == 1:
+                  rel["status"] = "completed"
+                  rel.pop("userFraction", None)
+              else:
+                  rel["status"] = "inProgress"
+                  rel["userFraction"] = f
+
+          call("PUT", f"{base}/{edit}/tracks/production", json={"track": "production", "releases": [rel]})
+          call("POST", f"{base}/{edit}:commit")
+          print("production release", rel["versionCodes"], "->", rel["status"], rel.get("userFraction", ""))
+          PY
