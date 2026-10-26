@@ -81,6 +81,7 @@ class MainActivity : AppCompatActivity() {
     private var slideRowId = R.id.color_buttons_row
     private fun slideRow(): View = findViewById(slideRowId)
     private var numpadOpen = false
+    private var dpadPanelOpen = false
     private val lockHandler = Handler(Looper.getMainLooper())
     private val moveThresholdPx = 12f
     private var lockAnimator: ValueAnimator? = null
@@ -158,12 +159,28 @@ class MainActivity : AppCompatActivity() {
         }
 
         // D-pad
-        val dpadHl = setupDpadHighlight()
+        val dpadHl = setupDpadHighlight(R.id.btn_up)
         setDpadRepeatListener(findViewById(R.id.btn_up),    0, dpadHl) { client.pressUp() }
         setDpadRepeatListener(findViewById(R.id.btn_right), 1, dpadHl) { client.pressRight() }
         setDpadRepeatListener(findViewById(R.id.btn_down),  2, dpadHl) { client.pressDown() }
         setDpadRepeatListener(findViewById(R.id.btn_left),  3, dpadHl) { client.pressLeft() }
         findViewById<View>(R.id.btn_ok).setOnClickListener { sendKeyCommand { client.pressEnter() } }
+
+        // D-pad panel: a second set of the same keys, same send path
+        val panelHl = setupDpadHighlight(R.id.panel_up)
+        setDpadRepeatListener(findViewById(R.id.panel_up),    0, panelHl) { client.pressUp() }
+        setDpadRepeatListener(findViewById(R.id.panel_right), 1, panelHl) { client.pressRight() }
+        setDpadRepeatListener(findViewById(R.id.panel_down),  2, panelHl) { client.pressDown() }
+        setDpadRepeatListener(findViewById(R.id.panel_left),  3, panelHl) { client.pressLeft() }
+        findViewById<View>(R.id.panel_ok).setOnClickListener { sendKeyCommand { client.pressEnter() } }
+        findViewById<View>(R.id.btn_dpad).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            setDpadPanel(true)
+        }
+        findViewById<View>(R.id.btn_dpad_close).setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            setDpadPanel(false)
+        }
 
         // Home / Back / Settings
         findViewById<View>(R.id.btn_home).setOnClickListener     { sendKeyCommand { client.pressKey("HOME") } }
@@ -520,7 +537,7 @@ class MainActivity : AppCompatActivity() {
             // Let the enter transition settle so the highlight lands on laid-out views
             findViewById<View>(R.id.main_root).postDelayed({
                 if (isFinishing) return@postDelayed
-                showSpotlightTour(Tour.mainSteps, lastLabel = "Open Settings") {
+                showSpotlightTour(Tour.mainSteps(appPrefs.getBoolean(PREF_PAD_INSTEAD_OF_DPAD, false)), lastLabel = "Open Settings") {
                     appPrefs.edit().putBoolean(Tour.PREF_SETTINGS, true).apply()
                     startActivity(android.content.Intent(this, SettingsActivity::class.java))
                 }
@@ -617,8 +634,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupDpadHighlight(): DpadHighlightView {
-        val container = findViewById<View>(R.id.btn_up).parent as android.widget.FrameLayout
+    private fun setupDpadHighlight(upId: Int): DpadHighlightView {
+        val container = findViewById<View>(upId).parent as android.widget.FrameLayout
         val hl = DpadHighlightView(this)
         container.addView(hl, 1, android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
@@ -690,6 +707,8 @@ class MainActivity : AppCompatActivity() {
                R.id.btn_back, R.id.btn_settings, R.id.btn_picture,
                R.id.btn_sound,
                R.id.btn_up, R.id.btn_down, R.id.btn_left, R.id.btn_right,
+               R.id.panel_up, R.id.panel_down, R.id.panel_left, R.id.panel_right,
+               R.id.btn_dpad_close,
                R.id.btn_mute, R.id.btn_screen_off,
                R.id.btn_volume_up, R.id.btn_volume_down,
                R.id.btn_brightness_up, R.id.btn_brightness_down,
@@ -697,6 +716,7 @@ class MainActivity : AppCompatActivity() {
             .forEach { id -> findViewById<android.widget.ImageButton>(id)?.imageTintList = iconTint }
         // Touchpad icon is an ImageView (no button wrapper has the icon directly)
         findViewById<android.widget.ImageView>(R.id.iv_touchpad_icon)?.imageTintList = iconTint
+        findViewById<android.widget.ImageView>(R.id.iv_dpad_icon)?.imageTintList = iconTint
         // App settings gear: tint with primaryText so it's visible in both modes
         findViewById<android.widget.ImageButton>(R.id.btn_app_settings)?.imageTintList =
             ColorStateList.valueOf(theme.primaryText)
@@ -707,6 +727,13 @@ class MainActivity : AppCompatActivity() {
             setColor(theme.dpadOkBg)
         }
         okBtn?.setTextColor(theme.primaryText)
+        findViewById<Button>(R.id.panel_ok)?.apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(theme.dpadOkBg)
+            }
+            setTextColor(theme.primaryText)
+        }
         findViewById<View>(R.id.pad_surface)?.background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = 28f * resources.displayMetrics.density
@@ -988,6 +1015,9 @@ class MainActivity : AppCompatActivity() {
         val pad = appPrefs.getBoolean(PREF_PAD_INSTEAD_OF_DPAD, false)
         findViewById<View>(R.id.dpad_group).visibility = if (pad) View.GONE else View.VISIBLE
         findViewById<View>(R.id.pad_surface).visibility = if (pad) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.touchpad_col).visibility = if (pad) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.dpad_btn_col).visibility = if (pad) View.VISIBLE else View.GONE
+        if (!pad && dpadPanelOpen) setDpadPanel(false)
     }
 
     private fun configureRightPill() {
@@ -1417,8 +1447,15 @@ class MainActivity : AppCompatActivity() {
         when {
             isLocked   -> exitTouchpadFn?.invoke()
             numpadOpen -> setNumpadMode(false)
+            dpadPanelOpen -> setDpadPanel(false)
             else       -> super.onBackPressed()
         }
+    }
+
+    private fun setDpadPanel(open: Boolean) {
+        dpadPanelOpen = open
+        findViewById<View>(R.id.dpad_panel_scroll).visibility = if (open) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.main_scroll).visibility       = if (open) View.GONE else View.VISIBLE
     }
 
     private fun setNumpadMode(open: Boolean) {

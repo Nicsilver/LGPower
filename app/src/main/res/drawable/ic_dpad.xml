@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+
+    <!-- Cross outline -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round"
+        android:pathData="M10,3 L18,3 L18,10 L25,10 L25,18 L18,18 L18,25 L10,25 L10,18 L3,18 L3,10 L10,10 Z" />
+
+    <!-- Center key -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14,14 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+
+</vector>

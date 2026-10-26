@@ -87,6 +87,7 @@
             <Space android:layout_width="28dp" android:layout_height="1dp" />
 
             <LinearLayout
+                android:id="@+id/touchpad_col"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -118,6 +119,46 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Touchpad"
+                    android:textColor="#888888" android:tag="btn_label"
+                    android:textSize="11sp"
+                    android:layout_marginTop="5dp" />
+            </LinearLayout>
+
+            <!-- Replaces the Touchpad button while the touchpad stands in for the d-pad -->
+            <LinearLayout
+                android:id="@+id/dpad_btn_col"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone">
+
+                <FrameLayout
+                    android:id="@+id/btn_dpad"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/bg_circle_dark" android:tag="circle_btn" />
+
+                    <ImageView
+                        android:id="@+id/iv_dpad_icon"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/ic_dpad"
+                        android:scaleType="center"
+                        android:contentDescription="D-pad" />
+
+                </FrameLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="D-pad"
                     android:textColor="#888888" android:tag="btn_label"
                     android:textSize="11sp"
                     android:layout_marginTop="5dp" />
@@ -1179,6 +1220,132 @@
             <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
             <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
 
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>
+
+<!-- D-pad panel — swaps with the main remote like the numpad; only reachable while the touchpad replaces the d-pad -->
+<ScrollView
+    android:id="@+id/dpad_panel_scroll"
+    android:tag="window_bg"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:fillViewport="true"
+    android:visibility="gone">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingHorizontal="@dimen/main_pad_h"
+        android:paddingTop="16dp"
+        android:paddingBottom="48dp">
+
+        <TextView
+            android:tag="title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="D-pad"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingVertical="4dp" />
+
+        <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
+
+        <FrameLayout
+            android:layout_width="@dimen/dpad_size"
+            android:layout_height="@dimen/dpad_size">
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_circle_dark" android:tag="dpad_ring" />
+
+            <ImageButton
+                android:id="@+id/panel_up"
+                android:layout_width="68dp"
+                android:layout_height="68dp"
+                android:layout_gravity="top|center_horizontal"
+                android:layout_marginTop="4dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_arrow_up"
+                android:scaleType="centerInside"
+                android:contentDescription="Up" />
+
+            <ImageButton
+                android:id="@+id/panel_down"
+                android:layout_width="68dp"
+                android:layout_height="68dp"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_marginBottom="4dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_arrow_down"
+                android:scaleType="centerInside"
+                android:contentDescription="Down" />
+
+            <ImageButton
+                android:id="@+id/panel_left"
+                android:layout_width="68dp"
+                android:layout_height="68dp"
+                android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="4dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_arrow_left"
+                android:scaleType="centerInside"
+                android:contentDescription="Left" />
+
+            <ImageButton
+                android:id="@+id/panel_right"
+                android:layout_width="68dp"
+                android:layout_height="68dp"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="4dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_arrow_right"
+                android:scaleType="centerInside"
+                android:contentDescription="Right" />
+
+            <Button
+                android:id="@+id/panel_ok"
+                android:layout_width="@dimen/ok_size"
+                android:layout_height="@dimen/ok_size"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_circle_ok"
+                android:text="OK"
+                android:textColor="#FFFFFF"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+        </FrameLayout>
+
+        <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
+
+        <!-- Toggle back, same slot as the Numpad's Remote button -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center">
+            <ImageButton
+                android:id="@+id/btn_dpad_close"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:background="@drawable/bg_circle_dark" android:tag="circle_btn"
+                android:src="@drawable/ic_remote"
+                android:scaleType="center"
+                android:contentDescription="Back to Remote" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Remote"
+                android:textColor="#888888" android:tag="btn_label"
+                android:textSize="11sp"
+                android:layout_marginTop="5dp" />
         </LinearLayout>
 
     </LinearLayout>

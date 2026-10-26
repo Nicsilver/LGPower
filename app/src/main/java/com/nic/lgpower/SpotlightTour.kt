@@ -37,7 +37,7 @@ object Tour {
     }
 
     // Ordered top to bottom on each screen so the ring only ever travels one way
-    val mainSteps = listOf(
+    fun mainSteps(padInsteadOfDpad: Boolean) = listOf(
         Step(R.id.tv_main_title, "Your TVs",
             "The current TV. Tap it to switch to another saved TV or to add one."),
         Step(R.id.btn_app_settings, "Settings",
@@ -46,8 +46,12 @@ object Tour {
             "These launch apps on the TV. You pick them in Settings, up to eight."),
         Step(listOf(R.id.btn_power, R.id.status_dot), "Power",
             "Turns the TV on from standby over the network, or with the phone's IR blaster if it has one. The dot in the corner shows whether the TV is on."),
-        Step(R.id.btn_touchpad, "Touchpad",
-            "Tap and drag straight from this button to move the pointer. Hold it for a moment to lock the touchpad open; Back closes it."),
+        if (padInsteadOfDpad)
+            Step(R.id.btn_dpad, "D-pad",
+                "The touchpad stands in for the d-pad here. This opens the arrows and OK in their own panel; Back closes it.")
+        else
+            Step(R.id.btn_touchpad, "Touchpad",
+                "Tap and drag straight from this button to move the pointer. Hold it for a moment to lock the touchpad open; Back closes it."),
         Step(R.id.btn_keyboard, "Keyboard",
             "Type on the phone, send to the TV. Works in the TV's search and browser; YouTube and Netflix only accept their own on-screen keyboard."),
         Step(R.id.volume_pill, "Volume",
