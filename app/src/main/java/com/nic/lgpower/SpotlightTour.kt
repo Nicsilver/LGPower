@@ -48,7 +48,7 @@ object Tour {
             "Turns the TV on from standby over the network, or with the phone's IR blaster if it has one. The dot in the corner shows whether the TV is on."),
         if (padInsteadOfDpad)
             Step(R.id.btn_dpad, "D-pad",
-                "The touchpad stands in for the d-pad here. This opens the arrows and OK in their own panel; Back closes it.")
+                "The touchpad stands in for the d-pad here. Tap this to swap the arrows and OK in; tap anywhere else to swap back.")
         else
             Step(R.id.btn_touchpad, "Touchpad",
                 "Tap and drag straight from this button to move the pointer. Hold it for a moment to lock the touchpad open; Back closes it."),
