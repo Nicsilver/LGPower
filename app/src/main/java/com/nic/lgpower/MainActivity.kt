@@ -1608,7 +1608,7 @@ class MainActivity : AppCompatActivity() {
             when {
                 e != null -> { status.text = e; status.setTextColor(0xFFE05555.toInt()) }
                 searchOnly -> {
-                    status.text = "This TV blocks typing from apps. Send searches the web on the TV instead"
+                    status.text = "Newer LG TVs (webOS 25 and 26) block typing from apps. Send searches the web on the TV instead."
                     status.setTextColor(theme.secondaryText)
                 }
                 focus == KeyboardFocus.NO_FIELD -> {
