@@ -142,7 +142,7 @@ class KeyboardTest(
     private fun recordVerdict() {
         val refused = typingAnswers.isNotEmpty() && typingAnswers.all { isPermissionError(it.removePrefix("error: ").removePrefix("refused: ")) && it != "ok" }
         when {
-            typingAnswers.any { it == "ok" } -> {
+            typingAnswers.any { it == "ok" } || notificationTyped -> {
                 TypingSupport.clear(prefs)
                 summary.add("Typing verdict: the TV accepted text, the keyboard is on for this TV")
             }
@@ -154,6 +154,9 @@ class KeyboardTest(
         }
     }
 
+    // Text that lands through the notification route means the sheet can type, so it must not go search-only
+    @Volatile private var notificationTyped = false
+
     private fun notificationProbe(lengths: List<Int>) {
         log.add("== insertText \"D\" through the notification route ==")
         val before = synchronized(lengths) { lengths.lastOrNull() }
@@ -162,6 +165,7 @@ class KeyboardTest(
         close?.frame?.let { frameLine("CLOSE", it) }
         Thread.sleep(2_000)
         val after = synchronized(lengths) { lengths.lastOrNull() }
+        if (before != null && after != null && after > before) notificationTyped = true
         summary.add("insertText \"D\" through the notification route: alert ${KeyboardReport.summaryStatus(alert.frame, alert.failure)}" +
             (close?.let { ", close ${KeyboardReport.summaryStatus(it.frame, it.failure)}" } ?: "") +
             ", text length ${if (before == null || after == null) "not reported" else if (after > before) "grew" else "did not grow"}")

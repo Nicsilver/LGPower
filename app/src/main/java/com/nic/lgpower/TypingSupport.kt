@@ -52,12 +52,11 @@ object TypingSupport {
     /** What the TV browser opens for typed text: a link as typed, anything else as a web search. */
     fun browserTarget(text: String): String {
         val t = text.trim()
-        val looksLikeLink = !t.contains(' ') && (t.startsWith("http://") || t.startsWith("https://") ||
-            Regex("""^[\w-]+(\.[\w-]+)+(/\S*)?$""").matches(t))
-        return when {
-            t.startsWith("http://") || t.startsWith("https://") -> t
-            looksLikeLink -> "https://$t"
-            else -> "https://www.google.com/search?q=" + URLEncoder.encode(t, "UTF-8")
+        if (t.none { it.isWhitespace() }) {
+            if (t.startsWith("http://") || t.startsWith("https://")) return t
+            // The last label must be letters, so "3.14" or "v1.2" stay searches
+            if (Regex("""^[\w-]+(\.[\w-]+)*\.[A-Za-z]{2,}(/\S*)?$""").matches(t)) return "https://$t"
         }
+        return "https://www.google.com/search?q=" + URLEncoder.encode(t, "UTF-8")
     }
 }

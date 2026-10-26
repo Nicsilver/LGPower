@@ -1478,6 +1478,8 @@ class WebOsClient(appContext: Context) {
      */
     fun refreshSoftwareVersion() {
         if (buildWsRequest() == null) return
+        // A keyboard opened right on resume must not pick up the session the resume check may still retire
+        resumeGate.await(RESUME_GATE_MAX_MS)
         val session = commandSession()
         if (versionReadFor === session) return
         versionReadFor = session
@@ -1517,8 +1519,11 @@ class WebOsClient(appContext: Context) {
                         continue
                     }
                     idle = false
-                    try { session.awaitDeath() } finally { session.endExchange(id, true) }
-                    kbdFocus = KeyboardFocus.UNKNOWN; kbdTextLength = -1
+                    try { session.awaitDeath() } finally {
+                        session.endExchange(id, true)
+                        // Also on stop: a stale length from the last sheet would make the next typing check misread
+                        kbdFocus = KeyboardFocus.UNKNOWN; kbdTextLength = -1
+                    }
                     listener(KeyboardFocus.UNKNOWN)
                 }
             } catch (_: InterruptedException) { }

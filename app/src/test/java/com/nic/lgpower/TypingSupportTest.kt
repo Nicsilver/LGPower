@@ -12,6 +12,8 @@ class TypingSupportTest {
         assertEquals("https://www.google.com/search?q=cat+videos", TypingSupport.browserTarget("cat videos"))
         assertEquals("https://www.google.com/search?q=planet", TypingSupport.browserTarget(" planet "))
         assertEquals("https://www.google.com/search?q=hello+world.+ok", TypingSupport.browserTarget("hello world. ok"))
+        assertEquals("https://www.google.com/search?q=3.14", TypingSupport.browserTarget("3.14"))
+        assertEquals("https://www.google.com/search?q=javascript%3Aalert%281%29", TypingSupport.browserTarget("javascript:alert(1)"))
     }
 
     @Test fun versionComesFromWhateverTheTvReports() {
