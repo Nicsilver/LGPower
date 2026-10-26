@@ -58,6 +58,11 @@ class SettingsActivity : AppCompatActivity() {
         switchChannelPill.setOnCheckedChangeListener { _, v ->
             RightPill.set(prefs, if (v) RightPill.CHANNEL else RightPill.BRIGHTNESS)
         }
+        val switchPad = findViewById<Switch>(R.id.switch_pad_instead_of_dpad)
+        switchPad.isChecked = prefs.getBoolean(MainActivity.PREF_PAD_INSTEAD_OF_DPAD, false)
+        switchPad.setOnCheckedChangeListener { _, v ->
+            prefs.edit().putBoolean(MainActivity.PREF_PAD_INSTEAD_OF_DPAD, v).apply()
+        }
         switchKeepScreenOn.setOnCheckedChangeListener { sw, v ->
             if (!v) { prefs.edit().putBoolean("keep_screen_on", false).apply(); return@setOnCheckedChangeListener }
             if (prefs.getBoolean("keep_screen_on", false)) return@setOnCheckedChangeListener
@@ -335,7 +340,7 @@ class SettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
             intArrayOf(theme.switchThumbOn, theme.switchThumbOff)
         )
-        listOf(R.id.switch_channel_pill, R.id.switch_keep_screen_on)
+        listOf(R.id.switch_channel_pill, R.id.switch_pad_instead_of_dpad, R.id.switch_keep_screen_on)
             .forEach { id ->
                 val sw = findViewById<Switch>(id) ?: return@forEach
                 sw.trackTintList = trackCsl

@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val PREF_TOUR_PENDING = Tour.PREF_MAIN
+        const val PREF_PAD_INSTEAD_OF_DPAD = "touchpad_instead_of_dpad"
         private const val MAX_KEY_BACKLOG = 2
     }
     // Key presses go through one thread so they reach the TV in the order they were tapped.
@@ -398,100 +399,21 @@ class MainActivity : AppCompatActivity() {
         }
         exitTouchpadFn = ::exitTouchpad
 
-        // Overlay touch listener — active only in locked mode for ongoing movement
-        var overlayDragging = false
-        var overlayTotalDist = 0f
-        var dxCarry = 0f
-        var dyCarry = 0f
-        var isScrolling = false
-        var lastScrollY = 0f
-        var scrollCarry = 0f
-        val tapThresholdPx = 12 * resources.displayMetrics.density
-        val scrollSensitivity = 18f  // px per scroll unit
+        // Overlay touch listener: active only in locked mode for ongoing movement
+        val overlayGesture = TouchpadGesture(client, resources.displayMetrics.density, hapticMovePx)
         touchpadOverlay.setOnTouchListener { v, event ->
-            if (!isLocked) return@setOnTouchListener false
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    lastTouchX = event.rawX
-                    lastTouchY = event.rawY
-                    moveAccumulator = 0f
-                    overlayTotalDist = 0f
-                    overlayDragging = false
-                    dxCarry = 0f
-                    dyCarry = 0f
-                    isScrolling = false
-                    scrollCarry = 0f
-                    true
-                }
-                MotionEvent.ACTION_POINTER_DOWN -> {
-                    // Second finger down — switch to scroll mode
-                    if (event.pointerCount == 2) {
-                        isScrolling = true
-                        overlayDragging = false
-                        lastScrollY = (event.getY(0) + event.getY(1)) / 2f
-                        scrollCarry = 0f
-                    }
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (isScrolling && event.pointerCount == 2) {
-                        val midY = (event.getY(0) + event.getY(1)) / 2f
-                        val rawDy = midY - lastScrollY
-                        lastScrollY = midY
-                        val total = rawDy + scrollCarry
-                        val units = (total / scrollSensitivity).toInt()
-                        scrollCarry = total - units * scrollSensitivity
-                        if (units != 0) client.pointerScroll(0, -units)
-                    } else if (!isScrolling) {
-                        val dx = event.rawX - lastTouchX
-                        val dy = event.rawY - lastTouchY
-                        val dist = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
-                        lastTouchX = event.rawX
-                        lastTouchY = event.rawY
-                        if (!overlayDragging) {
-                            overlayTotalDist += dist
-                            if (overlayTotalDist >= tapThresholdPx) {
-                                overlayDragging = true
-                                dxCarry = 0f
-                                dyCarry = 0f
-                            }
-                        } else {
-                            val totalDx = dx + dxCarry
-                            val totalDy = dy + dyCarry
-                            val sendDx = totalDx.toInt()
-                            val sendDy = totalDy.toInt()
-                            dxCarry = totalDx - sendDx
-                            dyCarry = totalDy - sendDy
-                            moveAccumulator += dist
-                            if (moveAccumulator >= hapticMovePx) {
-                                v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                                moveAccumulator = 0f
-                            }
-                            if (sendDx != 0 || sendDy != 0) client.pointerMove(sendDx, sendDy)
-                        }
-                    }
-                    true
-                }
-                MotionEvent.ACTION_POINTER_UP -> {
-                    // Back to single finger — stop scrolling
-                    isScrolling = false
-                    overlayDragging = false
-                    overlayTotalDist = 0f
-                    val remaining = if (event.actionIndex == 0) 1 else 0
-                    lastTouchX = event.getX(remaining) + (v as View).x
-                    lastTouchY = event.getY(remaining) + v.y
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    if (!overlayDragging && !isScrolling) {
-                        v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        client.pointerClick()
-                    }
-                    isScrolling = false
-                    true
-                }
-                else -> true
+            isLocked && overlayGesture.onTouch(v, event)
+        }
+
+        // Pad that stands in for the d-pad when the setting is on
+        val padGesture = TouchpadGesture(client, resources.displayMetrics.density, hapticMovePx)
+        findViewById<View>(R.id.pad_surface).setOnTouchListener { v, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                // The remote sits in a ScrollView that would otherwise take over a vertical drag
+                v.parent.requestDisallowInterceptTouchEvent(true)
+                client.warmPointerSession()
             }
+            padGesture.onTouch(v, event)
         }
 
         findViewById<View>(R.id.btn_touchpad_back).setOnClickListener {
@@ -626,6 +548,7 @@ class MainActivity : AppCompatActivity() {
         }
         client.resumeConnection()
         configureRightPill()
+        applyPadMode()
         // A phone parked as a dedicated remote shouldn't dim to black between presses
         if (appPrefs.getBoolean("keep_screen_on", false))
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -784,6 +707,13 @@ class MainActivity : AppCompatActivity() {
             setColor(theme.dpadOkBg)
         }
         okBtn?.setTextColor(theme.primaryText)
+        findViewById<View>(R.id.pad_surface)?.background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = 28f * resources.displayMetrics.density
+            setColor(theme.dpadRingBg)
+        }
+        findViewById<android.widget.ImageView>(R.id.iv_pad_icon)?.imageTintList =
+            ColorStateList.valueOf(theme.secondaryText)
         // Numpad dialer: type colors and ghost-key fills derived from the theme so the
         // chrome-less look holds on light themes too
         val density = resources.displayMetrics.density
@@ -1052,6 +982,12 @@ class MainActivity : AppCompatActivity() {
         dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)?.setTextColor(theme.secondaryText)
         field.requestFocus()
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+    }
+
+    private fun applyPadMode() {
+        val pad = appPrefs.getBoolean(PREF_PAD_INSTEAD_OF_DPAD, false)
+        findViewById<View>(R.id.dpad_group).visibility = if (pad) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.pad_surface).visibility = if (pad) View.VISIBLE else View.GONE
     }
 
     private fun configureRightPill() {
