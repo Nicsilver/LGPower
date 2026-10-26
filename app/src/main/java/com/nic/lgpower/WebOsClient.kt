@@ -1385,15 +1385,6 @@ class WebOsClient(appContext: Context) {
         JSONObject().put("id", FACTORY_APP_ID)
     )
 
-    /** Null when the TV doesn't say, which callers must not read as "not open". */
-    fun foregroundAppId(): String? {
-        if (buildWsRequest() == null) return null
-        val reply = commandSession().send(
-            "ssap://com.webos.applicationManager/getForegroundAppInfo", JSONObject(), 3
-        )
-        return (reply as? CmdReply.Ok)?.payload?.optString("appId")?.takeIf { it.isNotEmpty() }
-    }
-
     fun goHome() = execute("ssap://system.launcher/launch", JSONObject().put("id", "com.webos.app.home"), timeoutSecs = 3)
 
     // Answers as soon as webOS is up without changing what is on screen, so a TV that

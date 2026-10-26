@@ -97,7 +97,9 @@ class ServiceRemoteActivity : AppCompatActivity() {
         val problem = when (val r = client.launchServiceMenu(menu)) {
             is WebOsClient.Result.NeedsPairing -> PAIRING_TEXT
             is WebOsClient.Result.Error -> if (isUnreachable(r.message)) UNREACHABLE_TEXT else refusedText()
-            is WebOsClient.Result.Success -> if (menuIsUp()) null else refusedText()
+            // The C4 never reports factorywin as the foreground app (it keeps naming the app
+            // underneath), so the launch reply is the only signal there is.
+            is WebOsClient.Result.Success -> null
         }
         if (problem != null) toastLong(problem)
     }
@@ -108,20 +110,6 @@ class ServiceRemoteActivity : AppCompatActivity() {
             is WebOsClient.Result.Error -> toastLong(if (isUnreachable(r.message)) UNREACHABLE_TEXT else r.message)
             else -> {}
         }
-    }
-
-    // A TV that accepts the launch but never shows the menu still answers success, so the
-    // foreground app is the check. A reply that can't be read counts as open: a false
-    // "didn't open" while the menu is on screen is worse than missing a silent ignore.
-    private fun menuIsUp(): Boolean {
-        repeat(4) {
-            Thread.sleep(600)
-            // Polling a TV for a screen the user already left only holds the activity
-            if (isFinishing || isDestroyed) return true
-            val id = client.foregroundAppId() ?: return true
-            if (id == WebOsClient.FACTORY_APP_ID) return true
-        }
-        return false
     }
 
     private fun refusedText() =
