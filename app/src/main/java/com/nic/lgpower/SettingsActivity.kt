@@ -63,6 +63,7 @@ class SettingsActivity : AppCompatActivity() {
         switchPad.setOnCheckedChangeListener { _, v ->
             prefs.edit().putBoolean(MainActivity.PREF_PAD_INSTEAD_OF_DPAD, v).apply()
         }
+        listOf(switchKeepScreenOn, switchChannelPill, switchPad).forEach { makeRowToggle(it) }
         switchKeepScreenOn.setOnCheckedChangeListener { sw, v ->
             if (!v) { prefs.edit().putBoolean("keep_screen_on", false).apply(); return@setOnCheckedChangeListener }
             if (prefs.getBoolean("keep_screen_on", false)) return@setOnCheckedChangeListener
@@ -230,6 +231,29 @@ class SettingsActivity : AppCompatActivity() {
         val activeId = ThemeManager.getActiveThemeId(this)
         findViewById<TextView>(R.id.tv_current_theme).text =
             themes.firstOrNull { it.id == activeId }?.name ?: "Dark"
+    }
+
+    // The whole row is the touch target; the Switch only draws state, so a tap on it reaches the row
+    // once instead of toggling twice.
+    private fun makeRowToggle(sw: Switch) {
+        val row = sw.parent as View
+        val tv = android.util.TypedValue()
+        theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)
+        row.background = androidx.core.content.ContextCompat.getDrawable(this, tv.resourceId)
+        row.isClickable = true
+        row.isFocusable = true
+        sw.isClickable = false
+        sw.isFocusable = false
+        sw.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        row.setOnClickListener { sw.toggle() }
+        row.accessibilityDelegate = object : View.AccessibilityDelegate() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.className = Switch::class.java.name
+                info.isCheckable = true
+                info.isChecked = sw.isChecked
+            }
+        }
     }
 
     private fun refreshWakeActionLabel() {
