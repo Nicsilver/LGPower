@@ -147,8 +147,19 @@ class SettingsActivity : AppCompatActivity() {
             tvShortcutsSummary.text = "No shortcuts configured — load apps from TV to pick some"
         }
 
-        findViewById<View>(R.id.row_service_remote).setOnClickListener {
-            startActivity(android.content.Intent(this, ServiceRemoteActivity::class.java))
+        findViewById<View>(R.id.row_service_wifi).setOnClickListener {
+            startActivity(android.content.Intent(this, ServiceMenuWifiActivity::class.java))
+        }
+        // The IR page does nothing on a phone without a blaster, so the row is not offered there
+        val hasIr = (getSystemService(CONSUMER_IR_SERVICE) as? android.hardware.ConsumerIrManager)
+            ?.hasIrEmitter() == true
+        val irVisibility = if (hasIr) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.divider_service_ir).visibility = irVisibility
+        findViewById<View>(R.id.row_service_ir).apply {
+            visibility = irVisibility
+            setOnClickListener {
+                startActivity(android.content.Intent(this@SettingsActivity, ServiceRemoteActivity::class.java))
+            }
         }
 
         setupTipJar()

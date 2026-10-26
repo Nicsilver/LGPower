@@ -63,7 +63,13 @@
             android:screenOrientation="portrait"
             android:name=".ServiceRemoteActivity"
             android:exported="false"
-            android:label="Service Remote" />
+            android:label="Service Menu (IR)" />
+
+        <activity
+            android:screenOrientation="portrait"
+            android:name=".ServiceMenuWifiActivity"
+            android:exported="false"
+            android:label="Service Menu (Wi-Fi)" />
 
         <!-- Custom theme editor -->
         <activity

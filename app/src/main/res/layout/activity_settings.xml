@@ -469,7 +469,7 @@
             android:background="@drawable/bg_section_group">
 
             <LinearLayout
-                android:id="@+id/row_service_remote"
+                android:id="@+id/row_service_wifi"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:orientation="horizontal"
@@ -485,7 +485,41 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Service Remote"
+                    android:text="Service Menu (Wi-Fi)"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp" />
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_chevron_right"
+                    android:scaleType="fitCenter"
+                    android:tint="#555555" />
+
+            </LinearLayout>
+
+            <View
+                android:id="@+id/divider_service_ir"
+                android:layout_width="match_parent" android:layout_height="1dp" android:background="#242424" android:tag="divider" android:layout_marginStart="16dp" />
+
+            <LinearLayout
+                android:id="@+id/row_service_ir"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground">
+
+                <TextView
+                    android:tag="row_label"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Service Menu (IR)"
                     android:textColor="#FFFFFF"
                     android:textSize="15sp" />
 
