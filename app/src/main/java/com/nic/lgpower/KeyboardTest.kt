@@ -51,7 +51,11 @@ object KeyboardReport {
 }
 
 /** Runs the keyboard probes against the active TV on the shared command session and writes the report. */
-class KeyboardTest(private val client: WebOsClient, private val appVersion: String) {
+class KeyboardTest(
+    private val client: WebOsClient,
+    private val appVersion: String,
+    private val prefs: android.content.SharedPreferences
+) {
 
     class Report(private val head: List<String>, private val summary: List<String>, private val log: List<String>) {
         fun render(seen: Set<String>): String = buildString {
@@ -64,7 +68,7 @@ class KeyboardTest(private val client: WebOsClient, private val appVersion: Stri
             log.forEach { appendLine(it) }
             appendLine()
             appendLine("== Letters on the TV afterwards ==")
-            appendLine("A and B were typed before the keyboard subscription, C during it, then one character was deleted.")
+            appendLine("A and B were typed before the keyboard subscription, C during it, D through the notification route, then one character was deleted.")
             append("Visible in the TV text field: " +
                 LETTERS.filter { it in seen }.joinToString(", ").ifEmpty { "none" })
         }.trimEnd()
@@ -82,12 +86,19 @@ class KeyboardTest(private val client: WebOsClient, private val appVersion: Stri
     private fun payloadOf(frame: String?): JSONObject? =
         frame?.let { runCatching { JSONObject(it) }.getOrNull() }?.optJSONObject("payload")
 
-    private fun call(label: String, uri: String, payload: JSONObject = JSONObject()) {
+    private fun call(label: String, uri: String, payload: JSONObject = JSONObject()): String {
         log.add("== $label ==")
         note("SEND $uri $payload")
         val r = client.rawRequest(uri, payload)
         if (r.frame != null) frameLine("RECV", r.frame) else note("NO REPLY: ${r.failure}")
         summary.add("$label: ${KeyboardReport.summaryStatus(r.frame, r.failure)}")
+        return KeyboardReport.statusOf(r.frame, r.failure)
+    }
+
+    // Answers of the plain insertText calls; the verdict below follows from them alone
+    private val typingAnswers = CopyOnWriteArrayList<String>()
+    private fun typingCall(label: String, payload: JSONObject) {
+        typingAnswers.add(call(label, "$IME/insertText", payload))
     }
 
     fun run(onProgress: (String) -> Unit): Report {
@@ -111,20 +122,49 @@ class KeyboardTest(private val client: WebOsClient, private val appVersion: Stri
         onProgress("Reading TV info")
         call("getSystemInfo", "ssap://system/getSystemInfo")
         call("getSoftwareInformation", "ssap://com.webos.service.update/getCurrentSWInformation")
+        summary.add("Software version the app stored for this TV: ${TypingSupport.softwareVersion(prefs) ?: "none (the TV did not report one)"}")
 
         onProgress("Checking the connection")
         call("control: getVolume", "ssap://audio/getVolume")
         call("control: getForegroundAppInfo", "ssap://com.webos.applicationManager/getForegroundAppInfo")
 
         onProgress("Typing without the keyboard subscription")
-        call("insertText \"A\" replace=false", "$IME/insertText",
-            JSONObject().put("text", "A").put("replace", false))
-        call("insertText \"B\" replace=0", "$IME/insertText",
-            JSONObject().put("text", "B").put("replace", 0))
+        typingCall("insertText \"A\" replace=false", JSONObject().put("text", "A").put("replace", false))
+        typingCall("insertText \"B\" replace=0", JSONObject().put("text", "B").put("replace", 0))
 
         keyboardWindow(onProgress)
+        recordVerdict()
         onProgress("Done")
         return Report(head, summary.toList(), log.toList())
+    }
+
+    /** Re-checks the per-TV "typing refused" mark from this run, so a TV is never stuck as unsupported. */
+    private fun recordVerdict() {
+        val refused = typingAnswers.isNotEmpty() && typingAnswers.all { isPermissionError(it.removePrefix("error: ").removePrefix("refused: ")) && it != "ok" }
+        when {
+            typingAnswers.any { it == "ok" } -> {
+                TypingSupport.clear(prefs)
+                summary.add("Typing verdict: the TV accepted text, the keyboard is on for this TV")
+            }
+            refused -> {
+                TypingSupport.markRefused(prefs)
+                summary.add("Typing verdict: the TV refused text with a permission error, the keyboard now offers a web search on the TV instead")
+            }
+            else -> summary.add("Typing verdict: unclear, nothing was changed")
+        }
+    }
+
+    private fun notificationProbe(lengths: List<Int>) {
+        log.add("== insertText \"D\" through the notification route ==")
+        val before = synchronized(lengths) { lengths.lastOrNull() }
+        val (alert, close) = client.rawNotificationInsert("D")
+        alert.frame?.let { frameLine("ALERT", it) } ?: note("ALERT NO REPLY: ${alert.failure}")
+        close?.frame?.let { frameLine("CLOSE", it) }
+        Thread.sleep(2_000)
+        val after = synchronized(lengths) { lengths.lastOrNull() }
+        summary.add("insertText \"D\" through the notification route: alert ${KeyboardReport.summaryStatus(alert.frame, alert.failure)}" +
+            (close?.let { ", close ${KeyboardReport.summaryStatus(it.frame, it.failure)}" } ?: "") +
+            ", text length ${if (before == null || after == null) "not reported" else if (after > before) "grew" else "did not grow"}")
     }
 
     private fun keyboardWindow(onProgress: (String) -> Unit) {
@@ -161,8 +201,9 @@ class KeyboardTest(private val client: WebOsClient, private val appVersion: Stri
 
         try {
             waitUntil(LISTEN_MS * 2 / 10)
-            call("insertText \"C\" replace=false (subscribed)", "$IME/insertText",
-                JSONObject().put("text", "C").put("replace", false))
+            typingCall("insertText \"C\" replace=false (subscribed)", JSONObject().put("text", "C").put("replace", false))
+            waitUntil(LISTEN_MS * 3 / 10)
+            notificationProbe(lengths)
             waitUntil(LISTEN_MS * 4 / 10)
             call("deleteCharacters count=1", "$IME/deleteCharacters", JSONObject().put("count", 1))
             waitUntil(LISTEN_MS * 6 / 10)

@@ -1600,13 +1600,19 @@ class MainActivity : AppCompatActivity() {
             setColor(theme.circleBtnBg)
             cornerRadius = 16 * d
         }
-        // The error stays up until the next send; the focus hint comes and goes with the TV
+        // The error stays up until the next send; the focus hint comes and goes with the TV.
+        // Once the TV has refused typing, Send opens the text as a web search on the TV instead
         var error: String? = null
         var focus = KeyboardFocus.UNKNOWN
+        var searchOnly = TypingSupport.isRefused(appPrefs)
         fun showStatus() {
             val e = error
             when {
                 e != null -> { status.text = e; status.setTextColor(0xFFE05555.toInt()) }
+                searchOnly -> {
+                    status.text = "This TV blocks typing from apps. Send searches the web on the TV instead"
+                    status.setTextColor(theme.secondaryText)
+                }
                 focus == KeyboardFocus.NO_FIELD -> {
                     status.text = "Select a text field on the TV first"
                     status.setTextColor(theme.secondaryText)
@@ -1615,6 +1621,7 @@ class MainActivity : AppCompatActivity() {
             }
             status.visibility = View.VISIBLE
         }
+        if (searchOnly) showStatus()
 
         fun send() {
             // The IME's Send action still fires while the button is disabled for a send in flight
@@ -1623,21 +1630,29 @@ class MainActivity : AppCompatActivity() {
             if (text.isEmpty()) { dialog.dismiss(); return }
             sendBtn.isEnabled = false
             window.decorView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            val search = searchOnly
             Thread {
-                val result = client.sendText(text)
+                val result: WebOsClient.TypeResult = if (search) {
+                    when (val r = client.openInBrowser(text)) {
+                        is WebOsClient.Result.Success -> WebOsClient.TypeResult.Typed
+                        is WebOsClient.Result.NeedsPairing -> WebOsClient.TypeResult.NeedsPairing
+                        is WebOsClient.Result.Error -> WebOsClient.TypeResult.Failed(
+                            if (isPermissionError(r.message)) "This TV won't open links from this app" else r.message)
+                    }
+                } else client.typeText(text)
+                if (result is WebOsClient.TypeResult.Refused) TypingSupport.markRefused(appPrefs)
                 runOnUiThread {
                     sendBtn.isEnabled = true
-                    if (result is WebOsClient.Result.Success) { dialog.dismiss(); return@runOnUiThread }
+                    if (result is WebOsClient.TypeResult.Typed) { dialog.dismiss(); return@runOnUiThread }
+                    if (result is WebOsClient.TypeResult.Refused) searchOnly = true
                     if (!dialog.isShowing) {
-                        if (result is WebOsClient.Result.Error && !isFinishing)
+                        if (result is WebOsClient.TypeResult.Failed && !isFinishing)
                             Toast.makeText(this, result.message, Toast.LENGTH_SHORT).show()
                         return@runOnUiThread
                     }
                     error = when (result) {
-                        is WebOsClient.Result.NeedsPairing -> "Accept pairing on your TV, then try again"
-                        is WebOsClient.Result.Error ->
-                            if (isPermissionError(result.message)) "This TV doesn't allow typing from this app"
-                            else result.message.ifEmpty { "The TV rejected the text" }
+                        is WebOsClient.TypeResult.NeedsPairing -> "Accept pairing on your TV, then try again"
+                        is WebOsClient.TypeResult.Failed -> result.message.ifEmpty { "The TV rejected the text" }
                         else -> null
                     }
                     showStatus()

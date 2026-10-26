@@ -267,6 +267,7 @@ class WebOsClient(appContext: Context) {
                                 TestLog.sock("cmd", sid, "registered")
                                 state = CmdState.READY
                                 readyLatch.countDown()
+                                if (current) Thread { rememberSoftwareVersion(this@CommandSession) }.start()
                             }
                             type == "response" && id == "reg_0" -> {
                                 // TV challenged registration — user must accept pairing prompt
@@ -1418,6 +1419,71 @@ class WebOsClient(appContext: Context) {
         JSONObject().put("text", text).put("replace", false)
     )
 
+    sealed class TypeResult {
+        object Typed : TypeResult()
+        object NeedsPairing : TypeResult()
+        /** The TV answered the typing call with a permission error and no fallback got text in. */
+        object Refused : TypeResult()
+        data class Failed(val message: String) : TypeResult()
+    }
+
+    /** Types into the TV's focused field. A permission refusal is retried through the notification route when its effect can be seen. */
+    fun typeText(text: String): TypeResult {
+        return when (val r = sendText(text)) {
+            is Result.Success -> TypeResult.Typed
+            is Result.NeedsPairing -> TypeResult.NeedsPairing
+            is Result.Error ->
+                if (!isPermissionError(r.message)) TypeResult.Failed(r.message)
+                else if (typeThroughNotification(text)) TypeResult.Typed
+                else TypeResult.Refused
+        }
+    }
+
+    // The notification service runs the call as itself, which is how settings writes get past the same
+    // 401 on webOS 26. Whether the IME honours it is unknown, so it only counts when the keyboard
+    // subscription shows the text length grow; without that the answer is "no" rather than a guess.
+    private fun typeThroughNotification(text: String): Boolean {
+        val before = kbdTextLength
+        if (kbdFocus != KeyboardFocus.FIELD || before < 0) return false
+        if (lunaRequest("com.webos.service.ime/insertText",
+                JSONObject().put("text", text).put("replace", false)) !is Result.Success) return false
+        val until = System.currentTimeMillis() + 2_000
+        while (System.currentTimeMillis() < until) {
+            if (kbdTextLength > before) return true
+            Thread.sleep(100)
+        }
+        return false
+    }
+
+    /** Opens typed text on the TV browser: a link as typed, anything else as a web search. */
+    fun openInBrowser(text: String) = execute(
+        "ssap://system.launcher/open",
+        JSONObject().put("target", TypingSupport.browserTarget(text))
+    )
+
+    @Volatile private var kbdFocus = KeyboardFocus.UNKNOWN
+    @Volatile private var kbdTextLength = -1
+
+    private fun noteKeyboardFrame(frame: JSONObject) {
+        val focus = keyboardFocusOf(frame)
+        if (focus != KeyboardFocus.UNKNOWN) kbdFocus = focus
+        if (focus == KeyboardFocus.NO_FIELD) kbdTextLength = -1
+        keyboardTextLengthOf(frame)?.let { kbdTextLength = it }
+    }
+
+    /** Reads the TV's software version once per connection and stores it for the active TV. */
+    private fun rememberSoftwareVersion(session: CommandSession) {
+        runCatching {
+            fun payloadOf(uri: String, payload: JSONObject) =
+                (session.send(uri, payload, 4) as? CmdReply.Ok)?.payload
+            // webOS 26 refuses the first with a permission error, so the system property service gets a turn
+            val version = TypingSupport.versionOf(payloadOf("ssap://com.webos.service.update/getCurrentSWInformation", JSONObject()))
+                ?: TypingSupport.versionOf(payloadOf("ssap://com.webos.service.tv.systemproperty/getSystemInfo",
+                    JSONObject().put("keys", JSONArray().put("firmwareVersion").put("sdkVersion"))))
+            if (version != null && session.ip == tvIp) TypingSupport.noteVersion(prefs, version)
+        }
+    }
+
     /**
      * Holds a registerRemoteKeyboard subscription on the shared command session and reports
      * whether the TV has a text field focused. Returns a stop function that unsubscribes.
@@ -1432,6 +1498,7 @@ class WebOsClient(appContext: Context) {
                     // pairing would put the TV's prompt back up every couple of seconds
                     val session = sharedCommandSession?.takeIf { it.state == CmdState.READY && it.ip == tvIp }
                     val id = session?.exchange("subscribe", KEYBOARD_URI, JSONObject().put("subscribe", true)) { frame, _ ->
+                        noteKeyboardFrame(frame)
                         listener(keyboardFocusOf(frame))
                     }
                     if (session == null || id == null) {
@@ -1441,6 +1508,7 @@ class WebOsClient(appContext: Context) {
                     }
                     idle = false
                     try { session.awaitDeath() } finally { session.endExchange(id, true) }
+                    kbdFocus = KeyboardFocus.UNKNOWN; kbdTextLength = -1
                     listener(KeyboardFocus.UNKNOWN)
                 }
             } catch (_: InterruptedException) { }
@@ -1461,6 +1529,22 @@ class WebOsClient(appContext: Context) {
             CmdState.NEEDS_PAIRING -> null to "TV is waiting for pairing"
             else -> null to "Can't connect to TV"
         }
+    }
+
+    /** The notification route used for settings writes, aimed at insertText; both raw replies for the keyboard test. */
+    fun rawNotificationInsert(text: String): Pair<RawCall, RawCall?> {
+        val lunaUri = "luna://com.webos.service.ime/insertText"
+        val params = JSONObject().put("text", text).put("replace", false)
+        val alert = rawRequest("ssap://system.notifications/createAlert", JSONObject().apply {
+            put("message", " ")
+            put("buttons", JSONArray().put(JSONObject().put("label", "").put("onClick", lunaUri).put("params", params)))
+            put("onclose", JSONObject().put("uri", lunaUri).put("params", params))
+            put("onfail", JSONObject().put("uri", lunaUri).put("params", params))
+        })
+        val alertId = alert.frame?.let { runCatching { JSONObject(it) }.getOrNull() }
+            ?.optJSONObject("payload")?.optString("alertId")
+        if (alertId.isNullOrEmpty()) return alert to null
+        return alert to rawRequest("ssap://system.notifications/closeAlert", JSONObject().put("alertId", alertId))
     }
 
     /** Sends one request and returns the raw reply frame. Used by the keyboard test. */

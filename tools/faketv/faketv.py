@@ -107,6 +107,14 @@ class TvState:
         # none: the IME service answers everything; write: insertText / deleteCharacters /
         # sendEnterKey get a 401; all: registerRemoteKeyboard does too.
         self.kbd_deny = "none"
+        # none | bool (insertText rejects a non-boolean replace) | need-sub (insertText answers OK but
+        # the text only lands while some client holds a registerRemoteKeyboard subscription)
+        self.kbd_quirk = "none"
+        # works: the createAlert onclose route can run luna://com.webos.service.ime/insertText
+        self.kbd_luna = "none"
+        # webOS 26 refuses getCurrentSWInformation with a permission error
+        self.sw_deny = False
+        self.sw_minor = "40.43"
         self.foreground = "com.webos.app.browser"
         # ok / deny / ignore: what a launch of the factory menu app does
         self.factory = "ok"
@@ -556,14 +564,30 @@ def h_register_remote_keyboard(payload, ws):
     return {"subscribed": True, "currentWidget": _kbd_widget()}
 
 
+def _kbd_type(text):
+    if not STATE.kbd_focus or (STATE.kbd_quirk == "need-sub" and not SUBSCRIPTIONS[KBD_URI]):
+        log(f"TEXT IGNORED by the TV: {text!r}")
+        return
+    log(f"TEXT LANDED: {text!r}")
+    STATE.kbd_text += str(text)
+    _kbd_changed()
+
+
 def h_insert_text(payload, ws):
     # WebOsClient.kt sendText: {"text": text, "replace": false}
     _kbd_write_gate()
     log(f"INSERT TEXT text={payload.get('text', '')!r} replace={payload.get('replace')!r}")
-    if STATE.kbd_focus:
-        STATE.kbd_text += str(payload.get("text", ""))
-        _kbd_changed()
+    if STATE.kbd_quirk == "bool" and not isinstance(payload.get("replace", False), bool):
+        return {"returnValue": False, "errorCode": -1000, "errorText": "Invalid parameters: replace must be a boolean"}
+    _kbd_type(payload.get("text", ""))
     return {}
+
+
+def h_launcher_open(payload, ws):
+    # WebOsClient.kt openInBrowser: {"target": url}
+    log(f"OPEN target={payload.get('target')!r}")
+    STATE.foreground = "com.webos.app.browser"
+    return {"id": "com.webos.app.browser"}
 
 
 def h_delete_characters(payload, ws):
@@ -587,8 +611,10 @@ def h_get_system_info(payload, ws):
 
 
 def h_get_sw_information(payload, ws):
+    if STATE.sw_deny:
+        raise SsapDenied("401 insufficient permissions")
     return {"product_name": "webOS", "model_name": "HE_DTV_W24P_AFADATAA", "sw_type": "FIRMWARE",
-            "major_ver": "04", "minor_ver": "40.43", "country": "DK", "device_id": "AA:BB:CC:DD:EE:FF",
+            "major_ver": "04", "minor_ver": STATE.sw_minor, "country": "DK", "device_id": "AA:BB:CC:DD:EE:FF",
             "auth_flag": "N", "ignore_disable": "N", "eco_info": "01", "config_key": "00",
             "language_code": "en-GB"}
 
@@ -651,6 +677,9 @@ def h_close_alert(payload, ws):
         params = action.get("params", {}) or {}
         if uri == "luna://com.webos.settingsservice/setSystemSettings":
             apply_settings(params.get("category", ""), params.get("settings", {}) or {})
+        elif uri == "luna://com.webos.service.ime/insertText" and STATE.kbd_luna == "works":
+            log(f"INSERT TEXT (luna) text={params.get('text', '')!r}")
+            _kbd_type(params.get("text", ""))
     return {}
 
 
@@ -671,6 +700,7 @@ HANDLERS = {
     "ssap://tv/switchInput": h_switch_input,
     "ssap://system.launcher/launch": h_launch,
     "ssap://system.launcher/close": h_close,
+    "ssap://system.launcher/open": h_launcher_open,
     "ssap://com.webos.service.ime/insertText": h_insert_text,
     "ssap://com.webos.service.ime/deleteCharacters": h_delete_characters,
     "ssap://com.webos.service.ime/sendEnterKey": h_send_enter_key,
@@ -956,6 +986,14 @@ def main():
     parser.add_argument("--kbd-deny", choices=["none", "write", "all"], default="none",
                          help="answer the IME calls with a real-looking 401 (top-level error, empty payload): "
                               "write = insertText/deleteCharacters/sendEnterKey, all = registerRemoteKeyboard too")
+    parser.add_argument("--kbd-quirk", choices=["none", "bool", "need-sub"], default="none",
+                        help="bool = insertText rejects a non-boolean replace, need-sub = insertText answers OK but "
+                             "only types while a registerRemoteKeyboard subscription is held")
+    parser.add_argument("--kbd-luna", choices=["none", "works"], default="none",
+                        help="works = the createAlert onclose route can run the IME insertText")
+    parser.add_argument("--sw-deny", action="store_true",
+                        help="getCurrentSWInformation answers 401 like webOS 26")
+    parser.add_argument("--sw-minor", default="40.43", help="minor_ver in getCurrentSWInformation")
     parser.add_argument("--kbd-focus", choices=["none", "field", "cycle"], default="field",
                          help="registerRemoteKeyboard state: a text field focused (default), none, or flipping every 5 s")
     parser.add_argument("--factory", choices=["ok", "deny", "ignore"], default="ok",
@@ -984,6 +1022,10 @@ def main():
         global TIMELINE
         TIMELINE = open(args.timeline, "a", encoding="utf-8")
     STATE.kbd_deny = args.kbd_deny
+    STATE.kbd_quirk = args.kbd_quirk
+    STATE.kbd_luna = args.kbd_luna
+    STATE.sw_deny = args.sw_deny
+    STATE.sw_minor = args.sw_minor
     STATE.factory = args.factory
     STATE.kbd_focus = args.kbd_focus != "none"
     STATE.sound_output = args.sound_output

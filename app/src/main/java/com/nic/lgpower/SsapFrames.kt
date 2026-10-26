@@ -39,3 +39,10 @@ fun keyboardFocusOf(frame: JSONObject): KeyboardFocus {
     if (!widget.has("focus")) return KeyboardFocus.UNKNOWN
     return if (widget.optBoolean("focus")) KeyboardFocus.FIELD else KeyboardFocus.NO_FIELD
 }
+
+/** The text length the TV reports for the focused field, null when the frame has none (hidden fields omit it). */
+fun keyboardTextLengthOf(frame: JSONObject): Int? {
+    if (frame.optString("type") == "error") return null
+    val widget = frame.optJSONObject("payload")?.optJSONObject("currentWidget") ?: return null
+    return if (widget.has("surroundingTextLength")) widget.optInt("surroundingTextLength") else null
+}

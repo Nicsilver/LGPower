@@ -59,6 +59,14 @@ every 5 s. The first reply and the pushes carry `{"subscribed":true,"currentWidg
 the 401 frame webOS 26 is suspected to send: `{"type":"error","id":..,"error":"401
 insufficient permissions","payload":{}}`.
 
+`--kbd-quirk bool|need-sub` and `--kbd-luna works` mimic the other suspected webOS 26 failures:
+`bool` rejects a non-boolean `replace` with `returnValue:false`, `need-sub` answers `insertText` OK
+but only types while someone holds the `registerRemoteKeyboard` subscription, and `works` lets the
+createAlert `onclose` route run the IME `insertText` (the 401 fallback in the app). `--sw-deny`
+makes `getCurrentSWInformation` answer the 401 frame, `--sw-minor` changes the version it reports
+(restart the fake to simulate a firmware update). `system.launcher/open` logs `OPEN target=...`
+and puts the browser in front.
+
 ### Touchpad timing flags
 
 `--timeline <file>` appends one line per pointer frame and SSAP request with a millisecond
