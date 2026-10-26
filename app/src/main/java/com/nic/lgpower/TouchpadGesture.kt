@@ -21,6 +21,9 @@ internal class TouchpadGesture(
     private var dxCarry = 0f
     private var dyCarry = 0f
     private var scrolling = false
+    // Stays set until every finger is up: the fingers of a scroll leave one at a time, and the
+    // last one up must not read as a tap
+    private var hadSecondFinger = false
     private var lastScrollY = 0f
     private var scrollCarry = 0f
     private val tapThresholdPx = 12 * density
@@ -37,12 +40,14 @@ internal class TouchpadGesture(
                 dxCarry = 0f
                 dyCarry = 0f
                 scrolling = false
+                hadSecondFinger = false
                 scrollCarry = 0f
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 // Second finger down: switch to scroll mode
                 if (event.pointerCount == 2) {
                     scrolling = true
+                    hadSecondFinger = true
                     dragging = false
                     lastScrollY = (event.getY(0) + event.getY(1)) / 2f
                     scrollCarry = 0f
@@ -98,7 +103,7 @@ internal class TouchpadGesture(
                 lastTouchY = event.getY(remaining) + (event.rawY - event.getY(0))
             }
             MotionEvent.ACTION_UP -> {
-                if (!dragging && !scrolling) {
+                if (!dragging && !hadSecondFinger) {
                     v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     client.pointerClick()
                 }
