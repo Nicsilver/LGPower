@@ -104,7 +104,7 @@ abstract class ServiceRemoteBase : AppCompatActivity() {
 
             label("NAV")
             row(k("BACK", KeyTile.BACK), k("▲", KeyTile.UP), k("EXIT", KeyTile.EXIT))
-            row(k("◀", KeyTile.LEFT), k("OK", KeyTile.OK), k("▶", KeyTile.RIGHT))
+            row(k("◀︎", KeyTile.LEFT), k("OK", KeyTile.OK), k("▶︎", KeyTile.RIGHT))
             row(if (withPower) k("PWR", KeyTile.PWR) else spacer(), k("▼", KeyTile.DOWN), spacer())
         }
     }
