@@ -58,7 +58,7 @@ class KeyboardTestActivity : AppCompatActivity() {
 
         val version = "LG Power ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
         Thread {
-            val result = KeyboardTest(WebOsClient(this), version).run { line ->
+            val result = KeyboardTest(WebOsClient(this), version, getSharedPreferences("webos", MODE_PRIVATE)).run { line ->
                 runOnUiThread { progress.text = line }
             }
             runOnUiThread {
