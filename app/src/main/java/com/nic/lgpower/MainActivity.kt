@@ -662,6 +662,7 @@ class MainActivity : AppCompatActivity() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     hl.sector = sector; hl.invalidate()
+                    v.drawableHotspotChanged(event.x, event.y)
                     hold = holds.begin()
                     v.isPressed = true; sendKeyCommand(block)
                     repeatHandler.postDelayed(repeatRunnable, 400L); true
@@ -678,7 +679,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyPressAnimations(root: View) {
-        if (root is android.widget.ImageButton || root is android.widget.Button) {
+        // btn_dpad is a FrameLayout (icon over a circle view), so the type check alone skips it
+        if (root is android.widget.ImageButton || root is android.widget.Button || root.id == R.id.btn_dpad) {
             root.setOnTouchListener { v, event ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> animPress(v)
@@ -690,8 +692,41 @@ class MainActivity : AppCompatActivity() {
         if (root is android.view.ViewGroup) repeat(root.childCount) { applyPressAnimations(root.getChildAt(it)) }
     }
 
+    private fun rippleColor(theme: ThemeConfig): Int =
+        if (androidx.core.graphics.ColorUtils.calculateLuminance(theme.windowBg) < 0.5) 0x33FFFFFF else 0x1F000000
+
+    // A foreground ripple rather than a background one: backgrounds on these views are replaced
+    // by theme tags and per-state tinting, so a ripple wrapped around them would be lost
+    private fun setRipple(view: View?, color: Int, radiusDp: Float? = null) {
+        view ?: return
+        val mask = GradientDrawable().apply {
+            if (radiusDp == null) shape = GradientDrawable.OVAL
+            else cornerRadius = radiusDp * resources.displayMetrics.density
+            setColor(Color.BLACK)
+        }
+        view.foreground = android.graphics.drawable.RippleDrawable(ColorStateList.valueOf(color), null, mask)
+    }
+
+    private fun applyRipples(theme: ThemeConfig) {
+        val color = rippleColor(theme)
+        listOf(R.id.btn_power, R.id.btn_dpad, R.id.btn_keyboard, R.id.btn_home, R.id.btn_mute, R.id.btn_input,
+               R.id.btn_back, R.id.btn_media, R.id.btn_settings, R.id.btn_screen_off, R.id.btn_picture,
+               R.id.btn_numpad, R.id.btn_colors, R.id.btn_sound,
+               R.id.btn_media_rew, R.id.btn_media_play, R.id.btn_media_pause, R.id.btn_media_ff,
+               R.id.btn_color_red, R.id.btn_color_green, R.id.btn_color_yellow, R.id.btn_color_blue,
+               R.id.btn_numpad_close, R.id.btn_app_settings, R.id.btn_ok,
+               R.id.btn_up, R.id.btn_down, R.id.btn_left, R.id.btn_right)
+            .forEach { setRipple(findViewById(it), color) }
+        listOf(R.id.btn_num_0, R.id.btn_num_1, R.id.btn_num_2, R.id.btn_num_3, R.id.btn_num_4,
+               R.id.btn_num_5, R.id.btn_num_6, R.id.btn_num_7, R.id.btn_num_8, R.id.btn_num_9,
+               R.id.btn_num_dash, R.id.btn_num_list, R.id.btn_np_ch_up, R.id.btn_np_ch_down, R.id.btn_np_enter,
+               R.id.btn_np_guide, R.id.btn_np_info, R.id.btn_np_cc, R.id.btn_np_exit, R.id.btn_np_tv)
+            .forEach { setRipple(findViewById(it), color, 18f) }
+    }
+
     private fun applyTheme() {
         val theme = ThemeManager.getActiveTheme(this)
+        applyRipples(theme)
         ThemeManager.applyToRoot(findViewById(R.id.main_root), theme)
         val iconTint = ColorStateList.valueOf(theme.circleBtnIconTint)
         listOf(R.id.btn_keyboard, R.id.btn_home, R.id.btn_input,
@@ -1351,6 +1386,7 @@ class MainActivity : AppCompatActivity() {
                     background = pillBg
                     isClickable = true
                     isFocusable = true
+                    setRipple(this, rippleColor(theme), 16f)
                     setOnTouchListener { v, event ->
                         when (event.action) {
                             MotionEvent.ACTION_DOWN -> v.animate().scaleX(0.95f).scaleY(0.95f).setDuration(70).start()
