@@ -1622,6 +1622,16 @@ class MainActivity : AppCompatActivity() {
             status.visibility = View.VISIBLE
         }
         if (searchOnly) showStatus()
+        // A firmware update lifts the refusal; the version is read now, so the sheet leaves search
+        // mode on its own when the TV reports a new one
+        Thread {
+            client.refreshSoftwareVersion()
+            if (searchOnly && !TypingSupport.isRefused(appPrefs)) runOnUiThread {
+                if (!dialog.isShowing) return@runOnUiThread
+                searchOnly = false
+                showStatus()
+            }
+        }.start()
 
         fun send() {
             // The IME's Send action still fires while the button is disabled for a send in flight

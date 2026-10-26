@@ -267,7 +267,6 @@ class WebOsClient(appContext: Context) {
                                 TestLog.sock("cmd", sid, "registered")
                                 state = CmdState.READY
                                 readyLatch.countDown()
-                                if (current) Thread { rememberSoftwareVersion(this@CommandSession) }.start()
                             }
                             type == "response" && id == "reg_0" -> {
                                 // TV challenged registration — user must accept pairing prompt
@@ -1471,9 +1470,20 @@ class WebOsClient(appContext: Context) {
         keyboardTextLengthOf(frame)?.let { kbdTextLength = it }
     }
 
-    /** Reads the TV's software version once per connection and stores it for the active TV. */
-    private fun rememberSoftwareVersion(session: CommandSession) {
+    @Volatile private var versionReadFor: CommandSession? = null
+
+    /**
+     * Reads the TV's software version once per connection and stores it for the active TV. Run when
+     * the keyboard opens, so a connection that never types sends nothing extra. Blocks; call off the main thread.
+     */
+    fun refreshSoftwareVersion() {
+        if (buildWsRequest() == null) return
+        val session = commandSession()
+        if (versionReadFor === session) return
+        versionReadFor = session
         runCatching {
+            session.awaitSettled()
+            if (session.state != CmdState.READY) return
             fun payloadOf(uri: String, payload: JSONObject) =
                 (session.send(uri, payload, 4) as? CmdReply.Ok)?.payload
             // webOS 26 refuses the first with a permission error, so the system property service gets a turn
