@@ -13,6 +13,9 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(48, "1.40.1", "2026-10-28", listOf(
+            "Arrow keys show one press highlight again instead of two",
+        )),
         Release(47, "1.40.0", "2026-10-26", listOf(
             "Service menu over Wi-Fi, works on phones without an IR blaster. The IR service menu has its own page",
             "New option: touchpad instead of the D-pad, with a D-pad button to swap the arrows back in",
