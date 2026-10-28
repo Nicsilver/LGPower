@@ -662,7 +662,6 @@ class MainActivity : AppCompatActivity() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     hl.sector = sector; hl.invalidate()
-                    v.drawableHotspotChanged(event.x, event.y)
                     hold = holds.begin()
                     v.isPressed = true; sendKeyCommand(block)
                     repeatHandler.postDelayed(repeatRunnable, 400L); true
@@ -707,6 +706,7 @@ class MainActivity : AppCompatActivity() {
         view.foreground = android.graphics.drawable.RippleDrawable(ColorStateList.valueOf(color), null, mask)
     }
 
+    // The d-pad arrows are left out: the sector highlight is their press visual, a ripple on top doubled it
     private fun applyRipples(theme: ThemeConfig) {
         val color = rippleColor(theme)
         listOf(R.id.btn_power, R.id.btn_dpad, R.id.btn_keyboard, R.id.btn_home, R.id.btn_mute, R.id.btn_input,
@@ -714,8 +714,7 @@ class MainActivity : AppCompatActivity() {
                R.id.btn_numpad, R.id.btn_colors, R.id.btn_sound,
                R.id.btn_media_rew, R.id.btn_media_play, R.id.btn_media_pause, R.id.btn_media_ff,
                R.id.btn_color_red, R.id.btn_color_green, R.id.btn_color_yellow, R.id.btn_color_blue,
-               R.id.btn_numpad_close, R.id.btn_app_settings, R.id.btn_ok,
-               R.id.btn_up, R.id.btn_down, R.id.btn_left, R.id.btn_right)
+               R.id.btn_numpad_close, R.id.btn_app_settings, R.id.btn_ok)
             .forEach { setRipple(findViewById(it), color) }
         listOf(R.id.btn_num_0, R.id.btn_num_1, R.id.btn_num_2, R.id.btn_num_3, R.id.btn_num_4,
                R.id.btn_num_5, R.id.btn_num_6, R.id.btn_num_7, R.id.btn_num_8, R.id.btn_num_9,
