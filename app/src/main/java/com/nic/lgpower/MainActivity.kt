@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val PREF_TOUR_PENDING = Tour.PREF_MAIN
         const val PREF_PAD_INSTEAD_OF_DPAD = "touchpad_instead_of_dpad"
+        const val PREF_VOLUME_SWIPE = "volume_swipe"
         private const val MAX_KEY_BACKLOG = 2
     }
     // Key presses go through one thread so they reach the TV in the order they were tapped.
@@ -261,7 +262,8 @@ class MainActivity : AppCompatActivity() {
                     statusHandler.post(volumeSendLoop)
                 }
             },
-            sliderEnabled = { true }
+            sliderEnabled = { true },
+            swipeEnabled = { appPrefs.getBoolean(PREF_VOLUME_SWIPE, true) }
         )
         findViewById<View>(R.id.btn_mute).setOnClickListener {
             currentVolume?.let { v -> runOnUiThread { setVolumeState(v, !currentMuted) } }
@@ -1127,6 +1129,7 @@ class MainActivity : AppCompatActivity() {
         onDragEnd: (Int) -> Unit,
         onDragMove: ((Int) -> Unit)? = null,
         sliderEnabled: () -> Boolean = { true },
+        swipeEnabled: () -> Boolean = { true },
         onActionUp: (() -> Unit)? = null
     ) {
         val pill = findViewById<View>(pillId)
@@ -1153,6 +1156,9 @@ class MainActivity : AppCompatActivity() {
         }
         var startY = 0f
         var isDragging = false
+        // A swipe with swiping off is neither a drag nor a tap, so lifting the finger must not
+        // fall through to the half-pill tap.
+        var swipeIgnored = false
         var lastHapticLevel = -1
 
         val repeatHandler = Handler(Looper.getMainLooper())
@@ -1191,6 +1197,7 @@ class MainActivity : AppCompatActivity() {
                 MotionEvent.ACTION_DOWN -> {
                     startY = event.y
                     isDragging = false
+                    swipeIgnored = false
                     lastHapticLevel = -1
                     v.parent?.requestDisallowInterceptTouchEvent(true)
                     if (event.y < pillHeightPx / 2f) { topHl.visibility = View.VISIBLE; botHl.visibility = View.INVISIBLE }
@@ -1204,9 +1211,9 @@ class MainActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_MOVE -> {
                     if (sliderEnabled()) {
-                        if (!isDragging && abs(event.y - startY) > dragThreshold) {
-                            isDragging = true
+                        if (!isDragging && !swipeIgnored && abs(event.y - startY) > dragThreshold) {
                             topHl.visibility = View.INVISIBLE; botHl.visibility = View.INVISIBLE
+                            if (swipeEnabled()) isDragging = true else swipeIgnored = true
                         }
                         if (isDragging) {
                             val level = ((1f - event.y / pillHeightPx) * 100).toInt().coerceIn(0, 100)
@@ -1233,7 +1240,7 @@ class MainActivity : AppCompatActivity() {
                         if (isDragging) {
                             val level = ((1f - event.y / pillHeightPx) * 100).toInt().coerceIn(0, 100)
                             onDragEnd(level)
-                        } else {
+                        } else if (!swipeIgnored) {
                             if (event.y < pillHeightPx / 2f) onTapUp() else onTapDown()
                         }
                     }

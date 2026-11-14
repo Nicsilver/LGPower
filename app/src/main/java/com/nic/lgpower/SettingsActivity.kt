@@ -63,7 +63,12 @@ class SettingsActivity : AppCompatActivity() {
         switchPad.setOnCheckedChangeListener { _, v ->
             prefs.edit().putBoolean(MainActivity.PREF_PAD_INSTEAD_OF_DPAD, v).apply()
         }
-        listOf(switchKeepScreenOn, switchChannelPill, switchPad).forEach { makeRowToggle(it) }
+        val switchVolumeSwipe = findViewById<Switch>(R.id.switch_volume_swipe)
+        switchVolumeSwipe.isChecked = prefs.getBoolean(MainActivity.PREF_VOLUME_SWIPE, true)
+        switchVolumeSwipe.setOnCheckedChangeListener { _, v ->
+            prefs.edit().putBoolean(MainActivity.PREF_VOLUME_SWIPE, v).apply()
+        }
+        listOf(switchKeepScreenOn, switchChannelPill, switchPad, switchVolumeSwipe).forEach { makeRowToggle(it) }
         switchKeepScreenOn.setOnCheckedChangeListener { sw, v ->
             if (!v) { prefs.edit().putBoolean("keep_screen_on", false).apply(); return@setOnCheckedChangeListener }
             if (prefs.getBoolean("keep_screen_on", false)) return@setOnCheckedChangeListener
@@ -375,7 +380,7 @@ class SettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
             intArrayOf(theme.switchThumbOn, theme.switchThumbOff)
         )
-        listOf(R.id.switch_channel_pill, R.id.switch_pad_instead_of_dpad, R.id.switch_keep_screen_on)
+        listOf(R.id.switch_channel_pill, R.id.switch_pad_instead_of_dpad, R.id.switch_volume_swipe, R.id.switch_keep_screen_on)
             .forEach { id ->
                 val sw = findViewById<Switch>(id) ?: return@forEach
                 sw.trackTintList = trackCsl
