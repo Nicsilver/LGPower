@@ -55,9 +55,6 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<View>(R.id.row_wake_action).setOnClickListener { openWakeActionPicker() }
         val switchChannelPill = findViewById<Switch>(R.id.switch_channel_pill)
         switchChannelPill.isChecked = RightPill.get(prefs) == RightPill.CHANNEL
-        switchChannelPill.setOnCheckedChangeListener { _, v ->
-            RightPill.set(prefs, if (v) RightPill.CHANNEL else RightPill.BRIGHTNESS)
-        }
         val switchPad = findViewById<Switch>(R.id.switch_pad_instead_of_dpad)
         switchPad.isChecked = prefs.getBoolean(MainActivity.PREF_PAD_INSTEAD_OF_DPAD, false)
         switchPad.setOnCheckedChangeListener { _, v ->
@@ -68,7 +65,23 @@ class SettingsActivity : AppCompatActivity() {
         switchVolumeSwipe.setOnCheckedChangeListener { _, v ->
             prefs.edit().putBoolean(MainActivity.PREF_VOLUME_SWIPE, v).apply()
         }
-        listOf(switchKeepScreenOn, switchChannelPill, switchPad, switchVolumeSwipe).forEach { makeRowToggle(it) }
+        val switchBrightnessSwipe = findViewById<Switch>(R.id.switch_brightness_swipe)
+        switchBrightnessSwipe.isChecked = prefs.getBoolean(MainActivity.PREF_BRIGHTNESS_SWIPE, true)
+        switchBrightnessSwipe.setOnCheckedChangeListener { _, v ->
+            prefs.edit().putBoolean(MainActivity.PREF_BRIGHTNESS_SWIPE, v).apply()
+        }
+        // The brightness pill only exists while the right pill is on brightness.
+        fun showBrightnessSwipeRow(channel: Boolean) {
+            val vis = if (channel) View.GONE else View.VISIBLE
+            findViewById<View>(R.id.row_brightness_swipe).visibility = vis
+            findViewById<View>(R.id.divider_brightness_swipe).visibility = vis
+        }
+        showBrightnessSwipeRow(switchChannelPill.isChecked)
+        switchChannelPill.setOnCheckedChangeListener { _, v ->
+            RightPill.set(prefs, if (v) RightPill.CHANNEL else RightPill.BRIGHTNESS)
+            showBrightnessSwipeRow(v)
+        }
+        listOf(switchKeepScreenOn, switchChannelPill, switchPad, switchVolumeSwipe, switchBrightnessSwipe).forEach { makeRowToggle(it) }
         switchKeepScreenOn.setOnCheckedChangeListener { sw, v ->
             if (!v) { prefs.edit().putBoolean("keep_screen_on", false).apply(); return@setOnCheckedChangeListener }
             if (prefs.getBoolean("keep_screen_on", false)) return@setOnCheckedChangeListener
@@ -380,7 +393,7 @@ class SettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
             intArrayOf(theme.switchThumbOn, theme.switchThumbOff)
         )
-        listOf(R.id.switch_channel_pill, R.id.switch_pad_instead_of_dpad, R.id.switch_volume_swipe, R.id.switch_keep_screen_on)
+        listOf(R.id.switch_channel_pill, R.id.switch_pad_instead_of_dpad, R.id.switch_volume_swipe, R.id.switch_brightness_swipe, R.id.switch_keep_screen_on)
             .forEach { id ->
                 val sw = findViewById<Switch>(id) ?: return@forEach
                 sw.trackTintList = trackCsl

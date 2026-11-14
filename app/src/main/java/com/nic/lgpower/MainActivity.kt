@@ -42,6 +42,7 @@ class MainActivity : AppCompatActivity() {
         const val PREF_TOUR_PENDING = Tour.PREF_MAIN
         const val PREF_PAD_INSTEAD_OF_DPAD = "touchpad_instead_of_dpad"
         const val PREF_VOLUME_SWIPE = "volume_swipe"
+        const val PREF_BRIGHTNESS_SWIPE = "brightness_swipe"
         private const val MAX_KEY_BACKLOG = 2
     }
     // Key presses go through one thread so they reach the TV in the order they were tapped.
@@ -1071,6 +1072,7 @@ class MainActivity : AppCompatActivity() {
                 }
             },
             sliderEnabled = { true },
+            swipeEnabled = { appPrefs.getBoolean(PREF_BRIGHTNESS_SWIPE, true) },
             onActionUp = { scheduleBrightnessRefresh() }
         )
     }
