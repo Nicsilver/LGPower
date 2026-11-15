@@ -13,6 +13,9 @@ object ReleaseNotes {
     fun since(lastSeenCode: Int) = all.filter { it.code > lastSeenCode }
 
     val all = listOf(
+        Release(49, "1.41.0", "2026-11-15", listOf(
+            "Settings: new switches to turn off swiping to change the volume or brightness, so the pills can't jump by accident. Taps still work",
+        )),
         Release(48, "1.40.1", "2026-10-28", listOf(
             "Arrow keys show one press highlight again instead of two",
         )),
